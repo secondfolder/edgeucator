@@ -16,7 +16,8 @@
 		"test": "npm run test:unit -- --run",
 		"db:push": "drizzle-kit push",
 		"db:migrate": "drizzle-kit migrate",
-		"db:studio": "drizzle-kit studio"
+		"db:studio": "drizzle-kit studio",
+		"db:seed": "npx vite-node src/lib/server/db/seed.ts"
 	},
 	"devDependencies": {
 		"@eslint/compat": "^1.2.5",
@@ -42,6 +43,9 @@
 		"vitest": "^3.0.0"
 	},
 	"dependencies": {
+		"@supabase/ssr": "^0.5.2",
+		"@supabase/supabase-js": "^2.49.1",
+		"bits-ui": "^1.3.11",
 		"drizzle-orm": "^0.40.0",
 		"postgres": "^3.4.5"
 	}
