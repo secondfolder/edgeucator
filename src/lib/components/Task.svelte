@@ -95,6 +95,7 @@
         
     }
     footer {
+        width: 100%;
         display: flex;
         gap: 0.5em;
         padding: 1em;
@@ -109,7 +110,7 @@
         
         .info {
             text-align: center;
-            background-color: white;
+            background-color: var(--wa-color-surface-default);
             border-radius: 0.2em;
             padding: 0.5em 1em;
         }
