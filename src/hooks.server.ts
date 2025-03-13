@@ -70,13 +70,13 @@ const authGuard: Handle = async ({ event, resolve }) => {
     const protectedRoutes = ['/guides']
     const defaultLoggedInRoute = '/guides'
 
-    if (!event.locals.session && protectedRoutes.some(route => event.url.pathname.startsWith(route))) {
-        redirect(303, '/auth')
-    }
+    // if (!event.locals.session && protectedRoutes.some(route => event.url.pathname.startsWith(route))) {
+    //     redirect(303, '/auth')
+    // }
 
-    if (event.locals.session && event.url.pathname === '/auth') {
-        redirect(303, defaultLoggedInRoute)
-    }
+    // if (event.locals.session && event.url.pathname === '/auth') {
+    //     redirect(303, defaultLoggedInRoute)
+    // }
 
     return resolve(event)
 }
