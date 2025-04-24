@@ -1,8 +1,3 @@
-<script>
-	let { data } = $props();
-	let { colors } = $derived(data);
-</script>
-
 <div class="container">
     <header>
         <h1>Edgeucator</h1>

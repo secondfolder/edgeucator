@@ -1,19 +1,42 @@
-<script>
-	import { invalidate } from '$app/navigation';
-	import { onMount } from 'svelte';
+<script lang="ts">
+	import { browser } from '$app/environment';
+	import { setUserContext } from '$lib/contexts/user';
+	import { pb } from '$lib/pocketbase';
+	import { onDestroy, type Snippet } from 'svelte';
+	import { writable } from 'svelte/store';
+	import type { PageData } from './$types';
+	import SiteHeader from '$lib/components/SiteHeader.svelte';
 
-	let { data, children } = $props();
-	let { session, supabase } = $derived(data);
+	interface Props {
+		data: PageData;
+		children?: Snippet;
+	}
 
-	onMount(() => {
-		const { data } = supabase.auth.onAuthStateChange((_, newSession) => {
-			if (newSession?.expires_at !== session?.expires_at) {
-				invalidate('supabase:auth');
-			}
-		});
+	let { data, children }: Props = $props();
 
-		return () => data.subscription.unsubscribe();
-	});
+    // Initialize user store
+    const user = writable(data.user);
+    setUserContext(user);
+
+    if (browser) {
+        // Load user from cookie (client-side only)
+        pb.authStore.loadFromCookie(document.cookie);
+
+        // Update user store when auth store changes
+        const unsubscribe = pb.authStore.onChange(() => {
+            user.set(pb.authStore.record);
+            document.cookie = pb.authStore.exportToCookie({ httpOnly: false });
+        }, true);
+        onDestroy(unsubscribe);
+    }
 </script>
 
-{@render children()}
+
+<SiteHeader />
+{@render children?.()}
+
+<style>
+	:root {
+		--wa-color-text-danger: var(--wa-color-red-40);
+	}
+</style>

@@ -1,11 +1,11 @@
 <script lang="ts">
 	import type { SuperValidated, Infer } from 'sveltekit-superforms';
 	import { superForm } from 'sveltekit-superforms';
-	import type { LoginFormSchema } from '$lib/schemas/loginForm';
+	import type { SignupFormSchema } from '$lib/schemas/signupForm';
 	import InputField from './InputField.svelte';
 	import { pb } from '$lib/pocketbase';
 
-	let { data }: { data: SuperValidated<Infer<LoginFormSchema>> } = $props();
+	let { data }: { data: SuperValidated<Infer<SignupFormSchema>> } = $props();
 
 	const superform = superForm(data, {
         onResult: () => {
@@ -19,7 +19,8 @@
 <form method="POST" use:superform.enhance>
     <InputField {superform} field="email" title="Email" type="email"/>
     <InputField {superform} field="password" title="Password" type="password"/>
-    <wa-button type="submit">Login</wa-button>
+    <InputField {superform} field="passwordConfirm" title="Confirm Password" type="password"/>
+    <wa-button type="submit">Sign Up</wa-button>
     {#if $errors._errors}<span class="invalid">{$errors._errors}</span>{/if}
 </form>
 
