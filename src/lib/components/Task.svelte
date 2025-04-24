@@ -124,6 +124,11 @@
 				background-color: var(--wa-color-surface-default);
 			}
 
+			wa-button::part(base) {
+                /* Stop iOS Safari from zooming if button is tapped multiple times too quickly */
+				touch-action: manipulation;
+			}
+
 			wa-button-group {
 				--wa-button-group-gap: 0.5em;
 			}
