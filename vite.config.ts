@@ -32,10 +32,10 @@ export default defineConfig({
 			}
 		]
 	},
-    
-    server: {
-        host: process.env.HOST,
-        allowedHosts: ['meeka-edgeucator.oncal.link'],
-        origin: 'https://meeka-edgeucator.oncal.link',
-    }
+
+	server: {
+		host: process.env.HOST,
+		allowedHosts: ['meeka-edgeucator.oncal.link'],
+		origin: 'https://meeka-edgeucator.oncal.link'
+	}
 });

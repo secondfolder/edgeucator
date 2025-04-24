@@ -3,19 +3,31 @@
 	<head>
 		<meta charset="utf-8" />
 		<link rel="icon" href="%sveltekit.assets%/favicon.png" />
-        <link rel="stylesheet" href="https://early.webawesome.com/webawesome@3.0.0-alpha.11/dist/styles/themes/default.css" />
-        <link rel="stylesheet" href="https://early.webawesome.com/webawesome@3.0.0-alpha.11/dist/styles/webawesome.css" />
-        <script type="module" src="https://early.webawesome.com/webawesome@3.0.0-alpha.11/dist/webawesome.loader.js"></script>
-        <script type="module">
-            const systemDark = window.matchMedia('(prefers-color-scheme: dark)');
-            const applyDark = function (event = systemDark) {
-                const isDark = event.matches;
-                document.documentElement.classList.toggle('wa-dark', isDark);
-            };
-            systemDark.addEventListener('change', applyDark);
-            applyDark();
-        </script>
-        <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+		<link
+			rel="stylesheet"
+			href="https://early.webawesome.com/webawesome@3.0.0-alpha.11/dist/styles/themes/default.css"
+		/>
+		<link
+			rel="stylesheet"
+			href="https://early.webawesome.com/webawesome@3.0.0-alpha.11/dist/styles/webawesome.css"
+		/>
+		<script
+			type="module"
+			src="https://early.webawesome.com/webawesome@3.0.0-alpha.11/dist/webawesome.loader.js"
+		></script>
+		<script type="module">
+			const systemDark = window.matchMedia('(prefers-color-scheme: dark)');
+			const applyDark = function (event = systemDark) {
+				const isDark = event.matches;
+				document.documentElement.classList.toggle('wa-dark', isDark);
+			};
+			systemDark.addEventListener('change', applyDark);
+			applyDark();
+		</script>
+		<meta
+			name="viewport"
+			content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no"
+		/>
 		%sveltekit.head%
 	</head>
 	<body data-sveltekit-preload-data="hover">

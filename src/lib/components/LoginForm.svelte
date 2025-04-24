@@ -8,19 +8,18 @@
 	let { data }: { data: SuperValidated<Infer<LoginFormSchema>> } = $props();
 
 	const superform = superForm(data, {
-        onResult: () => {
-            pb.authStore.loadFromCookie(document.cookie)
-        }
-    });
-    const { errors } = superform;
+		onResult: () => {
+			pb.authStore.loadFromCookie(document.cookie);
+		}
+	});
+	const { errors } = superform;
 </script>
 
-
 <form method="POST" use:superform.enhance>
-    <InputField {superform} field="email" title="Email" type="email"/>
-    <InputField {superform} field="password" title="Password" type="password"/>
-    <wa-button type="submit">Login</wa-button>
-    {#if $errors._errors}<span class="invalid">{$errors._errors}</span>{/if}
+	<InputField {superform} field="email" title="Email" type="email" />
+	<InputField {superform} field="password" title="Password" type="password" />
+	<wa-button type="submit">Login</wa-button>
+	{#if $errors._errors}<span class="invalid">{$errors._errors}</span>{/if}
 </form>
 
 <style>
@@ -35,9 +34,9 @@
 		border-style: var(--wa-panel-border-style);
 		border-width: var(--wa-panel-border-width);
 		padding: var(--wa-space-l);
-        
-        .invalid {
-            color: var(--wa-color-text-danger);
-        }
+
+		.invalid {
+			color: var(--wa-color-text-danger);
+		}
 	}
 </style>

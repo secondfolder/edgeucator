@@ -35,7 +35,7 @@
 
 <style>
 	nav {
-        width: 100%;
+		width: 100%;
 		display: flex;
 		justify-content: flex-end;
 		padding: 1rem;
@@ -43,12 +43,12 @@
 		border-bottom: 1px solid var(--wa-color-surface-border);
 
 		ul {
-            margin: 0;
-            display: flex;
-            gap: 1rem;
-            flex-wrap: wrap;
-            align-items: center;
-            
+			margin: 0;
+			display: flex;
+			gap: 1rem;
+			flex-wrap: wrap;
+			align-items: center;
+
 			li {
 				margin: 0;
 				list-style-type: none;

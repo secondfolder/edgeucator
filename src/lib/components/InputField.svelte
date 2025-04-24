@@ -9,7 +9,7 @@
 		superform,
 		field,
 		title,
-        type,
+		type,
 		...otherProps
 	}: { superform: SuperForm<T>; field: FormPathLeaves<T>; title?: string; type: string } = $props();
 
@@ -17,35 +17,29 @@
 </script>
 
 <div class="field">
-    {#if type === 'password'}
-        <wa-input
-            label={title || field}
-            name={field}
-            type={type}
-            password-toggle
-            aria-invalid={$errors ? 'true' : undefined}
-            {...$constraints}
-            {...otherProps}
-        ></wa-input>
-    {:else if type === 'email' || type === 'text'}
-        <wa-input
-            label={title || field}
-            name={field}
-            type={type}
-            {...$constraints}
-            {...otherProps}
-        ></wa-input>
-    {:else}
-        {`Unsupported type: ${type}`}
-    {/if}
-    {#if $errors}<span class="invalid">{$errors}</span>{/if}
+	{#if type === 'password'}
+		<wa-input
+			label={title || field}
+			name={field}
+			{type}
+			password-toggle
+			aria-invalid={$errors ? 'true' : undefined}
+			{...$constraints}
+			{...otherProps}
+		></wa-input>
+	{:else if type === 'email' || type === 'text'}
+		<wa-input label={title || field} name={field} {type} {...$constraints} {...otherProps}
+		></wa-input>
+	{:else}
+		{`Unsupported type: ${type}`}
+	{/if}
+	{#if $errors}<span class="invalid">{$errors}</span>{/if}
 </div>
-
 
 <style>
 	.field {
-        .invalid {
-            color: var(--wa-color-text-danger);
-        }
+		.invalid {
+			color: var(--wa-color-text-danger);
+		}
 	}
 </style>

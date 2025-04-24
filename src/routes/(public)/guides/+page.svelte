@@ -6,10 +6,10 @@
 </script>
 
 <h1>Guides</h1>
-<GuidesList guides={guides} />
+<GuidesList {guides} />
 
 <style>
-    h1 {
-        text-align: center;
-    }
+	h1 {
+		text-align: center;
+	}
 </style>

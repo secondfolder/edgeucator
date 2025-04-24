@@ -14,23 +14,22 @@
 
 	let { data, children }: Props = $props();
 
-    // Initialize user store
-    const user = writable(data.user);
-    setUserContext(user);
+	// Initialize user store
+	const user = writable(data.user);
+	setUserContext(user);
 
-    if (browser) {
-        // Load user from cookie (client-side only)
-        pb.authStore.loadFromCookie(document.cookie);
+	if (browser) {
+		// Load user from cookie (client-side only)
+		pb.authStore.loadFromCookie(document.cookie);
 
-        // Update user store when auth store changes
-        const unsubscribe = pb.authStore.onChange(() => {
-            user.set(pb.authStore.record);
-            document.cookie = pb.authStore.exportToCookie({ httpOnly: false });
-        }, true);
-        onDestroy(unsubscribe);
-    }
+		// Update user store when auth store changes
+		const unsubscribe = pb.authStore.onChange(() => {
+			user.set(pb.authStore.record);
+			document.cookie = pb.authStore.exportToCookie({ httpOnly: false });
+		}, true);
+		onDestroy(unsubscribe);
+	}
 </script>
-
 
 <SiteHeader />
 {@render children?.()}
