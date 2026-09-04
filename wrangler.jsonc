@@ -1,0 +1,31 @@
+{
+	"$schema": "node_modules/wrangler/config-schema.json",
+	"name": "edgeucator",
+	"main": ".svelte-kit/cloudflare/_worker.js",
+	"compatibility_date": "2026-09-01",
+	// Required twice over: kit's getRequestEvent does import('node:async_hooks'),
+	// and @better-auth/core/async_hooks does the same. `nodejs_als` is the minimum
+	// that would work; `nodejs_compat` is a superset and also populates
+	// process.env, which stops better-auth's env probing from coming up empty.
+	"compatibility_flags": ["nodejs_compat"],
+	"assets": {
+		"binding": "ASSETS",
+		"directory": ".svelte-kit/cloudflare"
+	},
+	"observability": {
+		"enabled": true
+	},
+	"d1_databases": [
+		{
+			"binding": "DB",
+			"database_name": "edgeucator",
+			// Replace with the id from `npx wrangler d1 create edgeucator`.
+			// Only needed for `npm run preview:worker` and `npm run deploy` —
+			// `npm run dev` uses ./local.db and never reads this file.
+			"database_id": "REPLACE_ME",
+			// drizzle-kit's `out`. Applied with `wrangler d1 migrations apply`;
+			// the local ./local.db is applied with `drizzle-kit migrate` instead.
+			"migrations_dir": "drizzle"
+		}
+	]
+}

@@ -1,8 +1,9 @@
 <script lang="ts">
 	import { teleport } from '$lib/teleport';
+	import type { TaskView } from '$lib/types';
 	import { tick } from 'svelte';
 
-	let { task } = $props();
+	let { task }: { task: TaskView } = $props();
 	let count: number = $state(0);
 	const increment = () => {
 		count += 1;
@@ -11,28 +12,32 @@
 		count -= amountToDecrementBy;
 	};
 	const remaining = $derived(Math.max(task.instructions.required - count, 0));
-	const action =
-		{
-			edge: 'edged'
-		}[task.action] || 'edged';
+	// NOTE: there was a `const action = { edge: 'edged' }[task.action] || 'edged'`
+	// here. `task.action` does not exist — the field is
+	// `task.instructions.action` — so the `|| 'edged'` fallback silently hid the
+	// bug. It was also never referenced in the template (the footer hardcodes
+	// the word), so it is removed rather than corrected.
 
-	let mainElm;
+	let mainElm: HTMLElement | undefined = $state();
 
 	$effect.pre(() => {
-		count; // Included to $effect will trigger on count change
+		// `count` is read here so the effect re-runs whenever it changes, and
+		// captured so a run superseded by a newer one bails out instead of
+		// scrolling to a paragraph that is no longer the last.
+		const countAtRun = count;
 		tick().then(() => {
-			const lastInstruction = mainElm.querySelector(' & > p:last-child');
+			if (countAtRun !== count) return;
+			const lastInstruction = mainElm?.querySelector(' & > p:last-child');
 			if (!lastInstruction) return;
 			const scrollPos = lastInstruction.getBoundingClientRect().top + window.scrollY - 20;
 			window.scrollTo({ top: scrollPos, behavior: 'smooth' });
-			console.log('hiii', lastInstruction);
 		});
 	});
 </script>
 
 <div>
 	<main bind:this={mainElm}>
-		{#each task.instructions.displayText.filter((displayText) => count >= displayText.showFrom) as displayText}
+		{#each task.instructions.displayText.filter((displayText) => count >= displayText.showFrom) as displayText (displayText.showFrom)}
 			<p>
 				{displayText.text}
 			</p>
@@ -125,7 +130,7 @@
 			}
 
 			wa-button::part(base) {
-                /* Stop iOS Safari from zooming if button is tapped multiple times too quickly */
+				/* Stop iOS Safari from zooming if button is tapped multiple times too quickly */
 				touch-action: manipulation;
 			}
 

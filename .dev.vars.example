@@ -1,0 +1,8 @@
+# Secrets for the locally emulated Cloudflare Worker — used ONLY by
+# `npm run preview:worker` (wrangler dev reads .dev.vars, not .env).
+# Everyday `npm run dev` does not need this file.
+#
+#   cp .dev.vars.example .dev.vars
+#
+# Production values are set with:  npx wrangler secret put BETTER_AUTH_SECRET
+BETTER_AUTH_SECRET=""

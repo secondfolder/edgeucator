@@ -2,11 +2,11 @@
 	import Guide from '$lib/components/Guide.svelte';
 
 	let { data } = $props();
-	let { guide } = $derived(data);
+	let { guide, tasks } = $derived(data);
 </script>
 
 <div>
-	<Guide {guide} tasks={guide?.expand?.tasks_via_guide_id} />
+	<Guide {guide} {tasks} />
 </div>
 
 <style>

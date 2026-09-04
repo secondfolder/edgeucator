@@ -2,8 +2,6 @@ node_modules
 
 # Output
 .output
-.vercel
-.netlify
 .wrangler
 /.svelte-kit
 /build
@@ -17,10 +15,16 @@ Thumbs.db
 .env.*
 !.env.example
 !.env.test
+# Worker secrets for `wrangler dev`. NOTE: .env* above does NOT cover these.
+.dev.vars
+.dev.vars.*
+!.dev.vars.example
 
 # Vite
 vite.config.js.timestamp-*
 vite.config.ts.timestamp-*
 
-# Local data
-pb_data
+# Local dev database (SQLite). Migrations in drizzle/ ARE committed.
+local.db
+local.db-shm
+local.db-wal

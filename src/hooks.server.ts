@@ -1,28 +1,58 @@
-import { createInstance } from '$lib/pocketbase';
+import { building } from '$app/environment';
+import { env as privateEnv } from '$env/dynamic/private';
+import { createAuth } from '$lib/server/auth';
+import { createDb } from '$lib/server/db/dev';
 import type { Handle } from '@sveltejs/kit';
+import { getSessionCookie } from 'better-auth/cookies';
+import { svelteKitHandler } from 'better-auth/svelte-kit';
 
 export const handle: Handle = async ({ event, resolve }) => {
-	const pb = createInstance();
+	// Bail before touching platform.env. During prerendering adapter-cloudflare
+	// substitutes a platform whose env getters throw. svelteKitHandler also
+	// short-circuits on `building`, but only after we would have dereferenced
+	// the binding.
+	if (building) return resolve(event);
 
-	// load the store data from the request cookie string
-	pb.authStore.loadFromCookie(event.request.headers.get('cookie') || '');
-	try {
-		// get an up-to-date auth store state by verifying and refreshing the loaded auth model (if any)
-		if (pb.authStore.isValid) {
-			await pb.collection('users').authRefresh();
-		}
-	} catch (_) {
-		// clear the auth store on failed refresh
-		pb.authStore.clear();
+	const db = await createDb(event);
+
+	// Production reads wrangler secrets from platform.env; dev has no platform
+	// at all (svelte.config.js strips the adapter's emulate hook) and reads
+	// .env instead. Fail loudly: Better Auth otherwise falls back to a
+	// hard-coded default secret, and its own check only throws when
+	// NODE_ENV === 'production', which Workers does not set.
+	const secret = event.platform?.env?.BETTER_AUTH_SECRET ?? privateEnv.BETTER_AUTH_SECRET;
+	if (!secret) {
+		throw new Error(
+			'BETTER_AUTH_SECRET is not set. In development put it in .env ' +
+				'(generate one with `npm run auth:secret`); in production set it with ' +
+				'`npx wrangler secret put BETTER_AUTH_SECRET`.'
+		);
 	}
 
-	event.locals.pb = pb;
-	event.locals.user = pb.authStore.record;
+	const auth = createAuth(db, {
+		secret,
+		origin: event.url.origin,
+		rpID: event.url.hostname,
+		host: event.url.host
+	});
 
-	const response = await resolve(event);
+	event.locals.db = db;
+	event.locals.auth = auth;
+	event.locals.session = null;
+	event.locals.user = null;
 
-	// send back the default 'pb_auth' cookie to the client with the latest store state
-	response.headers.set('set-cookie', pb.authStore.exportToCookie({ httpOnly: false }));
+	// Cheap gate: skip the session lookup entirely for anonymous traffic, which
+	// is most of this app — /, /guides and /guides/[id] are all public.
+	if (getSessionCookie(event.request)) {
+		const result = await auth.api.getSession({ headers: event.request.headers });
+		if (result) {
+			event.locals.session = result.session;
+			event.locals.user = result.user;
+		}
+	}
 
-	return response;
+	// Serves /api/auth/* from auth.handler and otherwise falls through to
+	// resolve, so no src/routes/api/auth/[...all]/+server.ts is needed.
+	// Note: for auth requests `resolve` is never called.
+	return svelteKitHandler({ auth, event, resolve, building });
 };

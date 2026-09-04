@@ -1,27 +1,22 @@
 <script lang="ts">
-	import { applyAction, enhance } from '$app/forms';
-	import { pb } from '$lib/pocketbase';
-	import { getUserContext } from '$lib/contexts/user';
+	import { enhance } from '$app/forms';
+	import { page } from '$app/state';
 
-	const user = getUserContext();
+	// Server data is the source of truth — no context store, no client authStore.
+	const user = $derived(page.data.user);
 </script>
 
 <nav>
 	<div class="navbar-end">
 		<ul class="menu menu-horizontal">
-			{#if $user}
-				<li>{$user.email}</li>
+			{#if user}
+				<li>{user.email}</li>
+				<li><a href="/settings/passkeys">Passkeys</a></li>
 				<li>
-					<form
-						method="POST"
-						action="/logout"
-						use:enhance={() => {
-							return async ({ result }) => {
-								pb.authStore.clear();
-								await applyAction(result);
-							};
-						}}
-					>
+					<!-- Plain use:enhance is enough: its default behaviour already
+					     does goto + invalidateAll for a redirect result. The old
+					     callback existed only to clear pb.authStore. -->
+					<form method="POST" action="/logout" use:enhance>
 						<button>Log out</button>
 					</form>
 				</li>

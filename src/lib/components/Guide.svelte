@@ -1,21 +1,27 @@
 <script lang="ts">
+	import type { GuideView, TaskView } from '$lib/types';
 	import Task from './Task.svelte';
 
-	let { guide, tasks } = $props();
+	interface Props {
+		guide: GuideView;
+		tasks: TaskView[];
+	}
+
+	let { guide, tasks }: Props = $props();
 	let currentTaskIndex: number = $state(0);
-	const increment = () => {
-		currentTaskIndex += 1;
-	};
 	let currentTask = $derived(tasks[currentTaskIndex]);
 </script>
 
 <div>
 	<h1>{guide.title}</h1>
 	<!-- Task: {currentTaskIndex + 1} -->
-	<Task task={currentTask} />
-	<!-- <button onclick={increment}>
-        Next
-    </button> -->
+	{#if currentTask}
+		<Task task={currentTask} />
+	{:else}
+		<p class="empty">This guide has no tasks yet.</p>
+	{/if}
+	<!-- Next button intentionally still absent; see the note in the plan about
+	     there being no per-user progress persistence yet. -->
 </div>
 
 <style>
@@ -26,6 +32,11 @@
 
 		h1 {
 			text-align: center;
+		}
+
+		.empty {
+			text-align: center;
+			color: var(--wa-color-text-quiet);
 		}
 	}
 </style>

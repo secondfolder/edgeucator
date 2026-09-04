@@ -1,9 +1,11 @@
 <script lang="ts">
-	let { guides } = $props();
+	import type { GuideView } from '$lib/types';
+
+	let { guides }: { guides: GuideView[] } = $props();
 </script>
 
 <ul>
-	{#each guides as guide}
+	{#each guides as guide (guide.id)}
 		<li>
 			<a href="/guides/{guide.id}">{guide.title}</a>
 		</li>

@@ -11,7 +11,15 @@
 		title,
 		type,
 		...otherProps
-	}: { superform: SuperForm<T>; field: FormPathLeaves<T>; title?: string; type: string } = $props();
+	}: {
+		superform: SuperForm<T>;
+		field: FormPathLeaves<T>;
+		title?: string;
+		type: string;
+		// Any further attributes are spread onto the underlying <wa-input>, which
+		// is how callers pass things like `autocomplete`.
+		[attribute: string]: unknown;
+	} = $props();
 
 	const { errors, constraints } = formFieldProxy(superform, field);
 </script>

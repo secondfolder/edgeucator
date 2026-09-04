@@ -2,3 +2,9 @@
 package-lock.json
 pnpm-lock.yaml
 yarn.lock
+
+# Generated migrations and snapshots
+drizzle/
+
+# Seed prose — keep one entry per line rather than reflowed
+src/lib/server/db/seed-data.ts

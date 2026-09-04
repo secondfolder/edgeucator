@@ -3,22 +3,32 @@
 	import { superForm } from 'sveltekit-superforms';
 	import type { SignupFormSchema } from '$lib/schemas/signupForm';
 	import InputField from './InputField.svelte';
-	import { pb } from '$lib/pocketbase';
 
 	let { data }: { data: SuperValidated<Infer<SignupFormSchema>> } = $props();
 
-	const superform = superForm(data, {
-		onResult: () => {
-			pb.authStore.loadFromCookie(document.cookie);
-		}
-	});
+	// No `onResult` hook: Better Auth's cookies are httpOnly and the action's
+	// 303 triggers a fresh server load, so there is nothing to sync client-side.
+	const superform = superForm(data);
 	const { errors } = superform;
 </script>
 
 <form method="POST" use:superform.enhance>
-	<InputField {superform} field="email" title="Email" type="email" />
-	<InputField {superform} field="password" title="Password" type="password" />
-	<InputField {superform} field="passwordConfirm" title="Confirm Password" type="password" />
+	<InputField {superform} field="name" title="Name" type="text" autocomplete="name" />
+	<InputField {superform} field="email" title="Email" type="email" autocomplete="username" />
+	<InputField
+		{superform}
+		field="password"
+		title="Password"
+		type="password"
+		autocomplete="new-password"
+	/>
+	<InputField
+		{superform}
+		field="passwordConfirm"
+		title="Confirm Password"
+		type="password"
+		autocomplete="new-password"
+	/>
 	<wa-button type="submit">Sign Up</wa-button>
 	{#if $errors._errors}<span class="invalid">{$errors._errors}</span>{/if}
 </form>
