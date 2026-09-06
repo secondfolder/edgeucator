@@ -1,9 +1,13 @@
+<script lang="ts">
+	import { resolve } from '$app/paths';
+</script>
+
 <div class="container">
 	<header>
 		<h1>Edgeucator</h1>
 		<span class="subtitle">Your Edging Escort</span>
 	</header>
-	<a href="/guides">Guides</a>
+	<a href={resolve('/(public)/guides')}>Guides</a>
 </div>
 
 <style>

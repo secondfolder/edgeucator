@@ -1,5 +1,6 @@
 <script lang="ts">
 	import { goto, invalidateAll } from '$app/navigation';
+	import { resolve } from '$app/paths';
 	import { authClient } from '$lib/auth-client';
 	import type { LoginFormSchema } from '$lib/schemas/loginForm';
 	import type { Infer, SuperValidated } from 'sveltekit-superforms';
@@ -20,7 +21,7 @@
 		// The ceremony set the session cookie client-side, so server load data is
 		// now stale — refetch before navigating.
 		await invalidateAll();
-		await goto('/', { invalidateAll: true });
+		await goto(resolve('/'), { invalidateAll: true });
 	}
 
 	async function signInWithPasskey() {

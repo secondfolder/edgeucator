@@ -1,6 +1,7 @@
 <script lang="ts">
 	import { enhance } from '$app/forms';
 	import { page } from '$app/state';
+	import { resolve } from '$app/paths';
 
 	// Server data is the source of truth — no context store, no client authStore.
 	const user = $derived(page.data.user);
@@ -11,7 +12,7 @@
 		<ul class="menu menu-horizontal">
 			{#if user}
 				<li>{user.email}</li>
-				<li><a href="/settings/passkeys">Passkeys</a></li>
+				<li><a href={resolve('/(auth-required)/settings/passkeys')}>Passkeys</a></li>
 				<li>
 					<!-- Plain use:enhance is enough: its default behaviour already
 					     does goto + invalidateAll for a redirect result. The old
@@ -21,8 +22,8 @@
 					</form>
 				</li>
 			{:else}
-				<li><a href="/login">Login</a></li>
-				<li><a href="/signup">Sign up</a></li>
+				<li><a href={resolve('/(public)/login')}>Login</a></li>
+				<li><a href={resolve('/(public)/signup')}>Sign up</a></li>
 			{/if}
 		</ul>
 	</div>
