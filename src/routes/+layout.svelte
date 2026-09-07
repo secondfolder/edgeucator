@@ -1,6 +1,20 @@
 <script lang="ts">
 	import type { Snippet } from 'svelte';
 
+	// Web Awesome is installed from npm rather than pulled off a CDN, so the
+	// components are cherry-picked here (in the root layout) instead of being
+	// autoloaded at runtime. Anything new a page reaches for needs its import
+	// added below, otherwise the custom element never registers and the markup
+	// renders as an inert unknown tag.
+	import '@awesome.me/webawesome/dist/styles/webawesome.css';
+	import '@awesome.me/webawesome/dist/components/avatar/avatar.js';
+	import '@awesome.me/webawesome/dist/components/button/button.js';
+	import '@awesome.me/webawesome/dist/components/button-group/button-group.js';
+	import '@awesome.me/webawesome/dist/components/dropdown/dropdown.js';
+	import '@awesome.me/webawesome/dist/components/dropdown-item/dropdown-item.js';
+	import '@awesome.me/webawesome/dist/components/icon/icon.js';
+	import '@awesome.me/webawesome/dist/components/input/input.js';
+
 	interface Props {
 		children?: Snippet;
 	}

@@ -24,7 +24,20 @@ Thumbs.db
 vite.config.js.timestamp-*
 vite.config.ts.timestamp-*
 
+# Vitest
+/test-results
+
+# Playwright
+/playwright-report
+/blob-report
+/playwright/.cache
+
 # Local dev database (SQLite). Migrations in drizzle/ ARE committed.
 local.db
 local.db-shm
 local.db-wal
+
+# Playwright's database. Rebuilt from drizzle/ at the start of every e2e run.
+e2e.db
+e2e.db-shm
+e2e.db-wal

@@ -3,15 +3,20 @@ import { APIError } from 'better-auth/api';
 import { fail, setError, superValidate } from 'sveltekit-superforms';
 import { zod4 } from 'sveltekit-superforms/adapters';
 import { loginFormSchema } from '$lib/schemas/loginForm';
+import { redirectTargetOrHome, safeRedirect } from '$lib/safe-redirect';
 import type { Actions, PageServerLoad } from './$types';
 
-export const load: PageServerLoad = async ({ locals }) => {
-	if (locals.user) redirect(303, '/home');
-	return { loginForm: await superValidate(zod4(loginFormSchema)) };
+export const load: PageServerLoad = async ({ locals, url }) => {
+	// `redirectTo` carries an invite link across sign-in. Validated on the way
+	// in as well as on the way out, so a hostile value never even reaches the
+	// page as a link.
+	const redirectTo = safeRedirect(url.searchParams.get('redirectTo'));
+	if (locals.user) redirect(303, redirectTo ?? '/home');
+	return { loginForm: await superValidate(zod4(loginFormSchema)), redirectTo };
 };
 
 export const actions: Actions = {
-	default: async ({ locals, request }) => {
+	default: async ({ locals, request, url }) => {
 		const loginForm = await superValidate(request, zod4(loginFormSchema));
 		// NOTE: this used to `console.log(loginForm)`, which wrote the plaintext
 		// password to the server log on every attempt. Deliberately not replaced.
@@ -41,6 +46,6 @@ export const actions: Actions = {
 			return setError(loginForm, '', 'Could not login');
 		}
 
-		redirect(303, '/home');
+		redirect(303, redirectTargetOrHome(url.searchParams.get('redirectTo')));
 	}
 };

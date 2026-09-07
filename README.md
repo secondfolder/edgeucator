@@ -75,6 +75,20 @@ Never run `drizzle-kit push` — see the comment in `drizzle.config.ts`.
   on a tunnel host or in production, and vice versa. That is WebAuthn, not a bug.
 - `npm run db:reset` uses `rm -f` and is not Windows-portable.
 
+## Tests
+
+```sh
+npm test                          # vitest: unit, server and component tests
+npx playwright install chromium   # once
+npm run test:e2e                  # the invite flow in a real browser
+```
+
+`npm test` needs nothing set up: the server tests build a SQLite database in
+memory from the committed migrations. `npm run test:e2e` starts its own
+`vite dev` on port 5175 against a throwaway `e2e.db`, so it never touches your
+`local.db` — but it does load Web Awesome from the CDN, so it needs a network
+connection. `AGENTS.md` has the details of how each level is meant to be used.
+
 ## Scripts
 
 | Script                                               | What it does                                                  |
@@ -83,6 +97,7 @@ Never run `drizzle-kit push` — see the comment in `drizzle.config.ts`.
 | `preview:worker`                                     | Build, migrate the emulated D1, then run the real worker      |
 | `deploy`                                             | Build and deploy to Cloudflare                                |
 | `check` / `lint` / `format` / `test`                 | svelte-check / prettier + eslint / prettier write / vitest    |
+| `test:e2e`                                           | Playwright, in a real browser against `vite dev`              |
 | `db:generate`                                        | Generate a migration from the schema                          |
 | `db:migrate` / `db:migrate:d1` / `db:migrate:remote` | Apply migrations to local.db / emulated D1 / production       |
 | `db:seed` / `db:reset`                               | Seed dev data / wipe local.db and re-seed                     |

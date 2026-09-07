@@ -36,11 +36,13 @@ export type GuideView = {
 };
 
 /**
- * The subset of a partner that AppNav.svelte / the partner page consume.
+ * The subset of a partnership that AppNav.svelte renders as a tab.
  *
- * There is no `partners` table yet — see `src/lib/placeholder-partners.ts`.
- * When the real feature lands this stays the component-facing shape and only
- * the loader behind it changes.
+ * `id` is the *partnership* id, not the other person's user id: it is what
+ * `/partner/[id]` is keyed on, so no user id ever appears in a URL. `name` is
+ * already resolved to what this viewer calls them — see `viewPartnership` in
+ * `src/lib/partnership.ts`, which is the only place the per-role name columns
+ * are read.
  */
 export type PartnerView = {
 	id: string;

@@ -22,18 +22,21 @@ one entry stays on one line).
 
 ## Repo map
 
-| Path                          | What lives there                                                                       |
-| ----------------------------- | -------------------------------------------------------------------------------------- |
-| `src/hooks.server.ts`         | The per-request wiring: builds `db` + `auth`, resolves the session, mounts Better Auth |
-| `src/lib/server/db/`          | Schema, Drizzle client factories, seed. **Alias-free zone** — see Invariants           |
-| `src/lib/server/auth.ts`      | The Better Auth factory. Every auth option has a comment saying why it is set          |
-| `src/lib/schemas/`            | Zod form schemas, shared by the server action and the client component                 |
-| `src/lib/types.ts`            | Types both server and components need. Alias-free so the schema can import it          |
-| `src/lib/components/`         | Presentational Svelte components                                                       |
-| `src/routes/(public)/`        | Anonymous-reachable routes. `+layout.svelte` here owns `SiteHeader`                    |
-| `src/routes/(auth-required)/` | Guarded by a group `+layout.server.ts` that redirects to `/login`                      |
-| `.../(auth-required)/(app)/`  | The signed-in app shell: fixed-viewport layout plus the `AppNav` bottom bar            |
-| `drizzle/`                    | Generated migrations + snapshots. **Committed.** Never hand-edit                       |
+| Path                          | What lives there                                                                             |
+| ----------------------------- | -------------------------------------------------------------------------------------------- |
+| `src/hooks.server.ts`         | The per-request wiring: builds `db` + `auth`, resolves the session, mounts Better Auth       |
+| `src/lib/server/db/`          | Schema, Drizzle client factories, seed. **Alias-free zone** — see Invariants                 |
+| `src/lib/server/auth.ts`      | The Better Auth factory. Every auth option has a comment saying why it is set                |
+| `src/lib/schemas/`            | Zod form schemas, shared by the server action and the client component                       |
+| `src/lib/types.ts`            | Types both server and components need. Alias-free so the schema can import it                |
+| `src/lib/components/`         | Presentational Svelte components                                                             |
+| `src/lib/partnership.ts`      | The partners domain rules. Alias-free. See [docs/partners.md](docs/partners.md)              |
+| `src/lib/testing/`            | Test-only helpers: in-memory DB, fixtures, a fake `RequestEvent`. Never imported by app code |
+| `e2e/`                        | Playwright specs. Run against `vite dev` on port 5175 with their own SQLite file             |
+| `src/routes/(public)/`        | Anonymous-reachable routes. `+layout.svelte` here owns `SiteHeader`                          |
+| `src/routes/(auth-required)/` | Guarded by a group `+layout.server.ts` that redirects to `/login`                            |
+| `.../(auth-required)/(app)/`  | The signed-in app shell: fixed-viewport layout plus the `AppNav` bottom bar                  |
+| `drizzle/`                    | Generated migrations + snapshots. **Committed.** Never hand-edit                             |
 
 ## The verification loop
 
@@ -43,22 +46,23 @@ Run before declaring anything done:
 npm run check    # svelte-check
 npm run lint     # prettier --check && eslint
 npm test         # vitest, both projects, single run
+npm run test:e2e # playwright, real browser against vite dev
 npm run format   # fixes prettier complaints
 ```
 
-Honest baseline as of this writing — `lint` and `test` are clean, `check` is not.
-Do not assume you caused the warnings, and do not "fix" them as a drive-by inside
-an unrelated change:
+Honest baseline as of this writing — `lint`, `test` and `test:e2e` are clean,
+`check` is not. Do not assume you caused the warnings, and do not "fix" them as
+a drive-by inside an unrelated change:
 
 - `npm run lint`: clean.
-- `npm run check`: **0 errors, 24 warnings.** Nearly all are a11y warnings on
+- `npm run check`: **0 errors, 20 warnings.** Nearly all are a11y warnings on
   `wa-*` custom elements (`a11y_click_events_have_key_events`,
   `a11y_no_static_element_interactions`) plus a few `state_referenced_locally`.
   Svelte cannot know a `<wa-button>` is a button.
-- `npm test`: passes. There is **one** test
-  ([src/routes/(public)/page.svelte.test.ts](<src/routes/(public)/page.svelte.test.ts>)) and it
-  asserts an `<h1>` exists. Effectively no safety net — lean on `check` and on
-  actually running the app.
+- `npm test`: 192 tests. The partners feature is covered end to end at three
+  levels — see **Testing** below. Outside it the safety net is still thin.
+- `npm run test:e2e`: 7 Playwright specs, ~20s once the browser is installed
+  (`npx playwright install chromium` first).
 
 Internal links go through `resolve()` from `$app/paths` — `href="/guides"` and a
 bare `goto('/')` are both eslint errors under
@@ -117,6 +121,25 @@ site it applies to; go read that comment before deciding to break one.
 
 10. **Passkeys are bound to a hostname.** One registered on `localhost` will not
     work on the tunnel host or in production. WebAuthn, not a bug.
+
+11. **Never pass `undefined` to a boolean attribute on a `wa-*` element.**
+    `disabled={busy || undefined}` looks like the usual "omit the attribute"
+    idiom, but once Web Awesome upgrades the element Svelte assigns to the
+    `disabled` _property_, and this alpha coerces `undefined` to true — leaving
+    the control permanently disabled. Write `disabled={busy}`. This silently
+    broke the "Add a passkey" button until the Playwright suite caught it.
+
+12. **Never read `partnerships.inviter_name` / `invitee_name` directly.** Which
+    of the two is "theirs" flips with who is looking, and getting it backwards
+    is the easiest bug in the feature. Go through `viewPartnership()` in
+    `src/lib/partnership.ts`, which is the only place that mapping lives. See
+    [docs/partners.md](docs/partners.md).
+
+13. **A permission is enforced on the server, never by a disabled input.** The
+    read-only accept screen still posts every field (they are hidden inputs, so
+    the payload matches the same Zod schema); `acceptInvite` re-reads the stored
+    row and ignores them. Same for the edit action, which re-checks `control`
+    against the database rather than trusting that the form was hidden.
 
 ## Conventions
 
@@ -183,6 +206,12 @@ hydration. Route ids are identical on both sides.
 
 **CSS lives in the component's `<style>` block**, nested, no framework.
 
+**Two links must not share an accessible name.** The `(public)` header already
+has "Login" and "Sign up"; the invite page's own buttons are "Log in to accept"
+and "Create an account" for that reason. Duplicate names are a real problem for
+anyone navigating by link list, and they make a test locator ambiguous — which
+is how this one was noticed.
+
 **Comments explain _why_, not _what_.** This codebase's distinguishing habit is
 that every non-obvious decision carries a comment naming the failure it avoids —
 often the specific bug that was hit. Keep that up. When you remove a workaround,
@@ -237,27 +266,109 @@ Add a narrow view type to `src/lib/types.ts` (`GuideView`, `TaskView` are the
 pattern) rather than importing the Drizzle row type. Components must never
 import from `$lib/server/**`.
 
+## Testing
+
+Three levels, deliberately. Add to the cheapest one that can catch the bug.
+
+**Pure logic** — `src/lib/*.test.ts`, node project. Permission rules, the
+per-viewer view, the redirect allowlist, the Zod schemas. No database, no DOM.
+
+**Server** — `*.test.ts` next to the thing under test, node project. These build
+a real SQLite database in memory and call the route's exported `load` /
+`actions` directly:
+
+```ts
+const { db, close } = await createTestDb(); // $lib/testing/db
+const ada = await createTestUser(db); // $lib/testing/fixtures
+const data = await runLoad(load(fakeEvent({ db, user: ada }))); // $lib/testing/events
+```
+
+- `createTestDb()` applies the committed `drizzle/*.sql` to a `:memory:` libsql
+  database. libsql, not better-sqlite3, for the reason `db/dev.ts` gives — the
+  async signatures and `batch()` match D1, so a test cannot pass against a
+  capability production does not have. Foreign keys are on, as they are on D1.
+- Fixtures insert `user` rows directly rather than booting Better Auth, which
+  would need a live request context for `sveltekitCookies`.
+- `runLoad()` exists only to drop the `void` from `PageServerLoad`'s return
+  type; `runAndCatch()` turns a thrown `redirect()` / `error()` into a value.
+- **Route test files may not start with `+`** — SvelteKit reserves that prefix
+  and refuses to build. Name them `page.server.test.ts`, as the existing
+  `page.svelte.test.ts` does.
+
+**Component** — `*.svelte.test.ts`, jsdom project. `$app/state` and `$app/paths`
+have to be mocked (`AppNav.svelte.test.ts` shows the shape). A component that
+calls `superForm()` can only be tested through a wrapper component, because
+`superForm` registers an `onDestroy` and throws outside initialisation — which
+is why `PartnerFields` is exercised through `PartnerAcceptForm`.
+
+`wa-*` elements are never upgraded in jsdom (they come from a CDN), so assert on
+the attributes the component emits, not on rendered behaviour. Anything that
+depends on Web Awesome actually working belongs in the Playwright suite.
+
+**End to end** — `e2e/*.spec.ts`. This is the only level that sees the auth
+hook, real session cookies, the `(auth-required)` guard and the round trip
+through `/signup?redirectTo=`. It runs `vite dev` on port 5175 against its own
+`e2e.db`, rebuilt from the migrations as part of the server command (not in a
+`globalSetup` — Playwright starts the web server first, and deleting the file
+underneath it leaves every write failing with `SQLITE_READONLY_DBMOVED`).
+
+Notes that cost a debugging round each:
+
+- Web Awesome text inputs are custom elements whose editable `<input>` is in a
+  shadow root. Fill them as `wa-input[name=x] input`, which Playwright's
+  selector engine reaches.
+- A relative glob in `waitForURL` is resolved against `baseURL`, so `'**/'`
+  never matches a bare `/`. Pass `'/'`.
+- Signing in or up is asynchronous; wait for the form to be left behind before
+  the next step or it races the session cookie.
+- The suite is `workers: 1` and not parallel: it shares one database, and each
+  test drives two browser contexts so the two accounts hold genuinely separate
+  cookies.
+
 ## Documentation
 
-There is no `docs/` directory yet. Until there is, `README.md` and this file are
-the documentation, split on scope:
+Four places, split on scope:
 
 - **`README.md`** — how a human sets up, runs, migrates, and deploys.
 - **`AGENTS.md`** — repo-wide conventions and invariants.
+- **`docs/<feature>.md`** — how one feature actually works: its data model, its
+  rules, and the decisions a reader would otherwise have to reconstruct from
+  half a dozen files. For anything whose explanation does not fit in a comment
+  at one site.
 - **Code comments** — anything one file deep. This project's default is a
   comment at the site, and it is usually the right call.
 
-If a feature ever grows past what a code comment can carry, add `docs/<feature>.md`
-and link it from a table here rather than inlining it.
+### Feature docs
 
-**Documentation is part of a change, not a follow-up to it.**
+| Doc                                  | Feature                                                             |
+| ------------------------------------ | ------------------------------------------------------------------- |
+| [docs/partners.md](docs/partners.md) | Linking two accounts: invites, the control permission, the nav tabs |
 
-- A change that makes a statement in `README.md`, `AGENTS.md`, or a code comment
-  wrong is not finished until that statement is fixed. The "Honest baseline"
-  numbers above included.
+**Keeping these current is part of the change, not a follow-up to it.**
+
+- **Touching a feature that has a doc means updating that doc in the same
+  change.** A `docs/*.md` that describes behaviour the code no longer has is
+  worse than no doc, because it is trusted. If your change alters a data model,
+  a permission rule, a route, an error case, or a decision the doc explains, fix
+  the doc before calling the work done.
+- **Adding a feature that spans more than a couple of files means writing
+  one** — `docs/<feature>.md`, added to the table above. The test: could someone
+  who has not read the diff understand the feature without opening five files
+  and inferring the rules? If not, it needs a doc.
+- Write it as current behaviour, in the present tense, and say _why_ where the
+  why is not obvious — that is the half a reader cannot recover from the code.
+  It is not a changelog and not a plan; those live in `docs/historical-plans/`.
+- Removing a feature removes its doc, and its row in the table.
+
+**The same applies to the rest of the documentation.**
+
+- A change that makes a statement in `README.md`, `AGENTS.md`, a `docs/*.md`, or
+  a code comment wrong is not finished until that statement is fixed. The
+  "Honest baseline" numbers above included.
 - A change that adds a concept someone would need explained gets explained.
 - `AGENTS.md` changes when a repo-wide convention or invariant does — a new lint
-  rule, a new import boundary, a new directory with rules of its own.
+  rule, a new import boundary, a new directory with rules of its own. A rule
+  that applies to one feature belongs in that feature's doc instead.
 
 **Historical plans.** When a substantial plan is finished, record it under
 `docs/historical-plans/`, filename led by the implementation date as
@@ -276,8 +387,12 @@ changed it and why — never a silent rewrite.
 - `wrangler.jsonc` ships `"database_id": "REPLACE_ME"`. `npm run dev` never
   reads it; `preview:worker` and `deploy` do.
 - `vite.config.ts` hardcodes a personal tunnel host in `allowedHosts` /
-  `server.origin`. Expect to change it, not to inherit it.
-- `npm run db:reset` is `rm -f` — destructive and not Windows-portable.
+  `server.origin`. Expect to change it, not to inherit it. `server.origin` is
+  overridable with `VITE_DEV_ORIGIN`, which is how the Playwright suite runs
+  against localhost — with the tunnel baked in, the page asks the tunnel for its
+  modules and never hydrates.
+- `npm run db:reset` is `rm -f` — destructive and not Windows-portable. So is
+  the e2e server command, which deletes `e2e.db` on every run.
 - `.npmrc` sets `engine-strict=true` against `node >= 20`.
 - Do not add `@cloudflare/workers-types` to a `types` array. It publishes
   ambient globals that would overwrite the DOM's `Request`/`Response`/`fetch`

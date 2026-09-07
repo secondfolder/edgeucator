@@ -21,7 +21,32 @@
 		[attribute: string]: unknown;
 	} = $props();
 
-	const { errors, constraints } = formFieldProxy(superform, field);
+	const { value, errors, constraints } = formFieldProxy(superform, field);
+
+	/**
+	 * The field is rendered FROM `$value` and writes back to it on input.
+	 *
+	 * Without this the input had no `value` at all: fine for login and signup,
+	 * whose fields start empty and are read from the posted FormData, but every
+	 * prefilled form (editing a partner, confirming an invite) rendered blank
+	 * and then posted those blanks back. It also means `$form` now tracks what
+	 * the user typed, which is what superforms' client-side validation and
+	 * `tainted` tracking need.
+	 *
+	 * `bind:value` is deliberately not used: <wa-input> is a custom element, so
+	 * Svelte cannot know it has a value property until the CDN bundle upgrades
+	 * it, and the binding silently does nothing until then.
+	 */
+	function onInput(event: Event) {
+		const target = event.target as HTMLInputElement | null;
+		// `as` because the proxy is typed to the field's own type; every input
+		// this component renders is a string field.
+		$value = (target?.value ?? '') as typeof $value;
+	}
+
+	// null is a legitimate stored value (an omitted relationship label), but it
+	// would render as the literal string "null".
+	const displayValue = $derived($value == null ? '' : String($value));
 </script>
 
 <div class="field">
@@ -30,13 +55,23 @@
 			label={title || field}
 			name={field}
 			{type}
+			value={displayValue}
+			oninput={onInput}
 			password-toggle
 			aria-invalid={$errors ? 'true' : undefined}
 			{...$constraints}
 			{...otherProps}
 		></wa-input>
 	{:else if type === 'email' || type === 'text'}
-		<wa-input label={title || field} name={field} {type} {...$constraints} {...otherProps}
+		<wa-input
+			label={title || field}
+			name={field}
+			{type}
+			value={displayValue}
+			oninput={onInput}
+			aria-invalid={$errors ? 'true' : undefined}
+			{...$constraints}
+			{...otherProps}
 		></wa-input>
 	{:else}
 		{`Unsupported type: ${type}`}

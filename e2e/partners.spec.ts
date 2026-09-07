@@ -1,0 +1,291 @@
+import { expect, test, type Browser, type Page } from '@playwright/test';
+import { account, createInvite, logOut, navTabs, signUp, type Account } from './helpers';
+
+/**
+ * The whole partner feature over HTTP, in a real browser.
+ *
+ * Each test uses two browser contexts so the two accounts hold genuinely
+ * separate session cookies — signing out and back in inside one context would
+ * pass while hiding a cookie bug.
+ */
+
+type Side = { page: Page; who: Account; close: () => Promise<void> };
+
+async function newSide(browser: Browser, name: string): Promise<Side> {
+	// Granted explicitly: the invite screens call navigator.clipboard.writeText,
+	// and without permission Chromium leaves that promise pending rather than
+	// rejecting, which stalls the page waiting to navigate.
+	const context = await browser.newContext({ permissions: ['clipboard-read', 'clipboard-write'] });
+	const page = await context.newPage();
+	return { page, who: account(name), close: () => context.close() };
+}
+
+test.describe('linking two accounts', () => {
+	test('an invite survives the whole round trip, and both sides end up linked', async ({
+		browser
+	}) => {
+		const ada = await newSide(browser, 'Ada');
+		const jun = await newSide(browser, 'Jun');
+
+		try {
+			await signUp(ada.page, ada.who);
+			await ada.page.waitForURL('**/home');
+
+			// A brand new account has no partner tabs.
+			expect(await navTabs(ada.page)).toEqual(['Home', 'Settings']);
+
+			const link = await createInvite(ada.page, {
+				partnerName: 'Jun',
+				yourName: 'Ada',
+				label: 'partner',
+				control: 'mix'
+			});
+
+			// It shows as pending, and still not in the nav — there is nobody
+			// behind that tab until it is accepted.
+			await ada.page.goto('/settings/partners');
+			await expect(ada.page.getByText('Waiting for them to accept')).toBeVisible();
+			expect(await navTabs(ada.page)).toEqual(['Home', 'Settings']);
+
+			// Jun opens the link cold, with no account at all.
+			await jun.page.goto(link);
+			await expect(
+				jun.page.getByRole('heading', { name: 'Ada wants to link with you' })
+			).toBeVisible();
+
+			await jun.page.getByRole('link', { name: 'Create an account' }).click();
+			await jun.page.waitForURL(/\/signup\?redirectTo=/);
+			await signUp(jun.page, jun.who, jun.page.url());
+
+			// Signing up must land back on the invite, not on /home.
+			await jun.page.waitForURL(/\/invite\//);
+			await expect(
+				jun.page.getByRole('heading', { name: 'Ada wants to link with you' })
+			).toBeVisible();
+
+			// Control is shared, so Jun may rewrite the names before accepting.
+			await expect(jun.page.locator('wa-input[name="partnerName"]')).toBeVisible();
+			await jun.page.getByRole('button', { name: 'Accept and link' }).click();
+			await jun.page.waitForURL(/\/partner\/[0-9a-f-]{36}/);
+
+			// Each side sees the other under the name that side chose.
+			await expect(jun.page.getByRole('heading', { name: 'Ada' })).toBeVisible();
+			expect(await navTabs(jun.page)).toEqual(['Home', 'Ada', 'Settings']);
+
+			await ada.page.goto('/home');
+			expect(await navTabs(ada.page)).toEqual(['Home', 'Jun', 'Settings']);
+
+			// The link is spent.
+			await jun.page.goto(link);
+			await expect(jun.page.getByRole('heading', { name: "This link doesn't work" })).toBeVisible();
+		} finally {
+			await ada.close();
+			await jun.close();
+		}
+	});
+
+	test('the accepter cannot edit the names when the inviter keeps control', async ({ browser }) => {
+		const ada = await newSide(browser, 'Ada');
+		const jun = await newSide(browser, 'Jun');
+
+		try {
+			await signUp(ada.page, ada.who);
+			await ada.page.waitForURL('**/home');
+			const link = await createInvite(ada.page, {
+				partnerName: 'Jun',
+				yourName: 'Ada',
+				control: 'me'
+			});
+
+			await signUp(jun.page, jun.who);
+			await jun.page.waitForURL('**/home');
+			await jun.page.goto(link);
+
+			// Displayed, not editable — the requirement for "they're in control".
+			await expect(jun.page.locator('wa-input[name="partnerName"]')).toHaveCount(0);
+			await expect(jun.page.getByText('Ada', { exact: true })).toBeVisible();
+			await expect(jun.page.locator('input[name="control"][value="me"]')).toBeDisabled();
+
+			await jun.page.getByRole('button', { name: 'Accept and link' }).click();
+			await jun.page.waitForURL(/\/partner\//);
+
+			// And the settings screen offers no edit form either.
+			await jun.page.getByRole('link', { name: 'Connection settings' }).click();
+			await expect(jun.page.getByText("They're in control of this link")).toBeVisible();
+			await expect(jun.page.getByRole('button', { name: 'Save' })).toHaveCount(0);
+			// ...but leaving is always available.
+			await expect(jun.page.getByRole('button', { name: 'Disconnect' })).toBeVisible();
+		} finally {
+			await ada.close();
+			await jun.close();
+		}
+	});
+
+	test('an anonymous visitor is sent to log in and comes back to the invite', async ({
+		browser
+	}) => {
+		const ada = await newSide(browser, 'Ada');
+		const jun = await newSide(browser, 'Jun');
+
+		try {
+			await signUp(jun.page, jun.who);
+			await logOut(jun.page);
+
+			await signUp(ada.page, ada.who);
+			await ada.page.waitForURL('**/home');
+			const link = await createInvite(ada.page, {
+				partnerName: 'Jun',
+				yourName: 'Ada',
+				control: 'mix'
+			});
+
+			await jun.page.goto(link);
+			await jun.page.getByRole('link', { name: 'Log in to accept' }).click();
+			await jun.page.waitForURL(/\/login\?redirectTo=/);
+
+			await jun.page.locator('wa-input[name="email"] input').fill(jun.who.email);
+			await jun.page.locator('wa-input[name="password"] input').fill(jun.who.password);
+			await jun.page.getByRole('button', { name: 'Login' }).click();
+
+			// Logging in must return them to the invite rather than to /home.
+			await jun.page.waitForURL(/\/invite\//);
+			await expect(jun.page.getByRole('button', { name: 'Accept and link' })).toBeVisible();
+		} finally {
+			await ada.close();
+			await jun.close();
+		}
+	});
+});
+
+test.describe('managing a link', () => {
+	test('disconnecting removes the partner from both navs', async ({ browser }) => {
+		const ada = await newSide(browser, 'Ada');
+		const jun = await newSide(browser, 'Jun');
+
+		try {
+			await signUp(ada.page, ada.who);
+			await ada.page.waitForURL('**/home');
+			const link = await createInvite(ada.page, {
+				partnerName: 'Jun',
+				yourName: 'Ada',
+				control: 'me'
+			});
+
+			await signUp(jun.page, jun.who);
+			await jun.page.waitForURL('**/home');
+			await jun.page.goto(link);
+			await jun.page.getByRole('button', { name: 'Accept and link' }).click();
+			await jun.page.waitForURL(/\/partner\//);
+			expect(await navTabs(jun.page)).toEqual(['Home', 'Ada', 'Settings']);
+
+			// Jun does not hold control, and must still be able to leave.
+			await jun.page.goto('/settings/partners');
+			await jun.page.getByRole('main').getByRole('link', { name: /Ada/ }).click();
+			jun.page.once('dialog', (dialog) => dialog.accept());
+			await jun.page.getByRole('button', { name: 'Disconnect' }).click();
+			await jun.page.waitForURL('**/settings/partners');
+
+			await expect(jun.page.getByText('You have no partners yet.')).toBeVisible();
+			expect(await navTabs(jun.page)).toEqual(['Home', 'Settings']);
+
+			await ada.page.goto('/home');
+			expect(await navTabs(ada.page)).toEqual(['Home', 'Settings']);
+		} finally {
+			await ada.close();
+			await jun.close();
+		}
+	});
+
+	test('the inviter can cancel a pending invite, which kills the link', async ({ browser }) => {
+		const ada = await newSide(browser, 'Ada');
+		const jun = await newSide(browser, 'Jun');
+
+		try {
+			await signUp(ada.page, ada.who);
+			await ada.page.waitForURL('**/home');
+			const link = await createInvite(ada.page, {
+				partnerName: 'Jun',
+				yourName: 'Ada',
+				control: 'mix'
+			});
+
+			ada.page.once('dialog', (dialog) => dialog.accept());
+			await ada.page.getByRole('button', { name: 'Cancel invite' }).click();
+			await ada.page.waitForURL('**/settings/partners');
+			await expect(ada.page.getByText('You have no partners yet.')).toBeVisible();
+
+			await jun.page.goto(link);
+			await expect(jun.page.getByRole('heading', { name: "This link doesn't work" })).toBeVisible();
+		} finally {
+			await ada.close();
+			await jun.close();
+		}
+	});
+
+	test('renewing an invite replaces the old link', async ({ browser }) => {
+		const ada = await newSide(browser, 'Ada');
+		const jun = await newSide(browser, 'Jun');
+
+		try {
+			await signUp(ada.page, ada.who);
+			await ada.page.waitForURL('**/home');
+			const first = await createInvite(ada.page, {
+				partnerName: 'Jun',
+				yourName: 'Ada',
+				control: 'mix'
+			});
+
+			await ada.page.getByRole('button', { name: 'Create a new link' }).click();
+			await expect(ada.page.getByLabel('Invite link')).not.toHaveValue(first);
+			const second = await ada.page.getByLabel('Invite link').inputValue();
+
+			await jun.page.goto(first);
+			await expect(jun.page.getByRole('heading', { name: "This link doesn't work" })).toBeVisible();
+
+			await jun.page.goto(second);
+			await expect(
+				jun.page.getByRole('heading', { name: 'Ada wants to link with you' })
+			).toBeVisible();
+		} finally {
+			await ada.close();
+			await jun.close();
+		}
+	});
+
+	test('the controlling side can rename the partner, and the nav follows', async ({ browser }) => {
+		const ada = await newSide(browser, 'Ada');
+		const jun = await newSide(browser, 'Jun');
+
+		try {
+			await signUp(ada.page, ada.who);
+			await ada.page.waitForURL('**/home');
+			const link = await createInvite(ada.page, {
+				partnerName: 'Jun',
+				yourName: 'Ada',
+				control: 'me'
+			});
+
+			await signUp(jun.page, jun.who);
+			await jun.page.waitForURL('**/home');
+			await jun.page.goto(link);
+			await jun.page.getByRole('button', { name: 'Accept and link' }).click();
+			await jun.page.waitForURL(/\/partner\//);
+
+			await ada.page.goto('/settings/partners');
+			await ada.page.getByRole('main').getByRole('link', { name: /Jun/ }).click();
+			await ada.page.locator('wa-input[name="partnerName"] input').fill('Junie');
+			await ada.page.getByRole('button', { name: 'Save' }).click();
+
+			await expect(async () => {
+				expect(await navTabs(ada.page)).toEqual(['Home', 'Junie', 'Settings']);
+			}).toPass();
+
+			// Jun's own tab is unaffected: it shows what Jun calls Ada.
+			await jun.page.goto('/home');
+			expect(await navTabs(jun.page)).toEqual(['Home', 'Ada', 'Settings']);
+		} finally {
+			await ada.close();
+			await jun.close();
+		}
+	});
+});

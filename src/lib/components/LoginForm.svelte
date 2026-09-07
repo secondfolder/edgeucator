@@ -7,7 +7,10 @@
 	import { superForm } from 'sveltekit-superforms';
 	import InputField from './InputField.svelte';
 
-	let { data }: { data: SuperValidated<Infer<LoginFormSchema>> } = $props();
+	let {
+		data,
+		redirectTo = null
+	}: { data: SuperValidated<Infer<LoginFormSchema>>; redirectTo?: string | null } = $props();
 
 	// No `onResult` hook any more: there is no client-side auth store to sync a
 	// cookie into. The action's 303 triggers a fresh server load, which is the
@@ -21,7 +24,16 @@
 		// The ceremony set the session cookie client-side, so server load data is
 		// now stale — refetch before navigating.
 		await invalidateAll();
-		await goto(resolve('/'), { invalidateAll: true });
+		// The password path gets `redirectTo` back from the action's 303; the
+		// passkey ceremony never touches the server action, so it has to apply
+		// the same destination itself or an invite would be dropped here.
+		//
+		// no-navigation-without-resolve wants a resolve() call, but this is a
+		// runtime path from a query string, not a known route id — there is
+		// nothing to resolve against. It is safe because the server ran it
+		// through `safeRedirect` in the load before it ever reached this prop.
+		// eslint-disable-next-line svelte/no-navigation-without-resolve
+		await goto(redirectTo ?? resolve('/'), { invalidateAll: true });
 	}
 
 	async function signInWithPasskey() {

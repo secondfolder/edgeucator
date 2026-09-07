@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { resolve } from '$app/paths';
 	import { initialsFor } from '$lib/initials';
 	import type { PageData } from './$types';
 
@@ -14,12 +15,21 @@
 			label={partner.name}
 		></wa-avatar>
 		<h1>{partner.name}</h1>
+		{#if partner.relationshipLabel}
+			<p class="label">{partner.relationshipLabel}</p>
+		{/if}
 	</header>
 
-	<p>
-		Partners are not built yet — this page exists so the shape of the app is in place. Nothing here
-		is stored against your account.
+	<p>They call you <strong>{partner.yourName}</strong>.</p>
+
+	<p class="todo">
+		Shared guides and progress are not built yet. For now this page is where the link between the
+		two of you lives.
 	</p>
+
+	<a href={resolve('/(auth-required)/(app)/settings/partners/[id]', { id: partner.id })}>
+		{partner.canEdit ? 'Edit this connection' : 'Connection settings'}
+	</a>
 </section>
 
 <style>
@@ -27,6 +37,11 @@
 		max-width: 40rem;
 		margin: 0 auto;
 		padding: var(--wa-space-l);
+		display: flex;
+		flex-direction: column;
+		align-items: center;
+		gap: 1rem;
+		text-align: center;
 
 		header {
 			display: flex;
@@ -41,11 +56,19 @@
 			h1 {
 				margin: 0;
 			}
+
+			.label {
+				margin: 0;
+				color: var(--wa-color-text-quiet);
+			}
 		}
 
 		p {
+			margin: 0;
+		}
+
+		.todo {
 			color: var(--wa-color-text-quiet);
-			text-align: center;
 		}
 	}
 </style>

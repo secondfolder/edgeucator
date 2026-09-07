@@ -16,6 +16,7 @@
 		"lint": "prettier --check . && eslint .",
 		"test:unit": "vitest",
 		"test": "npm run test:unit -- --run",
+		"test:e2e": "playwright test",
 		"db:generate": "drizzle-kit generate",
 		"db:migrate": "drizzle-kit migrate",
 		"db:migrate:d1": "wrangler d1 migrations apply DB --local",
@@ -32,6 +33,7 @@
 		"@eslint/compat": "^2.1.1",
 		"@eslint/js": "^10.0.1",
 		"@libsql/client": "^0.18.0",
+		"@playwright/test": "^1.63.0",
 		"@sveltejs/adapter-cloudflare": "^7.2.9",
 		"@sveltejs/kit": "^2.70.3",
 		"@sveltejs/vite-plugin-svelte": "^7.3.0",
@@ -56,6 +58,7 @@
 		"wrangler": "^4.129.0"
 	},
 	"dependencies": {
+		"@awesome.me/webawesome": "^3.12.0",
 		"@better-auth/passkey": "^1.7.3",
 		"better-auth": "^1.7.3",
 		"drizzle-orm": "^0.45.2",

@@ -4,4 +4,4 @@
 	let { data } = $props();
 </script>
 
-<LoginForm data={data.loginForm} />
+<LoginForm data={data.loginForm} redirectTo={data.redirectTo} />

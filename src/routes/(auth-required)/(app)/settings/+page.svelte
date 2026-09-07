@@ -20,6 +20,12 @@
 
 	<ul>
 		<li>
+			<a href={resolve('/(auth-required)/(app)/settings/partners')}>
+				<span>Partners</span>
+				<wa-icon name="chevron-right" variant="solid"></wa-icon>
+			</a>
+		</li>
+		<li>
 			<a href={resolve('/(auth-required)/(app)/settings/passkeys')}>
 				<span>Passkeys</span>
 				<wa-icon name="chevron-right" variant="solid"></wa-icon>

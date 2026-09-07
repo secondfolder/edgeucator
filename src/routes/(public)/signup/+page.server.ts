@@ -3,15 +3,18 @@ import { APIError } from 'better-auth/api';
 import { fail, setError, superValidate } from 'sveltekit-superforms';
 import { zod4 } from 'sveltekit-superforms/adapters';
 import { signupFormSchema } from '$lib/schemas/signupForm';
+import { redirectTargetOrHome, safeRedirect } from '$lib/safe-redirect';
 import type { Actions, PageServerLoad } from './$types';
 
-export const load: PageServerLoad = async ({ locals }) => {
-	if (locals.user) redirect(303, '/home');
-	return { signupForm: await superValidate(zod4(signupFormSchema)) };
+export const load: PageServerLoad = async ({ locals, url }) => {
+	// See the note in the login load: this is how an invite survives signup.
+	const redirectTo = safeRedirect(url.searchParams.get('redirectTo'));
+	if (locals.user) redirect(303, redirectTo ?? '/home');
+	return { signupForm: await superValidate(zod4(signupFormSchema)), redirectTo };
 };
 
 export const actions: Actions = {
-	default: async ({ locals, request }) => {
+	default: async ({ locals, request, url }) => {
 		const signupForm = await superValidate(request, zod4(signupFormSchema));
 		// (the previous console.log here also leaked the plaintext password)
 		if (!signupForm.valid) {
@@ -42,6 +45,6 @@ export const actions: Actions = {
 			return setError(signupForm, '', 'Could not sign up');
 		}
 
-		redirect(303, '/home');
+		redirect(303, redirectTargetOrHome(url.searchParams.get('redirectTo')));
 	}
 };

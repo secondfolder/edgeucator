@@ -41,7 +41,11 @@
 		you registered it on.
 	</p>
 
-	<wa-button onclick={addPasskey} disabled={busy || undefined}>Add a passkey</wa-button>
+	<!-- `disabled={busy}`, not `disabled={busy || undefined}`: once Web Awesome
+	     upgrades the element Svelte assigns to the `disabled` *property*, and this
+	     alpha coerces `undefined` to true — which left this button permanently
+	     unclickable. -->
+	<wa-button onclick={addPasskey} disabled={busy}>Add a passkey</wa-button>
 	{#if message}<p class="invalid">{message}</p>{/if}
 
 	{#if data.passkeys.length === 0}

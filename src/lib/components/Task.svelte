@@ -1,5 +1,6 @@
 <script lang="ts">
 	import type { TaskView } from '$lib/types';
+	import type { WaSelectEvent } from '@awesome.me/webawesome/dist/events/select.js';
 	import { tick } from 'svelte';
 
 	let { task }: { task: TaskView } = $props();
@@ -9,6 +10,12 @@
 	};
 	const decrement = (amountToDecrementBy: number = 1) => {
 		count -= amountToDecrementBy;
+	};
+	// <wa-dropdown> reports selections via `wa-select` rather than a click on the
+	// item, which is what also makes keyboard selection work — a click handler on
+	// each item would only ever see pointer input.
+	const handleDeductSelect = (event: WaSelectEvent) => {
+		decrement(Number(event.detail.item.getAttribute('value')));
 	};
 	const remaining = $derived(Math.max(task.instructions.required - count, 0));
 	// NOTE: there was a `const action = { edge: 'edged' }[task.action] || 'edged'`
@@ -77,19 +84,17 @@
 		</div>
 		<div class="controls">
 			<wa-button onclick={increment}>Record Edge</wa-button>
-			<wa-button-group label="Example Button Group" variant="neutral" appearance="outlined">
+			<wa-button-group label="Deduct edges">
 				<wa-button appearance="outlined" onclick={() => decrement()}>Deduct Edge</wa-button>
-				<wa-dropdown placement="bottom-end" hoist>
-					<wa-button slot="trigger" caret appearance="outlined">
+				<wa-dropdown placement="bottom-end" onwa-select={handleDeductSelect}>
+					<wa-button slot="trigger" with-caret appearance="outlined">
 						<span class="wa-visually-hidden">More options</span>
 					</wa-button>
-					<wa-menu>
-						<wa-menu-item onclick={() => decrement(100)}>-100</wa-menu-item>
-						<wa-menu-item onclick={() => decrement(50)}>-50</wa-menu-item>
-						<wa-menu-item onclick={() => decrement(20)}>-20</wa-menu-item>
-						<wa-menu-item onclick={() => decrement(10)}>-10</wa-menu-item>
-						<wa-menu-item onclick={() => decrement(5)}>-5</wa-menu-item>
-					</wa-menu>
+					<wa-dropdown-item value="100">-100</wa-dropdown-item>
+					<wa-dropdown-item value="50">-50</wa-dropdown-item>
+					<wa-dropdown-item value="20">-20</wa-dropdown-item>
+					<wa-dropdown-item value="10">-10</wa-dropdown-item>
+					<wa-dropdown-item value="5">-5</wa-dropdown-item>
 				</wa-dropdown>
 			</wa-button-group>
 		</div>
