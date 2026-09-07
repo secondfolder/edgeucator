@@ -201,6 +201,22 @@ things changed:
 against `$form`, whose `authSecret` is empty until `onSubmit` fills the FormData
 and which has no password field at all. It would reject every submission.
 
+Because strength is checked against the component's own state rather than the
+FormData, that state has to actually be right — and a password manager can
+change an input without producing an event the component can see. This shipped
+as a bug: an autofilled 21-character password was refused for being under 12,
+while sitting visible in the box. `PasswordField.svelte` therefore reads the
+value out of the **native control inside `<wa-input>`'s shadow root**, on the
+element's events, on the inner control's events, and once more on a
+capture-phase `submit` listener. The element's own `value` property is not
+authoritative — after a fill that dispatches nothing it is still stale. The
+mechanism, the measurement of which fill paths break, and the regression tests
+are described in AGENTS.md and `e2e/helpers.ts`.
+
+This is only a usability bug, never a security one: a password that fails to
+reach the component cannot derive a key either, so the failure mode is a
+refused submission rather than a weak one.
+
 Password _strength_ being unenforceable server-side looks like a violation of
 AGENTS.md invariant 13. It is not: that invariant is about a **permission**
 being enforced by a disabled input, which is still forbidden. This is a

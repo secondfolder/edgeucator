@@ -264,3 +264,77 @@ export async function writeThread(
 export async function fillWaTextarea(page: Page, value: string): Promise<void> {
 	await page.locator('wa-textarea textarea').first().fill(value);
 }
+
+/**
+ * Fills a password box the way a password manager extension does.
+ *
+ * Reproduces a real bug rather than an imagined one, so the mechanism matters.
+ * An extension cannot type; it sets `input.value` on the native control and
+ * dispatches its own events to tell the page. Those events are untrusted and,
+ * critically, `new Event('input', { bubbles: true })` defaults to
+ * **`composed: false`** — so it bubbles *inside* `<wa-input>`'s shadow root,
+ * where the element's own listener updates its value, and then stops dead at
+ * the shadow boundary without ever reaching the host that Svelte listens on.
+ *
+ * Measured against Web Awesome 3, `vite dev`, Chromium: of the five ways a
+ * value can arrive, real typing and a `composed: true` synthetic event reach
+ * Svelte, while this one, a silent `input.value =`, and setting the host's own
+ * `value` property all leave the component's state empty. Chrome's own autofill
+ * dispatches trusted composed events and is therefore fine, which is why this
+ * only reproduces with an extension.
+ *
+ * There is no lower level that can test this. jsdom never upgrades a `wa-*`
+ * element, so there is no shadow root and no boundary to fail to cross — a
+ * component test would have to stub the very behaviour under test.
+ */
+export async function autofillPassword(page: Page, field: string, value: string) {
+	await autofillWaInput(page, `wa-input[data-field="${field}"]`, value);
+}
+
+/**
+ * The same fill, addressed by `name` — for the username box beside it.
+ *
+ * A manager fills both halves of a login, so a test that only fills the
+ * password is not reproducing what actually happens. Split out rather than
+ * folded in because the password boxes deliberately have no `name` and these
+ * do.
+ */
+export async function autofillWaInput(page: Page, selector: string, value: string) {
+	// The shadow root only exists once Web Awesome has upgraded the element, and
+	// an extension would likewise have nothing to fill before then.
+	await page.waitForFunction(
+		(sel) => document.querySelector(sel)?.shadowRoot?.querySelector('input') != null,
+		selector
+	);
+	await page.evaluate(
+		({ sel, text }) => {
+			const input = document.querySelector(sel)!.shadowRoot!.querySelector('input')!;
+			input.value = text;
+			input.dispatchEvent(new Event('input', { bubbles: true }));
+			input.dispatchEvent(new Event('change', { bubbles: true }));
+		},
+		{ sel: selector, text: value }
+	);
+}
+
+/**
+ * The same, but with no events at all — the most hostile fill we tolerate.
+ *
+ * No real manager does this, because it would break every framework that binds
+ * on input. It is here because it is the case that decides *where* the value is
+ * read from: the host element's own `value` property is still stale afterwards,
+ * so only the inner native control is authoritative.
+ */
+export async function autofillPasswordSilently(page: Page, field: string, value: string) {
+	const selector = `wa-input[data-field="${field}"]`;
+	await page.waitForFunction(
+		(sel) => document.querySelector(sel)?.shadowRoot?.querySelector('input') != null,
+		selector
+	);
+	await page.evaluate(
+		({ sel, text }) => {
+			document.querySelector(sel)!.shadowRoot!.querySelector('input')!.value = text;
+		},
+		{ sel: selector, text: value }
+	);
+}

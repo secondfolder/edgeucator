@@ -66,7 +66,7 @@ and `lint` are not. Do not assume you caused the existing problems, and do not
   Svelte cannot know a `<wa-button>` is a button.
 - `npm test`: 443 tests. Partners and the encryption keys are covered end to end
   at three levels — see **Testing** below. Outside those the net is still thin.
-- `npm run test:e2e`: 27 Playwright specs, ~52s once the browser is installed
+- `npm run test:e2e`: 30 Playwright specs, ~60s once the browser is installed
   (`npx playwright install chromium` first). A run that takes ~2 minutes has
   something hanging on its 90-second timeout, not something slow.
 
@@ -185,6 +185,29 @@ load data is serialised into the HTML of every page. Whitelist fields, as
   `<wa-input>` is form-associated and contributes its own value to the FormData,
   so nothing there depends on the Svelte state updating. Anything that _does_
   depend on it must not use the shorthand.
+- **A value can arrive in an input without any event this app can see, so read
+  the element, not the event.** A password manager extension fills a field by
+  assigning `input.value` and dispatching `new Event('input', { bubbles: true })`
+  — which defaults to `composed: false`, so it bubbles inside `<wa-input>`'s
+  shadow root, updates the element's own value on the way, and stops dead at the
+  boundary. Measured in Chromium against Web Awesome 3: of the five ways a value
+  can arrive, real typing and a `composed: true` synthetic event reach Svelte,
+  while that extension pattern, a silent `input.value =`, and setting the host's
+  own `value` property all leave component state empty. Chrome's built-in
+  autofill sends trusted composed events and is fine, which is why this only
+  reproduces with an extension installed.
+
+  This shipped as a bug: signup refused an autofilled 21-character password for
+  being under 12 characters, because the strength check read component state
+  while the password sat visible in the box. `PasswordField.svelte` now listens
+  on the inner control as well as the host **and** re-reads the control on a
+  capture-phase `submit` listener on `document` — capture is what makes the
+  ordering sound, since listeners on an event's own target run in registration
+  order regardless of the capture flag. Note the element's own `value` property
+  is _not_ authoritative; only the native control it wraps is. Regression tests
+  are in `e2e/encryption.spec.ts` under "password manager autofill", and
+  `e2e/helpers.ts` documents the measurement. Any future field whose Svelte
+  state is load-bearing needs the same treatment.
 
 **Never log a form object.** It no longer contains a plaintext password —
 the browser posts a derived value instead (see

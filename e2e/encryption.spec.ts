@@ -2,6 +2,9 @@ import { expect, test } from '@playwright/test';
 import { createClient } from '@libsql/client';
 import {
 	account,
+	autofillPassword,
+	autofillPasswordSilently,
+	autofillWaInput,
 	clickWaButton,
 	fillPassword,
 	fillWaInput,
@@ -262,6 +265,83 @@ test.describe('password strength', () => {
 
 		await expect(page.getByText(/Passwords don't match/)).toBeVisible();
 		expect(posts).toBe(0);
+	});
+});
+
+test.describe('password manager autofill', () => {
+	/**
+	 * The bug this describe exists for: signing up with an autofilled password
+	 * was refused with "Use at least 12 characters", for a 21-character
+	 * password that was plainly visible in the box.
+	 *
+	 * The cause was that the component's state, not the input, was the source of
+	 * truth for the strength check — and an extension's fill never reaches that
+	 * state, because its `input` event is not `composed` and so cannot leave
+	 * `<wa-input>`'s shadow root. See `autofillPassword` for the measurement.
+	 *
+	 * The check counts requests as well as asserting the outcome, because the two
+	 * ways this can fail are opposite: refusing locally (no request at all) is
+	 * the original bug, while deriving from an empty password and posting that
+	 * would be a worse one.
+	 */
+	test('accepts a password filled by a manager extension', async ({ page }) => {
+		const who = account('Bexley');
+		await page.goto('/signup');
+		await waitForEnhancedForm(page);
+		await fillWaInput(page, 'name', who.name);
+		// The email is autofilled the same way, because that is what actually
+		// happens — a manager fills both halves of a credential. It matters here
+		// beyond realism: the signup handler derives the master key from
+		// `formData.get('email')`, so if an autofilled email did not reach the
+		// submitted form data the account would be created under a key derived
+		// from an empty string and nothing would ever unlock it again.
+		await autofillWaInput(page, 'wa-input[name="email"]', who.email);
+		await autofillPassword(page, 'password', who.password);
+		await autofillPassword(page, 'passwordConfirm', who.password);
+
+		// The strength meter only renders once the component has a value, so it is
+		// a direct read on the state the submit handler is about to use. Asserting
+		// it before clicking localises the failure: meter missing means the fill
+		// never landed, meter present but signup refused means something else.
+		await expect(page.locator('wa-input[data-field="password"] ~ .strength')).toBeVisible();
+
+		await submitEnhancedForm(page, 'Sign Up');
+		await page.waitForURL('**/home');
+		await expect(page.getByText(/at least 12 characters/)).toBeHidden();
+	});
+
+	/** The same password must also get you back in — LoginForm has the same shape. */
+	test('accepts an autofilled password when logging in', async ({ page }) => {
+		const who = account('Cormac');
+		await signUp(page, who);
+		await logOut(page);
+
+		await page.goto('/login');
+		await waitForEnhancedForm(page);
+		await autofillWaInput(page, 'wa-input[name="email"]', who.email);
+		await autofillPassword(page, 'password', who.password);
+		await submitEnhancedForm(page, 'Login');
+
+		await page.waitForURL('**/home');
+	});
+
+	/**
+	 * Pins *where* the value is read from, which the extension case alone does
+	 * not: after a silent fill the host element's own `value` property is still
+	 * empty, so reading `wa-input.value` would pass the test above and fail this
+	 * one. Only the inner native control is authoritative.
+	 */
+	test('accepts a password filled with no events at all', async ({ page }) => {
+		const who = account('Delphine');
+		await page.goto('/signup');
+		await waitForEnhancedForm(page);
+		await fillWaInput(page, 'name', who.name);
+		await fillWaInput(page, 'email', who.email);
+		await autofillPasswordSilently(page, 'password', who.password);
+		await autofillPasswordSilently(page, 'passwordConfirm', who.password);
+
+		await submitEnhancedForm(page, 'Sign Up');
+		await page.waitForURL('**/home');
 	});
 });
 
