@@ -34,3 +34,17 @@ export type GuideView = {
 	id: string;
 	title: string;
 };
+
+/**
+ * The subset of a partner that AppNav.svelte / the partner page consume.
+ *
+ * There is no `partners` table yet — see `src/lib/placeholder-partners.ts`.
+ * When the real feature lands this stays the component-facing shape and only
+ * the loader behind it changes.
+ */
+export type PartnerView = {
+	id: string;
+	name: string;
+	/** Avatar URL, or null to fall back to initials. */
+	image: string | null;
+};

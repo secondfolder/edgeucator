@@ -6,7 +6,7 @@ import { loginFormSchema } from '$lib/schemas/loginForm';
 import type { Actions, PageServerLoad } from './$types';
 
 export const load: PageServerLoad = async ({ locals }) => {
-	if (locals.user) redirect(303, '/');
+	if (locals.user) redirect(303, '/home');
 	return { loginForm: await superValidate(zod4(loginFormSchema)) };
 };
 
@@ -41,6 +41,6 @@ export const actions: Actions = {
 			return setError(loginForm, '', 'Could not login');
 		}
 
-		redirect(303, '/');
+		redirect(303, '/home');
 	}
 };

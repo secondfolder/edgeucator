@@ -1,5 +1,4 @@
 <script lang="ts">
-	import { teleport } from '$lib/teleport';
 	import type { TaskView } from '$lib/types';
 	import { tick } from 'svelte';
 
@@ -20,6 +19,24 @@
 
 	let mainElm: HTMLElement | undefined = $state();
 
+	/**
+	 * The nearest ancestor that actually scrolls, falling back to the document.
+	 *
+	 * This used to be hard-coded to `window`, which was correct while guides
+	 * lived under (public) and the page itself scrolled. Inside the app shell
+	 * the only scrolling box is the layout's <main>, so scrolling the window
+	 * moved nothing and the reveal stopped following the newest paragraph.
+	 */
+	function scrollParentOf(node: HTMLElement): HTMLElement {
+		let candidate = node.parentElement;
+		while (candidate) {
+			const { overflowY } = getComputedStyle(candidate);
+			if (overflowY === 'auto' || overflowY === 'scroll') return candidate;
+			candidate = candidate.parentElement;
+		}
+		return document.scrollingElement as HTMLElement;
+	}
+
 	$effect.pre(() => {
 		// `count` is read here so the effect re-runs whenever it changes, and
 		// captured so a run superseded by a newer one bails out instead of
@@ -28,9 +45,15 @@
 		tick().then(() => {
 			if (countAtRun !== count) return;
 			const lastInstruction = mainElm?.querySelector(' & > p:last-child');
-			if (!lastInstruction) return;
-			const scrollPos = lastInstruction.getBoundingClientRect().top + window.scrollY - 20;
-			window.scrollTo({ top: scrollPos, behavior: 'smooth' });
+			if (!lastInstruction || !mainElm) return;
+			const scroller = scrollParentOf(mainElm);
+			// The document's own rect already carries the scroll offset, so only a
+			// real scrolling element needs its top subtracted.
+			const scrollerTop =
+				scroller === document.scrollingElement ? 0 : scroller.getBoundingClientRect().top;
+			const scrollPos =
+				lastInstruction.getBoundingClientRect().top - scrollerTop + scroller.scrollTop - 20;
+			scroller.scrollTo({ top: scrollPos, behavior: 'smooth' });
 		});
 	});
 </script>
@@ -43,7 +66,12 @@
 			</p>
 		{/each}
 	</main>
-	<footer use:teleport={'body'}>
+	<!-- This footer used to teleport into <body> so its sticky positioning could
+	     escape the (public) layout's 800px column. In the app shell <body> does
+	     not scroll, so a teleported footer just fell out of view; staying put
+	     makes it stick to the bottom of the scrolling <main>, directly above the
+	     nav bar, which is where it wanted to be all along. -->
+	<footer>
 		<div class="info">
 			{count} edge{count !== 1 ? 's' : ''}, {remaining} to go
 		</div>

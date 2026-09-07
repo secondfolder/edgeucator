@@ -8,7 +8,9 @@
 <ul>
 	{#each guides as guide (guide.id)}
 		<li>
-			<a href={resolve('/(public)/guides/[id]', { id: guide.id })}>{guide.title}</a>
+			<a href={resolve('/(auth-required)/(app)/home/guides/[id]', { id: guide.id })}
+				>{guide.title}</a
+			>
 		</li>
 	{/each}
 </ul>

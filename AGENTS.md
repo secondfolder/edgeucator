@@ -30,8 +30,9 @@ one entry stays on one line).
 | `src/lib/schemas/`            | Zod form schemas, shared by the server action and the client component                 |
 | `src/lib/types.ts`            | Types both server and components need. Alias-free so the schema can import it          |
 | `src/lib/components/`         | Presentational Svelte components                                                       |
-| `src/routes/(public)/`        | Anonymous-reachable routes                                                             |
+| `src/routes/(public)/`        | Anonymous-reachable routes. `+layout.svelte` here owns `SiteHeader`                    |
 | `src/routes/(auth-required)/` | Guarded by a group `+layout.server.ts` that redirects to `/login`                      |
+| `.../(auth-required)/(app)/`  | The signed-in app shell: fixed-viewport layout plus the `AppNav` bottom bar            |
 | `drizzle/`                    | Generated migrations + snapshots. **Committed.** Never hand-edit                       |
 
 ## The verification loop
@@ -55,7 +56,7 @@ an unrelated change:
   `a11y_no_static_element_interactions`) plus a few `state_referenced_locally`.
   Svelte cannot know a `<wa-button>` is a button.
 - `npm test`: passes. There is **one** test
-  ([src/routes/page.svelte.test.ts](src/routes/page.svelte.test.ts)) and it
+  ([src/routes/(public)/page.svelte.test.ts](<src/routes/(public)/page.svelte.test.ts>)) and it
   asserts an `<h1>` exists. Effectively no safety net — lean on `check` and on
   actually running the app.
 
@@ -158,6 +159,28 @@ which is why Svelte's a11y warnings fire on them. Style with `--wa-*` custom
 properties and `::part()`. Pinned to `3.0.0-alpha.11` — an alpha, so treat a
 version bump as a change that needs the app actually opened.
 
+**Two shells, one per group.** `(public)` renders `SiteHeader` above a centred
+800px column; `(auth-required)/(app)` renders a `100svh` flex column whose
+`<main>` scrolls and whose `AppNav` bottom bar does not. The root
+`+layout.svelte` deliberately renders neither — stacking a top nav on top of the
+bottom nav is what moving `SiteHeader` out of it fixed. Each shell sets the
+`body` rules it needs through `<svelte:head>`, so they are added and removed
+with the layout rather than fighting each other globally.
+
+**`/` is the logged-out landing page; `/home` is the signed-in one.** Every
+post-auth redirect points at `/home`, and `/` bounces a user who has a session.
+The guides live under it (`/home/guides`, `/home/guides/[id]`), so they are
+behind the auth guard — the public surface is now only `/`, `/login` and
+`/signup`. The landing page still links to the guides, which means an anonymous
+visitor is bounced to `/login` and, since the guard does not carry a
+`redirectTo`, lands on `/home` rather than the guide they clicked.
+
+**Active nav state compares `page.route.id`, never a pathname.** During SSR
+`resolve()` returns a path relative to the page being rendered (`./home` on
+`/home`, `../home` on `/settings/passkeys`), which never equals
+`page.url.pathname` — comparing them left the current tab unhighlighted until
+hydration. Route ids are identical on both sides.
+
 **CSS lives in the component's `<style>` block**, nested, no framework.
 
 **Comments explain _why_, not _what_.** This codebase's distinguishing habit is
@@ -188,6 +211,25 @@ Put it under `(public)` or `(auth-required)` — the group is the access control
 Do not hand-roll a session check in a page load when the group already covers
 it. Remember form actions run _before_ layout loads, so a group guard does not
 gate an action (this is why `/logout` sits under `(public)`).
+
+A signed-in screen goes one level deeper, in `(auth-required)/(app)/`, which
+adds the app shell: `<main>` is the only thing that scrolls and `AppNav` is
+pinned under it. Anything outside that group renders without the bottom bar, so
+put a page there only if it is deliberately chrome-less.
+
+Two consequences bite anything moved into the shell, and both already cost a
+debugging round on the guides:
+
+- **The window no longer scrolls.** `window.scrollY` / `window.scrollTo` move
+  nothing; find the scrolling ancestor instead, as `Task.svelte` does.
+- **`position: fixed`/`sticky` against the viewport, and teleporting to
+  `<body>`, both stop working**, because `<body>` does not scroll. A sticky
+  element left inside `<main>` pins to the bottom of the scrollport — directly
+  above the nav — which is usually what was wanted anyway.
+
+Percentage heights are the third trap: `min-height: 100%` needs an ancestor with
+a _specified_ height, and the shell only sets `min-height` on the page wrapper.
+Stretch with `flex: 1 1 auto` instead.
 
 **Adding a component that needs DB-shaped data**
 

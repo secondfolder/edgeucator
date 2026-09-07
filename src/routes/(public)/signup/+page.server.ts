@@ -6,7 +6,7 @@ import { signupFormSchema } from '$lib/schemas/signupForm';
 import type { Actions, PageServerLoad } from './$types';
 
 export const load: PageServerLoad = async ({ locals }) => {
-	if (locals.user) redirect(303, '/');
+	if (locals.user) redirect(303, '/home');
 	return { signupForm: await superValidate(zod4(signupFormSchema)) };
 };
 
@@ -42,6 +42,6 @@ export const actions: Actions = {
 			return setError(signupForm, '', 'Could not sign up');
 		}
 
-		redirect(303, '/');
+		redirect(303, '/home');
 	}
 };

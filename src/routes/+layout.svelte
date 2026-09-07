@@ -1,5 +1,4 @@
 <script lang="ts">
-	import SiteHeader from '$lib/components/SiteHeader.svelte';
 	import type { Snippet } from 'svelte';
 
 	interface Props {
@@ -13,9 +12,12 @@
 	// `exportToCookie({ httpOnly: false })` was not), so there is nothing for
 	// the client to read. Server load data is the single source of truth, read
 	// via `page.data.user` wherever it is needed.
+	//
+	// SiteHeader used to live here. It now belongs to (public) only: the
+	// (auth-required)/(app) group has its own shell with a bottom nav, and
+	// stacking a second navigation on top of it defeats the point.
 </script>
 
-<SiteHeader />
 {@render children?.()}
 
 <style>

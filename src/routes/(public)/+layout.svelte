@@ -1,4 +1,6 @@
-<script>
+<script lang="ts">
+	import SiteHeader from '$lib/components/SiteHeader.svelte';
+
 	let { children } = $props();
 </script>
 
@@ -7,12 +9,12 @@
 		body {
 			display: flex;
 			flex-direction: column;
-			justify-content: center;
 			align-items: center;
 			min-height: 100svh;
 		}
 	</style>
 </svelte:head>
+<SiteHeader />
 <div class="container">
 	{@render children()}
 </div>

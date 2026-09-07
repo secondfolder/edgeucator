@@ -54,7 +54,7 @@ export const tasks = sqliteTable(
 		...timestamps
 	},
 	(table) => [
-		// The /guides/[id] load's hot path: where guide_id = ? order by "order".
+		// The /home/guides/[id] load's hot path: where guide_id = ? order by "order".
 		index('tasks_guide_id_order_idx').on(table.guideId, table.order)
 	]
 );

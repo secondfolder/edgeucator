@@ -26,7 +26,12 @@
 
 <style>
 	div {
-		min-height: 100%;
+		/* Was `min-height: 100%`. That percentage resolves against a parent with a
+		   specified height, and the page wrapper only has a min-height, so it fell
+		   back to auto and left Task's sticky footer floating mid-page instead of
+		   pinned above the nav. Stretching as a flex item does not depend on the
+		   parent having a resolvable height. */
+		flex: 1 1 auto;
 		display: flex;
 		flex-direction: column;
 

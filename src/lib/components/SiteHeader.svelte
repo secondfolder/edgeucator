@@ -12,7 +12,10 @@
 		<ul class="menu menu-horizontal">
 			{#if user}
 				<li>{user.email}</li>
-				<li><a href={resolve('/(auth-required)/settings/passkeys')}>Passkeys</a></li>
+				<!-- Points at the app shell, not at a bare page: /home and /settings
+				     carry the bottom nav, which is where a logged-in user lives. -->
+				<li><a href={resolve('/(auth-required)/(app)/home')}>Home</a></li>
+				<li><a href={resolve('/(auth-required)/(app)/settings')}>Settings</a></li>
 				<li>
 					<!-- Plain use:enhance is enough: its default behaviour already
 					     does goto + invalidateAll for a redirect result. The old

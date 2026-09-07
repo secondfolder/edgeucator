@@ -41,8 +41,9 @@ export const handle: Handle = async ({ event, resolve }) => {
 	event.locals.session = null;
 	event.locals.user = null;
 
-	// Cheap gate: skip the session lookup entirely for anonymous traffic, which
-	// is most of this app — /, /guides and /guides/[id] are all public.
+	// Cheap gate: skip the session lookup entirely for anonymous traffic. The
+	// public surface is now just /, /login and /signup — the guides moved under
+	// /home when the app shell landed, so they sit behind the group guard.
 	if (getSessionCookie(event.request)) {
 		const result = await auth.api.getSession({ headers: event.request.headers });
 		if (result) {
