@@ -1,5 +1,9 @@
 <script lang="ts">
 	import { resolve } from '$app/paths';
+	import UnreadPartnerLinks from '$lib/components/UnreadPartnerLinks.svelte';
+	import type { PageData } from './$types';
+
+	let { data }: { data: PageData } = $props();
 </script>
 
 <div class="home">
@@ -7,6 +11,11 @@
 		<h1>Edgeucator</h1>
 		<span class="subtitle">Your Edging Escort</span>
 	</header>
+	<!-- Above the Guides button on purpose: something waiting from a partner is
+	     the reason to have opened the app, and it should not be below the fold
+	     on a short phone. Renders nothing when there is nothing waiting. -->
+	<UnreadPartnerLinks unread={data.unread} />
+
 	<wa-button variant="brand" size="large" href={resolve('/(auth-required)/(app)/home/guides')}
 		>Guides</wa-button
 	>

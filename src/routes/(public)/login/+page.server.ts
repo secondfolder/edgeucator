@@ -18,8 +18,11 @@ export const load: PageServerLoad = async ({ locals, url }) => {
 export const actions: Actions = {
 	default: async ({ locals, request, url }) => {
 		const loginForm = await superValidate(request, zod4(loginFormSchema));
-		// NOTE: this used to `console.log(loginForm)`, which wrote the plaintext
-		// password to the server log on every attempt. Deliberately not replaced.
+		// NOTE: this used to `console.log(loginForm)`. It no longer holds a
+		// plaintext password — the browser posts a derived value instead — but it
+		// does hold `authSecret`, which is a deterministic, permanent login
+		// credential for this account. Logging it would be just as bad.
+		// Deliberately not replaced.
 		if (!loginForm.valid) {
 			return fail(400, { loginForm });
 		}
@@ -29,14 +32,20 @@ export const actions: Actions = {
 			// so Better Auth's CSRF/origin middleware no-ops — this action is
 			// already protected by SvelteKit's own origin check. The session
 			// cookie is written onto event.cookies by the sveltekitCookies plugin.
+			// `authSecret` goes in as the password. Better Auth hashes whatever it
+			// is given with scrypt and a fresh per-user salt, which is what stops a
+			// stolen database from being a login verifier — see docs/encryption.md.
 			await locals.auth.api.signInEmail({
-				body: { email: loginForm.data.email, password: loginForm.data.password },
+				body: { email: loginForm.data.email, password: loginForm.data.authSecret },
 				headers: request.headers
 			});
 		} catch (error) {
 			if (error instanceof APIError) {
 				// 401 covers both an unknown email and a wrong password, and is
-				// deliberately not distinguished in the message.
+				// deliberately not distinguished in the message. The client-side KDF
+				// strengthens this rather than weakening it: a mistyped email derives
+				// a different auth secret, so the two cases are now genuinely
+				// indistinguishable rather than only reported identically.
 				if (error.statusCode === 401) {
 					return setError(loginForm, '', 'Invalid email or password');
 				}

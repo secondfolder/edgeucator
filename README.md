@@ -3,6 +3,17 @@
 SvelteKit 2 + Svelte 5 on Cloudflare Workers, with Drizzle ORM over Cloudflare D1
 and Better Auth (email/password + passkeys).
 
+> **Breaking change — accounts created before the end-to-end encryption work
+> must be recreated.** Passwords are now turned into a key in the browser and
+> only a derived value is sent to the server, so a credential stored under the
+> old scheme can no longer be matched. There is no migration and cannot be a
+> clean one: any "try the old way first" path would have to post the plaintext
+> password again, and deciding which way to try would mean asking the server
+> about an email before signing in — an account-existence oracle. Run
+> `npm run db:reset` locally; on a deployed instance, recreate the accounts.
+> Nothing is lost, because no messages exist yet. See
+> [docs/encryption.md](docs/encryption.md).
+
 ## First-time setup
 
 Local development needs **no Cloudflare account** — it runs against a plain
@@ -73,6 +84,18 @@ Never run `drizzle-kit push` — see the comment in `drizzle.config.ts`.
   strips the adapter's `emulate` hook so `vite dev` needs no workerd).
 - **Passkeys are bound to a hostname.** One registered on `localhost` will not work
   on a tunnel host or in production, and vice versa. That is WebAuthn, not a bug.
+- **Logging in and signing up need JavaScript, and always did.** Every text
+  field is a `<wa-input>` custom element whose real `<input>` only exists once
+  Web Awesome upgrades it, so with scripting off there are no usable inputs on
+  those pages at all. The client-side key derivation did not change that; it
+  just added a `<noscript>` block that explains it.
+- **The password is also the encryption key.** It is stretched in the browser
+  (PBKDF2-SHA256, 650k iterations) into an auth secret that goes to the server
+  and a wrap key that never leaves the device. Two consequences worth knowing
+  before you touch either: changing the email-normalisation rule or any KDF
+  parameter locks every existing account out of its own message history, and
+  there is a frozen test vector in `src/lib/crypto/kdf.test.ts` whose job is to
+  fail loudly if you do. See [docs/encryption.md](docs/encryption.md).
 - `npm run db:reset` uses `rm -f` and is not Windows-portable.
 
 ## Tests

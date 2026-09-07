@@ -8,12 +8,17 @@
 	// renders as an inert unknown tag.
 	import '@awesome.me/webawesome/dist/styles/webawesome.css';
 	import '@awesome.me/webawesome/dist/components/avatar/avatar.js';
+	import '@awesome.me/webawesome/dist/components/callout/callout.js';
+	import '@awesome.me/webawesome/dist/components/checkbox/checkbox.js';
 	import '@awesome.me/webawesome/dist/components/button/button.js';
 	import '@awesome.me/webawesome/dist/components/button-group/button-group.js';
 	import '@awesome.me/webawesome/dist/components/dropdown/dropdown.js';
 	import '@awesome.me/webawesome/dist/components/dropdown-item/dropdown-item.js';
 	import '@awesome.me/webawesome/dist/components/icon/icon.js';
 	import '@awesome.me/webawesome/dist/components/input/input.js';
+	import '@awesome.me/webawesome/dist/components/divider/divider.js';
+	import '@awesome.me/webawesome/dist/components/spinner/spinner.js';
+	import '@awesome.me/webawesome/dist/components/textarea/textarea.js';
 
 	interface Props {
 		children?: Snippet;

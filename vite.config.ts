@@ -36,9 +36,28 @@ export default defineConfig({
 		]
 	},
 
+	optimizeDeps: {
+		/**
+		 * Pre-bundled because nothing imports them statically.
+		 *
+		 * `src/lib/crypto/identity.ts` reaches both through `await import()`, on
+		 * purpose — age-encryption drags in ML-KEM for a feature this app never
+		 * uses, and the login and signup pages must not pay for it. But that also
+		 * hides them from Vite's dependency scan, so the first thread anyone opens
+		 * triggers a *"Forced re-optimization of dependencies"* mid-session, and
+		 * Vite tells every connected client to reload.
+		 *
+		 * A reload landing on an in-flight form submit loses it, with no request
+		 * made and no error anywhere — which showed up as the Playwright suite
+		 * failing about one run in three, always on whichever test followed the
+		 * first dynamic import. Listing them here moves the work to server start.
+		 */
+		include: ['age-encryption', '@scure/base']
+	},
+
 	server: {
 		host: host,
-        port: port,
+		port: port,
 		// Overridable so the Playwright suite can run against localhost: with the
 		// tunnel host baked in, a page served from 127.0.0.1 asks the tunnel for
 		// its modules and never hydrates.

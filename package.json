@@ -22,7 +22,7 @@
 		"db:migrate:d1": "wrangler d1 migrations apply DB --local",
 		"db:migrate:remote": "wrangler d1 migrations apply DB --remote",
 		"db:seed": "tsx src/lib/server/db/seed.ts",
-		"db:reset": "rm -f local.db local.db-shm local.db-wal && npm run db:migrate && npm run db:seed",
+		"db:reset": "rm -f local.db local.db-shm local.db-wal && rm -rf local-media && npm run db:migrate && npm run db:seed",
 		"db:studio": "drizzle-kit studio",
 		"auth:schema": "auth generate --config ./better-auth.config.ts --adapter drizzle --dialect sqlite --output src/lib/server/db/schema/auth.ts --yes",
 		"auth:secret": "auth secret",
@@ -60,6 +60,8 @@
 	"dependencies": {
 		"@awesome.me/webawesome": "^3.12.0",
 		"@better-auth/passkey": "^1.7.3",
+		"@scure/base": "^2.4.0",
+		"age-encryption": "^0.3.1",
 		"better-auth": "^1.7.3",
 		"drizzle-orm": "^0.45.2",
 		"sveltekit-superforms": "^2.30.2",

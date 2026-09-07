@@ -1,5 +1,13 @@
-import { expect, test, type Browser, type Page } from '@playwright/test';
-import { account, createInvite, logOut, navTabs, signUp, type Account } from './helpers';
+import { expect, test } from '@playwright/test';
+import {
+	clickWaButton,
+	createInvite,
+	fillPassword,
+	logOut,
+	navTabs,
+	newSide,
+	signUp
+} from './helpers';
 
 /**
  * The whole partner feature over HTTP, in a real browser.
@@ -8,17 +16,6 @@ import { account, createInvite, logOut, navTabs, signUp, type Account } from './
  * separate session cookies — signing out and back in inside one context would
  * pass while hiding a cookie bug.
  */
-
-type Side = { page: Page; who: Account; close: () => Promise<void> };
-
-async function newSide(browser: Browser, name: string): Promise<Side> {
-	// Granted explicitly: the invite screens call navigator.clipboard.writeText,
-	// and without permission Chromium leaves that promise pending rather than
-	// rejecting, which stalls the page waiting to navigate.
-	const context = await browser.newContext({ permissions: ['clipboard-read', 'clipboard-write'] });
-	const page = await context.newPage();
-	return { page, who: account(name), close: () => context.close() };
-}
 
 test.describe('linking two accounts', () => {
 	test('an invite survives the whole round trip, and both sides end up linked', async ({
@@ -65,7 +62,7 @@ test.describe('linking two accounts', () => {
 
 			// Control is shared, so Jun may rewrite the names before accepting.
 			await expect(jun.page.locator('wa-input[name="partnerName"]')).toBeVisible();
-			await jun.page.getByRole('button', { name: 'Accept and link' }).click();
+			await clickWaButton(jun.page, 'Accept and link');
 			await jun.page.waitForURL(/\/partner\/[0-9a-f-]{36}/);
 
 			// Each side sees the other under the name that side chose.
@@ -106,7 +103,7 @@ test.describe('linking two accounts', () => {
 			await expect(jun.page.getByText('Ada', { exact: true })).toBeVisible();
 			await expect(jun.page.locator('input[name="control"][value="me"]')).toBeDisabled();
 
-			await jun.page.getByRole('button', { name: 'Accept and link' }).click();
+			await clickWaButton(jun.page, 'Accept and link');
 			await jun.page.waitForURL(/\/partner\//);
 
 			// And the settings screen offers no edit form either.
@@ -144,8 +141,10 @@ test.describe('linking two accounts', () => {
 			await jun.page.waitForURL(/\/login\?redirectTo=/);
 
 			await jun.page.locator('wa-input[name="email"] input').fill(jun.who.email);
-			await jun.page.locator('wa-input[name="password"] input').fill(jun.who.password);
-			await jun.page.getByRole('button', { name: 'Login' }).click();
+			// Through the helper: the password box carries no `name`, only
+			// `data-field` — see PasswordField.svelte.
+			await fillPassword(jun.page, 'password', jun.who.password);
+			await clickWaButton(jun.page, 'Login');
 
 			// Logging in must return them to the invite rather than to /home.
 			await jun.page.waitForURL(/\/invite\//);
@@ -174,7 +173,7 @@ test.describe('managing a link', () => {
 			await signUp(jun.page, jun.who);
 			await jun.page.waitForURL('**/home');
 			await jun.page.goto(link);
-			await jun.page.getByRole('button', { name: 'Accept and link' }).click();
+			await clickWaButton(jun.page, 'Accept and link');
 			await jun.page.waitForURL(/\/partner\//);
 			expect(await navTabs(jun.page)).toEqual(['Home', 'Ada', 'Settings']);
 
@@ -182,7 +181,7 @@ test.describe('managing a link', () => {
 			await jun.page.goto('/settings/partners');
 			await jun.page.getByRole('main').getByRole('link', { name: /Ada/ }).click();
 			jun.page.once('dialog', (dialog) => dialog.accept());
-			await jun.page.getByRole('button', { name: 'Disconnect' }).click();
+			await clickWaButton(jun.page, 'Disconnect');
 			await jun.page.waitForURL('**/settings/partners');
 
 			await expect(jun.page.getByText('You have no partners yet.')).toBeVisible();
@@ -210,7 +209,7 @@ test.describe('managing a link', () => {
 			});
 
 			ada.page.once('dialog', (dialog) => dialog.accept());
-			await ada.page.getByRole('button', { name: 'Cancel invite' }).click();
+			await clickWaButton(ada.page, 'Cancel invite');
 			await ada.page.waitForURL('**/settings/partners');
 			await expect(ada.page.getByText('You have no partners yet.')).toBeVisible();
 
@@ -235,7 +234,7 @@ test.describe('managing a link', () => {
 				control: 'mix'
 			});
 
-			await ada.page.getByRole('button', { name: 'Create a new link' }).click();
+			await clickWaButton(ada.page, 'Create a new link');
 			await expect(ada.page.getByLabel('Invite link')).not.toHaveValue(first);
 			const second = await ada.page.getByLabel('Invite link').inputValue();
 
@@ -268,13 +267,13 @@ test.describe('managing a link', () => {
 			await signUp(jun.page, jun.who);
 			await jun.page.waitForURL('**/home');
 			await jun.page.goto(link);
-			await jun.page.getByRole('button', { name: 'Accept and link' }).click();
+			await clickWaButton(jun.page, 'Accept and link');
 			await jun.page.waitForURL(/\/partner\//);
 
 			await ada.page.goto('/settings/partners');
 			await ada.page.getByRole('main').getByRole('link', { name: /Jun/ }).click();
 			await ada.page.locator('wa-input[name="partnerName"] input').fill('Junie');
-			await ada.page.getByRole('button', { name: 'Save' }).click();
+			await clickWaButton(ada.page, 'Save');
 
 			await expect(async () => {
 				expect(await navTabs(ada.page)).toEqual(['Home', 'Junie', 'Settings']);

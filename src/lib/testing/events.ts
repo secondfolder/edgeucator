@@ -24,6 +24,17 @@ export type FakeEventOptions = {
 	origin?: string;
 	/** Body for an action. Values are sent as a real multipart FormData. */
 	formData?: Record<string, string>;
+	/**
+	 * A stand-in for `locals.auth.api`, for routes that do call Better Auth.
+	 *
+	 * Only the handful of endpoints a route under test actually invokes need to
+	 * be present. Anything else stays absent so that reaching for it is a loud
+	 * failure rather than a confusing `undefined` — the same reason `auth`
+	 * throws by default. Booting the real thing is not an option: it needs a
+	 * live request context for `sveltekitCookies`.
+	 */
+	// eslint-disable-next-line @typescript-eslint/no-explicit-any
+	authApi?: Record<string, (...args: any[]) => unknown>;
 };
 
 // The route modules are typed against SvelteKit's `RequestEvent`, which carries
@@ -43,20 +54,35 @@ export function fakeEvent(options: FakeEventOptions): any {
 		request = new Request(url);
 	}
 
+	const locals: Record<string, unknown> = {
+		db: options.db,
+		user: options.user ?? null,
+		session: null
+	};
+
+	if (options.authApi) {
+		locals.auth = { api: options.authApi };
+	} else {
+		// The partners routes call no Better Auth endpoint, so by default reaching
+		// for it should be an obvious failure rather than a confusing `undefined`.
+		//
+		// `defineProperty` and not a getter in an object literal that gets spread:
+		// spreading an object *invokes* its getters, so the throwing version fired
+		// during construction and every test blew up before touching the route.
+		Object.defineProperty(locals, 'auth', {
+			enumerable: true,
+			configurable: true,
+			get(): never {
+				throw new Error('fakeEvent does not provide locals.auth — pass `authApi`');
+			}
+		});
+	}
+
 	return {
 		url,
 		params: options.params ?? {},
 		request,
-		locals: {
-			db: options.db,
-			user: options.user ?? null,
-			session: null,
-			// Nothing in the partners feature calls Better Auth. Reaching for it
-			// should be an obvious failure rather than a confusing undefined.
-			get auth(): never {
-				throw new Error('fakeEvent does not provide locals.auth');
-			}
-		}
+		locals
 	};
 }
 

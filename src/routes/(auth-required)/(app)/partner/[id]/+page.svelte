@@ -22,6 +22,15 @@
 
 	<p>They call you <strong>{partner.yourName}</strong>.</p>
 
+	<wa-button
+		variant="brand"
+		size="large"
+		href={resolve('/(auth-required)/(app)/partner/[id]/messages', { id: partner.id })}
+	>
+		<wa-icon slot="start" name="envelope" variant="solid"></wa-icon>
+		Messages
+	</wa-button>
+
 	<p class="todo">
 		Shared guides and progress are not built yet. For now this page is where the link between the
 		two of you lives.

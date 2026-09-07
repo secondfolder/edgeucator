@@ -1,19 +1,20 @@
 import { z } from 'zod';
+import { authSecretField, identityFields } from './keyWrap';
 
-export const signupFormSchema = z
-	.object({
-		// Better Auth's signUpEmail requires `name`, and the generated `user`
-		// table has it NOT NULL — so collect it rather than fabricating one.
-		name: z.string().trim().min(1, 'Please enter a name'),
-		email: z.email(),
-		// Matches Better Auth's minPasswordLength, so a short password produces a
-		// field-level error here instead of a generic API failure.
-		password: z.string().min(8, 'Password must be at least 8 characters'),
-		passwordConfirm: z.string().min(1, 'Please confirm your password')
-	})
-	.refine((data) => data.password === data.passwordConfirm, {
-		message: "Passwords don't match",
-		path: ['passwordConfirm']
-	});
+export const signupFormSchema = z.object({
+	// Better Auth's signUpEmail requires `name`, and the generated `user`
+	// table has it NOT NULL — so collect it rather than fabricating one.
+	name: z.string().trim().min(1, 'Please enter a name'),
+	email: z.email(),
+	/**
+	 * The `password` and `passwordConfirm` fields are gone, and not by
+	 * oversight: the server no longer receives a password, so it cannot check
+	 * that two copies matched or that either was long enough. Both checks moved
+	 * into `SignupForm.svelte`, which is the only place that sees them.
+	 */
+	authSecret: authSecretField,
+	// The identity generated in the browser during the same submit. Opaque here.
+	...identityFields
+});
 
 export type SignupFormSchema = typeof signupFormSchema;

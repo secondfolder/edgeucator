@@ -4,6 +4,7 @@
 import type { AnyD1Database } from 'drizzle-orm/d1';
 import type { Auth, Session, User } from '$lib/server/auth';
 import type { Db } from '$lib/server/db';
+import type { MediaBucket } from '$lib/server/media';
 
 declare global {
 	namespace App {
@@ -28,6 +29,14 @@ declare global {
 			env: {
 				DB: AnyD1Database;
 				BETTER_AUTH_SECRET: string;
+				/**
+				 * The R2 bucket holding encrypted attachments.
+				 *
+				 * Structurally typed in `$lib/server/media` rather than imported
+				 * from @cloudflare/workers-types, for the same ambient-globals
+				 * reason as `AnyD1Database` above.
+				 */
+				MEDIA: MediaBucket;
 			};
 		}
 	}

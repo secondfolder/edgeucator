@@ -1,4 +1,5 @@
-import { expect, type Page } from '@playwright/test';
+import { expect, type Browser, type Page } from '@playwright/test';
+import { THREAD_ICON_LABELS, type ThreadIcon } from '../src/lib/messaging';
 
 /**
  * Shared steps for the invite flows.
@@ -14,6 +15,82 @@ export async function fillWaInput(page: Page, name: string, value: string) {
 	await page.locator(`wa-input[name="${name}"] input`).first().fill(value);
 }
 
+/**
+ * Fills a password box.
+ *
+ * Separate from `fillWaInput` because the password inputs deliberately carry no
+ * `name` — see `PasswordField.svelte`: a named input is in the submitted
+ * FormData whether or not any JavaScript ran, and the whole point of the
+ * client-side KDF is that the plaintext password is never posted. They carry
+ * `data-field` instead, purely so this locator has something to match.
+ *
+ * Not `getByLabel('Password')`, which is ambiguous against "Confirm password".
+ */
+export async function fillPassword(page: Page, field: string, value: string) {
+	await page.locator(`wa-input[data-field="${field}"] input`).first().fill(value);
+}
+
+/**
+ * Clicks a Web Awesome button, once it can actually do anything.
+ *
+ * `<wa-button type="submit">` only submits its form after Web Awesome has
+ * upgraded the element; before that it is an unknown tag and a click on it is
+ * silently a no-op. Playwright's actionability checks do not catch this — the
+ * element is present, visible and stable — so the symptom is a test that hangs
+ * with **no request made at all**, which is a genuinely confusing thing to
+ * debug.
+ *
+ * Filling a `<wa-input>` first is not enough of a guarantee: under `vite dev`
+ * every component is a separate module request, so `input.js` routinely lands
+ * before `button.js`. A production build puts them in one bundle, so this is a
+ * dev-only race — but the suite runs against `vite dev`, and it reproduced
+ * about half the time on a fast machine.
+ *
+ * Waiting on the custom element registry is the precise check: it is exactly
+ * the condition that makes the click meaningful.
+ */
+export async function clickWaButton(page: Page, name: string) {
+	await page.waitForFunction(() => customElements.get('wa-button') !== undefined);
+	await page.getByRole('button', { name }).click();
+}
+
+/**
+ * Waits until a superforms-enhanced form is live, BEFORE touching its fields.
+ *
+ * This has to happen before the first `fill`, not just before the submit, and
+ * that ordering is the whole point. `InputField.svelte` renders each field's
+ * `value` from superforms' `$form`, so when Svelte hydrates it writes the
+ * store's value — an empty string on a fresh form — over whatever is in the
+ * DOM. Anything typed before hydration is therefore silently erased.
+ *
+ * The failure that produced is worth describing, because nothing about it
+ * points at the cause: filling email, then password, then clicking submit would
+ * intermittently leave the *email* box empty (hydration landed between the two
+ * fills), native constraint validation then refused to submit a required-but-
+ * empty field, and the test hung for its full timeout with no request made and
+ * no error anywhere. About one full-suite run in two on a fast machine.
+ *
+ * `data-ready` is set from `onMount` in `LoginForm.svelte` and
+ * `SignupForm.svelte`, so it means exactly "the client has taken over". Cheaper
+ * signals are all insufficient: the elements are present, visible and stable
+ * long before then, and even `customElements.get('wa-button')` can resolve
+ * while Svelte has yet to attach anything.
+ *
+ * NOTE: only those two forms carry the marker. The other superforms screens
+ * (the partner forms) have the same latent race — they use the same
+ * `InputField` — but have not been seen to lose it. Worth adding the marker
+ * there if one ever starts flaking.
+ */
+export async function waitForEnhancedForm(page: Page) {
+	await page.locator('form[data-ready]').first().waitFor();
+}
+
+/** Submits a form whose behaviour lives in `use:superform.enhance`. */
+export async function submitEnhancedForm(page: Page, buttonName: string) {
+	await waitForEnhancedForm(page);
+	await clickWaButton(page, buttonName);
+}
+
 let accountCounter = 0;
 
 /** A fresh email per call, so a rerun inside one database cannot collide. */
@@ -25,16 +102,22 @@ export function uniqueEmail(prefix: string): string {
 export type Account = { name: string; email: string; password: string };
 
 export function account(name: string): Account {
+	// 21 characters, comfortably over the 12-character minimum the signup form
+	// now enforces client-side — the password also protects message history, so
+	// the floor went up. A shorter fixture would be rejected before submitting.
 	return { name, email: uniqueEmail(name.toLowerCase()), password: 'correct-horse-battery' };
 }
 
 export async function signUp(page: Page, who: Account, from = '/signup') {
 	await page.goto(from);
+	// Before the first fill, not just before the submit — see the note on
+	// waitForEnhancedForm. Hydration overwrites fields typed ahead of it.
+	await waitForEnhancedForm(page);
 	await fillWaInput(page, 'name', who.name);
 	await fillWaInput(page, 'email', who.email);
-	await fillWaInput(page, 'password', who.password);
-	await fillWaInput(page, 'passwordConfirm', who.password);
-	await page.getByRole('button', { name: 'Sign Up' }).click();
+	await fillPassword(page, 'password', who.password);
+	await fillPassword(page, 'passwordConfirm', who.password);
+	await submitEnhancedForm(page, 'Sign Up');
 	// Waits for the form to be left behind rather than for a fixed destination:
 	// signing up lands on /home normally and back on the invite when one is
 	// being accepted. Without this the next step races the session cookie.
@@ -43,16 +126,17 @@ export async function signUp(page: Page, who: Account, from = '/signup') {
 
 export async function logIn(page: Page, who: Account, from = '/login') {
 	await page.goto(from);
+	await waitForEnhancedForm(page);
 	await fillWaInput(page, 'email', who.email);
-	await fillWaInput(page, 'password', who.password);
-	await page.getByRole('button', { name: 'Login' }).click();
+	await fillPassword(page, 'password', who.password);
+	await submitEnhancedForm(page, 'Login');
 	// See the note in signUp: the destination depends on `redirectTo`.
 	await page.waitForURL((url) => !url.pathname.startsWith('/login'));
 }
 
 export async function logOut(page: Page) {
 	await page.goto('/settings');
-	await page.getByRole('button', { name: 'Log out' }).click();
+	await clickWaButton(page, 'Log out');
 	// The literal path, not a '**/' glob: Playwright resolves a relative glob
 	// against baseURL, and the resulting '**/' pattern never matches a bare '/'.
 	await page.waitForURL('/');
@@ -72,7 +156,7 @@ export async function createInvite(
 	if (answers.label) await fillWaInput(page, 'relationshipLabel', answers.label);
 	await page.locator(`input[name="control"][value="${answers.control}"]`).check();
 
-	await page.getByRole('button', { name: 'Create invite link' }).click();
+	await clickWaButton(page, 'Create invite link');
 	// The action returns the link instead of redirecting, and the page navigates
 	// itself once the share sheet has been offered.
 	await page.waitForURL(/\/settings\/partners\/[0-9a-f-]{36}$/);
@@ -87,4 +171,96 @@ export async function navTabs(page: Page): Promise<string[]> {
 	const nav = page.getByRole('navigation', { name: 'Primary' });
 	await expect(nav).toBeVisible();
 	return (await nav.getByRole('link').allTextContents()).map((text) => text.trim());
+}
+
+export type Side = { page: Page; who: Account; close: () => Promise<void> };
+
+/**
+ * One of the two people, in their own browser context.
+ *
+ * Separate contexts rather than one page signing in and out, so the two
+ * accounts hold genuinely separate session cookies — a single context would
+ * pass while hiding a cookie bug.
+ *
+ * Clipboard permission is granted explicitly: the invite screens call
+ * `navigator.clipboard.writeText`, and without it Chromium leaves that promise
+ * pending rather than rejecting, which stalls the page waiting to navigate.
+ */
+export async function newSide(browser: Browser, name: string): Promise<Side> {
+	const context = await browser.newContext({ permissions: ['clipboard-read', 'clipboard-write'] });
+	const page = await context.newPage();
+	return { page, who: account(name), close: () => context.close() };
+}
+
+/** Links two signed-up accounts, leaving both on their own home page. */
+export async function linkAccounts(inviter: Side, invitee: Side): Promise<void> {
+	const link = await createInvite(inviter.page, {
+		partnerName: invitee.who.name,
+		yourName: inviter.who.name,
+		control: 'mix'
+	});
+	await invitee.page.goto(link);
+	await clickWaButton(invitee.page, 'Accept and link');
+	await invitee.page.waitForURL(/\/partner\//);
+}
+
+/**
+ * Opens a partner's board, clearing the one-time history warning if it shows.
+ *
+ * The warning blocks the board until acknowledged, deliberately, so every test
+ * that wants the board has to get past it once per account.
+ */
+export async function openBoard(page: Page, partnerName: string): Promise<void> {
+	// Scoped to the nav and matched loosely on purpose: the tab's accessible
+	// name is the partner's name TWICE ("Jun Jun"), because the avatar carries a
+	// label and the visible span repeats it. An exact match finds nothing.
+	await page
+		.getByRole('navigation', { name: 'Primary' })
+		.getByRole('link', { name: partnerName })
+		.click();
+	await page.waitForURL(/\/partner\/[0-9a-f-]{36}$/);
+	// A LINK, not a button: `<wa-button href=…>` renders an anchor, so
+	// getByRole('button') finds nothing. Same for any other wa-button with an
+	// href.
+	await page.getByRole('link', { name: 'Messages' }).click();
+	await page.waitForURL(/\/messages$/);
+
+	const warning = page.getByText(/Your password is the only key/);
+	if (await warning.isVisible().catch(() => false)) {
+		await page.getByRole('checkbox').check();
+		await clickWaButton(page, 'Start messaging');
+		await expect(warning).toBeHidden();
+	}
+}
+
+/** Writes a new thread and waits for the thread page it lands on. */
+export async function writeThread(
+	page: Page,
+	text: string,
+	icon: ThreadIcon = 'bottle-droplet'
+): Promise<void> {
+	await clickWaButton(page, 'Write something');
+	// Clicked by its accessible name, which reaches the visible label. The radio
+	// itself is visually hidden (clip-path), so Playwright refuses to click it
+	// directly — `.check()` on it waits for visibility and times out.
+	await page.getByRole('radio', { name: THREAD_ICON_LABELS[icon] }).click({ force: true });
+	await fillWaTextarea(page, text);
+	// Asserted rather than assumed. The send button is disabled while there is
+	// nothing to send, so if the fill did not reach the component's state the
+	// next click is a silent no-op and the failure surfaces 90 seconds later as
+	// a navigation timeout with no clue attached.
+	await expect(page.getByRole('button', { name: 'Send it' })).toBeEnabled();
+	await clickWaButton(page, 'Send it');
+	await page.waitForURL(/\/messages\/[0-9a-f-]{36}$/);
+}
+
+/**
+ * Fills a `<wa-textarea>`.
+ *
+ * Same shadow-root reach as `fillWaInput`: the editable node is a plain
+ * `<textarea>` inside the custom element, which Playwright's selector engine
+ * pierces.
+ */
+export async function fillWaTextarea(page: Page, value: string): Promise<void> {
+	await page.locator('wa-textarea textarea').first().fill(value);
 }

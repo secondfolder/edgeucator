@@ -15,6 +15,17 @@
 	"observability": {
 		"enabled": true
 	},
+	"r2_buckets": [
+		{
+			"binding": "MEDIA",
+			// Encrypted message attachments. Create it with
+			// `npx wrangler r2 bucket create edgeucator-media`.
+			// `npm run dev` never reads this: with no platform there is no R2
+			// binding at all, and src/lib/server/media/dev.ts writes to
+			// ./local-media instead.
+			"bucket_name": "edgeucator-media"
+		}
+	],
 	"d1_databases": [
 		{
 			"binding": "DB",

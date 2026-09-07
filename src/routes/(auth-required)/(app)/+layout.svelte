@@ -1,5 +1,6 @@
 <script lang="ts">
 	import AppNav from '$lib/components/AppNav.svelte';
+	import EncryptionGate from '$lib/components/EncryptionGate.svelte';
 	import type { Snippet } from 'svelte';
 	import type { LayoutData } from './$types';
 
@@ -20,6 +21,10 @@
 
 <div class="shell">
 	<main>
+		<!-- Inside <main> so it scrolls with the page: `position: fixed` against
+		     the viewport does not work in this shell, and a callout pinned over
+		     the content would cover it. -->
+		<EncryptionGate />
 		{@render children()}
 	</main>
 	<AppNav partners={data.partners} />

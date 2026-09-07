@@ -50,19 +50,25 @@ npm run test:e2e # playwright, real browser against vite dev
 npm run format   # fixes prettier complaints
 ```
 
-Honest baseline as of this writing — `lint`, `test` and `test:e2e` are clean,
-`check` is not. Do not assume you caused the warnings, and do not "fix" them as
-a drive-by inside an unrelated change:
+Honest baseline as of this writing — `test` and `test:e2e` are clean, `check`
+and `lint` are not. Do not assume you caused the existing problems, and do not
+"fix" them as a drive-by inside an unrelated change:
 
-- `npm run lint`: clean.
-- `npm run check`: **0 errors, 20 warnings.** Nearly all are a11y warnings on
+- `npm run lint`: **fails on ~110 files, none of them source.** 108 vendored
+  files under `.agents/skills/**` plus `skills-lock.json` (added by
+  `chore: add webawesome skills`, never run through prettier) and one
+  space-indented line in `vite.config.ts`. The vendored skills probably want a
+  `.prettierignore` entry rather than reformatting, since `skills-lock.json`
+  pins them. `npx eslint .` on its own is clean.
+- `npm run check`: **0 errors, 32 warnings.** Nearly all are a11y warnings on
   `wa-*` custom elements (`a11y_click_events_have_key_events`,
   `a11y_no_static_element_interactions`) plus a few `state_referenced_locally`.
   Svelte cannot know a `<wa-button>` is a button.
-- `npm test`: 192 tests. The partners feature is covered end to end at three
-  levels — see **Testing** below. Outside it the safety net is still thin.
-- `npm run test:e2e`: 7 Playwright specs, ~20s once the browser is installed
-  (`npx playwright install chromium` first).
+- `npm test`: 443 tests. Partners and the encryption keys are covered end to end
+  at three levels — see **Testing** below. Outside those the net is still thin.
+- `npm run test:e2e`: 27 Playwright specs, ~52s once the browser is installed
+  (`npx playwright install chromium` first). A run that takes ~2 minutes has
+  something hanging on its 90-second timeout, not something slow.
 
 Internal links go through `resolve()` from `$app/paths` — `href="/guides"` and a
 bare `goto('/')` are both eslint errors under
@@ -135,7 +141,15 @@ site it applies to; go read that comment before deciding to break one.
     `src/lib/partnership.ts`, which is the only place that mapping lives. See
     [docs/partners.md](docs/partners.md).
 
-13. **A permission is enforced on the server, never by a disabled input.** The
+13. **`src/lib/crypto/**` is browser-only.** Nothing there may be imported from
+    `src/lib/server/**` or from any `+*.server.ts`. Every function in it touches
+    `crypto.subtle`, IndexedDB or age-encryption, and the server's entire
+    involvement in encryption is storing and returning opaque strings. The pure
+    half — types, constants, normalisation, the safety-number formatting — lives
+    in `src/lib/encryption.ts`, which is alias-free so the Drizzle schema can
+    import its types. See [docs/encryption.md](docs/encryption.md).
+
+14. **A permission is enforced on the server, never by a disabled input.** The
     read-only accept screen still posts every field (they are hidden inputs, so
     the payload matches the same Zod schema); `acceptInvite` re-reads the stored
     row and ignores them. Same for the edit action, which re-checks `control`
@@ -162,9 +176,22 @@ load data is serialised into the HTML of every page. Whitelist fields, as
   `redirect(303, …)` on success.
 - The component takes the `SuperValidated` object as a prop and builds its own
   `superForm`. Fields go through `InputField.svelte`.
-- **Never log a form object** — it contains the plaintext password. Two removed
-  `console.log(form)` calls are called out in comments so they are not
-  reintroduced.
+- **Svelte 5 delegates `input`, `click` and friends, and delegation does not
+  reliably cross a custom element's shadow boundary.** An `oninput=` on a
+  `<wa-textarea>` never fires, because the editable node is in a shadow root.
+  `MessageComposer.svelte` attaches its listener with `addEventListener` instead
+  and explains why at the site. Note that `InputField.svelte` has the same
+  `oninput=` shape and has never visibly broken — it gets away with it because
+  `<wa-input>` is form-associated and contributes its own value to the FormData,
+  so nothing there depends on the Svelte state updating. Anything that _does_
+  depend on it must not use the shorthand.
+
+**Never log a form object.** It no longer contains a plaintext password —
+the browser posts a derived value instead (see
+[docs/encryption.md](docs/encryption.md)) — but it does contain `authSecret`,
+which is a deterministic, permanent login credential for that account and
+just as bad to write to a log. Two removed `console.log(form)` calls are
+called out in comments so they are not reintroduced.
 
 **Error messages should be actionable.** The existing ones name the command that
 fixes them (`requireD1`, the secret check in `hooks.server.ts`). Match that.
@@ -321,6 +348,35 @@ Notes that cost a debugging round each:
   never matches a bare `/`. Pass `'/'`.
 - Signing in or up is asynchronous; wait for the form to be left behind before
   the next step or it races the session cookie.
+- **Wait for hydration before filling a superforms field, not just before
+  submitting.** `InputField.svelte` renders each field's `value` from `$form`,
+  so hydration writes the store's value — empty on a fresh form — over anything
+  already typed into the DOM. `waitForEnhancedForm` in `e2e/helpers.ts` waits on
+  a `data-ready` marker the login and signup forms set from `onMount`. Without
+  it, filling email then password then submitting would intermittently leave the
+  _email_ box empty (hydration landing between the two fills), native validation
+  would refuse to submit the empty required field, and the test hung for its
+  full timeout **with no request made and no error anywhere** — about one
+  full-suite run in two.
+- A `<wa-button type="submit">` only submits once Web Awesome has upgraded it;
+  before that a click is silently a no-op that Playwright's actionability checks
+  do not catch. `clickWaButton` waits on the custom element registry.
+- Anything reached only through `await import()` needs listing in
+  `optimizeDeps.include`. Otherwise Vite discovers it mid-run, forces a
+  re-optimization, and tells every connected client to reload — which loses an
+  in-flight form submit.
+- **A `<wa-button href=…>` renders an anchor**, so `getByRole('button')` finds
+  nothing. And `getByRole('button')` on a `<wa-button>` resolves to the _inner_
+  `<button>` inside its shadow root, which is why `wa-button[type=submit]` as a
+  selector matches nothing once the element has upgraded.
+- **A visually hidden input cannot be clicked.** The thread icon picker hides
+  its radios with `clip-path`, so `.check()` waits for visibility and times
+  out; click the label by its accessible name instead.
+- **An uncaught error during hydration kills the whole component silently.**
+  `<wa-textarea autofocus>` throws "Cannot read properties of null (reading
+  'focus')" as it upgrades, and the symptom was a send button that never
+  enabled — nowhere near the cause. Worth checking `page.on('pageerror')` early
+  when a component seems inert.
 - The suite is `workers: 1` and not parallel: it shares one database, and each
   test drives two browser contexts so the two accounts hold genuinely separate
   cookies.
@@ -340,9 +396,11 @@ Four places, split on scope:
 
 ### Feature docs
 
-| Doc                                  | Feature                                                             |
-| ------------------------------------ | ------------------------------------------------------------------- |
-| [docs/partners.md](docs/partners.md) | Linking two accounts: invites, the control permission, the nav tabs |
+| Doc                                      | Feature                                                             |
+| ---------------------------------------- | ------------------------------------------------------------------- |
+| [docs/partners.md](docs/partners.md)     | Linking two accounts: invites, the control permission, the nav tabs |
+| [docs/encryption.md](docs/encryption.md) | Message keys: the client-side KDF, the wraps, what the guarantee is |
+| [docs/messaging.md](docs/messaging.md)   | Encrypted partner messages: threads, the board, unread, restore     |
 
 **Keeping these current is part of the change, not a follow-up to it.**
 

@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { scrollIntoViewWithin } from '$lib/scroll-parent';
 	import type { TaskView } from '$lib/types';
 	import type { WaSelectEvent } from '@awesome.me/webawesome/dist/events/select.js';
 	import { tick } from 'svelte';
@@ -26,24 +27,6 @@
 
 	let mainElm: HTMLElement | undefined = $state();
 
-	/**
-	 * The nearest ancestor that actually scrolls, falling back to the document.
-	 *
-	 * This used to be hard-coded to `window`, which was correct while guides
-	 * lived under (public) and the page itself scrolled. Inside the app shell
-	 * the only scrolling box is the layout's <main>, so scrolling the window
-	 * moved nothing and the reveal stopped following the newest paragraph.
-	 */
-	function scrollParentOf(node: HTMLElement): HTMLElement {
-		let candidate = node.parentElement;
-		while (candidate) {
-			const { overflowY } = getComputedStyle(candidate);
-			if (overflowY === 'auto' || overflowY === 'scroll') return candidate;
-			candidate = candidate.parentElement;
-		}
-		return document.scrollingElement as HTMLElement;
-	}
-
 	$effect.pre(() => {
 		// `count` is read here so the effect re-runs whenever it changes, and
 		// captured so a run superseded by a newer one bails out instead of
@@ -53,14 +36,9 @@
 			if (countAtRun !== count) return;
 			const lastInstruction = mainElm?.querySelector(' & > p:last-child');
 			if (!lastInstruction || !mainElm) return;
-			const scroller = scrollParentOf(mainElm);
-			// The document's own rect already carries the scroll offset, so only a
-			// real scrolling element needs its top subtracted.
-			const scrollerTop =
-				scroller === document.scrollingElement ? 0 : scroller.getBoundingClientRect().top;
-			const scrollPos =
-				lastInstruction.getBoundingClientRect().top - scrollerTop + scroller.scrollTop - 20;
-			scroller.scrollTo({ top: scrollPos, behavior: 'smooth' });
+			// Shared with ThreadView, which needs exactly this. The comment about
+			// why the window cannot be scrolled here now lives in scroll-parent.ts.
+			scrollIntoViewWithin(lastInstruction, mainElm);
 		});
 	});
 </script>

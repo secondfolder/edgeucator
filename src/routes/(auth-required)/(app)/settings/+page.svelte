@@ -31,6 +31,12 @@
 				<wa-icon name="chevron-right" variant="solid"></wa-icon>
 			</a>
 		</li>
+		<li>
+			<a href={resolve('/(auth-required)/(app)/settings/encryption')}>
+				<span>Encrypted messages</span>
+				<wa-icon name="chevron-right" variant="solid"></wa-icon>
+			</a>
+		</li>
 	</ul>
 
 	<!-- Plain use:enhance is enough: its default behaviour already does goto +

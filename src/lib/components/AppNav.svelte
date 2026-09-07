@@ -18,8 +18,12 @@
 	// while you are inside them, so these are prefix matches rather than equality.
 	const isHome = $derived(routeId?.startsWith('/(auth-required)/(app)/home') ?? false);
 	const isSettings = $derived(routeId?.startsWith('/(auth-required)/(app)/settings') ?? false);
+	// A prefix match, like isHome and isSettings above: the partner tab owns
+	// child routes now (/partner/[id]/messages and the threads under it) and an
+	// exact match would make the tab go dark the moment you opened a message.
 	const isPartner = $derived(
-		(id: string) => routeId === '/(auth-required)/(app)/partner/[id]' && page.params.id === id
+		(id: string) =>
+			(routeId?.startsWith('/(auth-required)/(app)/partner/[id]') ?? false) && page.params.id === id
 	);
 </script>
 
