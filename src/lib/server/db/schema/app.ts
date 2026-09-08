@@ -261,7 +261,7 @@ export const messageThreads = sqliteTable(
 		 * The closed list is the load-bearing part. A free-text plaintext column
 		 * here would be a covert channel for arbitrary prose, which is why
 		 * `isThreadIcon` is checked in `server/messaging.ts` as well as in the
-		 * endpoint's Zod schema — see AGENTS.md invariant 13.
+		 * endpoint's Zod schema — see AGENTS.md invariant 14.
 		 */
 		icon: text('icon').$type<ThreadIcon>().notNull(),
 		/**

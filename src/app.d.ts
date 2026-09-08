@@ -5,6 +5,7 @@ import type { AnyD1Database } from 'drizzle-orm/d1';
 import type { Auth, Session, User } from '$lib/server/auth';
 import type { Db } from '$lib/server/db';
 import type { MediaBucket } from '$lib/server/media';
+import type { RealtimeNamespace } from '$lib/server/realtime/binding';
 
 declare global {
 	namespace App {
@@ -37,6 +38,14 @@ declare global {
 				 * reason as `AnyD1Database` above.
 				 */
 				MEDIA: MediaBucket;
+				/**
+				 * The Durable Object namespace behind the live message feed.
+				 *
+				 * Structurally typed in `$lib/server/realtime/binding` rather
+				 * than imported from @cloudflare/workers-types, for the same
+				 * ambient-globals reason as the two above.
+				 */
+				REALTIME: RealtimeNamespace;
 			};
 		}
 	}

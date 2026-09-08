@@ -255,6 +255,122 @@ test.describe('the board', () => {
 	});
 });
 
+test.describe('live updates', () => {
+	/**
+	 * The requirement the whole realtime stage exists for: the other side sees a
+	 * message arrive without touching anything.
+	 *
+	 * Asserted with a retrying `expect` and **never** a `page.reload()` — a
+	 * reload would pass whether or not the live feed works at all, which is
+	 * exactly the bug this is here to catch. The other messaging tests do reload
+	 * on purpose, because they are testing storage and decryption rather than
+	 * delivery.
+	 *
+	 * Runs against `vite dev`, so the notifier behind it is the in-process one in
+	 * `server/realtime/local.ts`. That covers the client, the SSE endpoint, the
+	 * framing and the `invalidate` wiring; the Durable Object that replaces it in
+	 * production is covered directly by `durable-object.test.ts`, since Playwright
+	 * does not point at `wrangler dev`.
+	 */
+	test('a reply appears in an open thread with no reload', async ({ browser }) => {
+		const ada = await newSide(browser, 'Ada');
+		const jun = await newSide(browser, 'Jun');
+
+		try {
+			// Wraps the constructor before any app code runs, and re-installs itself
+			// on every document, so the count survives the full page loads earlier in
+			// the flow.
+			await ada.page.addInitScript(() => {
+				const target = window as unknown as { EventSource: unknown; __streams?: number };
+				const Real = target.EventSource as new (url: string) => unknown;
+				target.__streams = 0;
+				target.EventSource = class extends (Real as never) {
+					constructor(url: string) {
+						super(url);
+						target.__streams = (target.__streams ?? 0) + 1;
+					}
+				};
+			});
+
+			await signUp(ada.page, ada.who);
+			await signUp(jun.page, jun.who);
+			await linkAccounts(ada, jun);
+
+			await ada.page.goto('/home');
+			await openBoard(ada.page, 'Jun');
+			await writeThread(ada.page, 'thinking about you');
+			// Ada is now sitting on the thread she just wrote, and stays there.
+			const adaThreadUrl = ada.page.url();
+
+			await jun.page.goto('/home');
+			await openBoard(jun.page, 'Ada');
+			await jun.page.getByRole('link', { name: /^Unread message/ }).click();
+			await jun.page.waitForURL(/\/messages\/[0-9a-f-]{36}$/);
+			// How many streams Ada's page has opened so far. Counted by wrapping the
+			// constructor before any app code runs.
+			const streamsBefore = await ada.page.evaluate(
+				() => (window as unknown as { __streams?: number }).__streams ?? 0
+			);
+
+			await fillWaTextarea(jun.page, 'come over');
+			await clickWaButton(jun.page, 'Send');
+			await expect(jun.page.getByText('come over')).toBeVisible();
+
+			// No reload, no navigation, no interaction of any kind.
+			await expect(ada.page.getByText('come over')).toBeVisible({ timeout: 20_000 });
+			expect(ada.page.url()).toBe(adaThreadUrl);
+
+			/**
+			 * A delivered event must NOT cost a reconnect.
+			 *
+			 * The subscription lives in an `$effect` that reads `data`, and
+			 * `invalidate()` reassigns `data` — so unless the effect depends on the
+			 * partnership *id* rather than the whole prop, every arriving message
+			 * tears the stream down and opens a new one. That still works, which is
+			 * why no other assertion here would notice; it just quietly replaces one
+			 * long-lived connection with one per message, and on Workers each of
+			 * those is a fresh billed request to the Durable Object.
+			 */
+			const streamsAfter = await ada.page.evaluate(
+				() => (window as unknown as { __streams?: number }).__streams ?? 0
+			);
+			expect(streamsAfter).toBe(streamsBefore);
+		} finally {
+			await ada.close();
+			await jun.close();
+		}
+	});
+
+	test('a new thread appears on an open board with no reload', async ({ browser }) => {
+		const ada = await newSide(browser, 'Ada');
+		const jun = await newSide(browser, 'Jun');
+
+		try {
+			await signUp(ada.page, ada.who);
+			await signUp(jun.page, jun.who);
+			await linkAccounts(ada, jun);
+
+			// Both get past the one-time warning, then Ada waits on her board.
+			await jun.page.goto('/home');
+			await openBoard(jun.page, 'Ada');
+			await ada.page.goto('/home');
+			await openBoard(ada.page, 'Jun');
+			const adaBoardUrl = ada.page.url();
+			await expect(ada.page.getByRole('link', { name: /message/ })).toHaveCount(0);
+
+			await writeThread(jun.page, 'still awake?');
+
+			await expect(ada.page.getByRole('link', { name: /^Unread message/ })).toHaveCount(1, {
+				timeout: 20_000
+			});
+			expect(ada.page.url()).toBe(adaBoardUrl);
+		} finally {
+			await ada.close();
+			await jun.close();
+		}
+	});
+});
+
 test.describe('attachments', () => {
 	/**
 	 * A file round trip: encrypted in Ada's browser under its own ephemeral key,

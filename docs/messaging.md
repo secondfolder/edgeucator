@@ -44,7 +44,7 @@ avoid knowing anyway.
 The closed list is the load-bearing part. A free-text plaintext column reachable
 from the network would be a covert channel for arbitrary prose, so `isThreadIcon`
 is checked in `server/messaging.ts` as well as in the endpoint's Zod schema —
-AGENTS.md invariant 13.
+AGENTS.md invariant 14.
 
 **Reactions are encrypted.** The deliberate contrast with the icon, and what
 makes both calls defensible: a reaction only ever renders inside a thread that
@@ -154,8 +154,36 @@ The flow, and the one security-critical part:
 2. They open a restore request carrying a **snapshot** of that recipient.
 3. Their partner is shown the request and must compare the safety number **out
    of band** before confirming.
-4. On confirm, the partner's device decrypts every message body with its own
-   identity, re-encrypts to both recipients, and uploads the replacements.
+4. On confirm, the partner's device pages through every message body **and
+   reaction** with its own identity, re-encrypts each to both recipients, and
+   uploads the replacements a page at a time.
+
+Reactions are included because they are encrypted too — a restore that skipped
+them would hand back a readable history dotted with tapbacks the owner cannot
+open.
+
+Paging is a keyset cursor on `(created_at, id)`, not an `OFFSET`: an offset can
+both skip and repeat a row if anything is written while the restore is in
+flight. Each page is written back before the next is fetched, so a dropped
+connection leaves the earlier pages already restored and the request still open;
+running it again simply redoes the lot, which is harmless.
+
+A body that will not open is **skipped rather than failed on**. If both partners
+have reset at different times, a partnership can legitimately contain rows
+readable by neither, and stopping there would mean no restore ever completes for
+those two.
+
+`GET .../restore` is unusual enough to state plainly: it returns the _entire_
+shared history of a partnership as ciphertext. That is safe only because it goes
+to somebody who is already a recipient on every one of those messages, so the
+gate is not "are you a member" but "are you the member who did **not** raise
+this request" — checked against the request row, never inferred from the caller.
+The person who lost their key cannot read any of it, so a request from them is
+either a bug or a stolen session, and it 404s.
+
+Declining is a first-class answer, not tidiness: the out-of-band comparison is
+the load-bearing step, and someone who finds the number does _not_ match needs a
+way to say so that leaves the requester informed rather than waiting for ever.
 
 Step 3 is load-bearing. Without the out-of-band check, a malicious server could
 inject a request carrying its own recipient and have the partner re-encrypt the
@@ -200,6 +228,8 @@ reaction, and anything that would let it read or forge any of them.
 | `.../messages/[messageId]/reaction` | `PUT` / `DELETE`.                                 |
 | `.../attachments/[attachmentId]`    | `GET`, streams ciphertext.                        |
 | `.../ack-warning`                   | `POST`, the one-time warning acknowledgement.     |
+| `.../restore`                       | `GET` a page, `POST` re-encrypted rows, `DELETE`. |
+| `.../events`                        | `GET`, the SSE feed. Metadata only.               |
 
 **`src/routes/api/` sits outside both route groups deliberately.** A group guard
 is a layout `+layout.server.ts`, and layout loads never run for a `+server.ts`
@@ -230,22 +260,92 @@ the files as `fileIds`, in the same order, and the endpoint validates them as
 UUIDs. Safe because they are only ever inserted: a duplicate collides with the
 primary key, so a client-chosen id cannot reach or overwrite an existing row.
 
+## Realtime
+
+Both screens hold an `EventSource` against `.../events` and, on anything
+arriving, call `invalidate()` on the `depends()` key the load already declares.
+So a live update takes exactly the same authorised path as a navigation.
+
+**Events carry metadata only, and that is a rule rather than a convention.** An
+event is `{ kind, threadId }` — never a sender, never a byte of content. The
+Durable Object therefore never handles message content, holds no storage, and
+knows nothing but a partnership id. A future event wanting to carry a body is a
+reason to stop and reconsider, not a small extension.
+
+**SSE, not WebSocket**, for a decisive reason: `vite dev` cannot serve a
+WebSocket upgrade from a `+server.ts` at all, so a socket would need a second
+client code path used only in development — and the Playwright suite would then
+never exercise the real one. An SSE stream is a plain streaming `Response` and
+behaves identically in dev and on Workers.
+
+The dev/prod switch mirrors `db/dev.ts` and `media/dev.ts`: a Durable Object in
+production, a module-level `Map` under `vite dev`, which is genuinely correct
+there because dev is one process.
+
+### Hanging up when hidden is a billing necessity
+
+A Durable Object is billed at 128 MB × wall-clock for as long as it holds an
+in-flight request, and only _hibernation-eligible_ idleness is free —
+hibernation needs the WebSocket Hibernation API, which SSE cannot use. One
+permanently-open stream is roughly 10,800 GB-s a day: about **83% of the free
+plan's 13,000 GB-s daily allowance, for a single partnership idling in a
+background tab.**
+
+So the client closes the stream on `visibilitychange`. The step that makes that
+_safe_ is the reconnect: on becoming visible it refetches once,
+unconditionally, before any event arrives. Anything that happened while hung up
+was never delivered and never will be. **Do not remove one without the other.**
+
+The same reasoning covers a client that stops reading without hanging up
+(asleep, or behind a proxy that buffers `text/event-stream`): once its queue
+fills, the object disconnects it rather than growing an unbounded queue, because
+reconnecting refetches anyway.
+
+`EventSource` retries by itself but eagerly and without a ceiling, so `onerror`
+closes and reschedules by hand with exponential backoff and ±20% jitter. The
+attempt counter resets **on the first message received**, not on connect: a
+proxy that accepts the connection and then delivers nothing would otherwise
+never look like a failure. After several consecutive failures the client falls
+back to slow polling while visible, which is the honest answer to an
+intermediary that buffers the stream for ever.
+
+### The custom worker entry, and the trap in it
+
+A Durable Object class has to be exported from the worker's own module, and the
+SvelteKit adapter _generates_ that module — so `worker.ts` at the repo root
+wraps it and re-exports the class.
+
+**Do not point `main` at it.** `@sveltejs/adapter-cloudflare` treats `main` as
+its _output_ path and `rimraf`s it before writing, so `"main": "worker.ts"`
+makes `npm run build` delete the file. `main` stays on the adapter default and
+wrangler takes the entry positionally instead — `wrangler dev worker.ts`,
+`wrangler deploy worker.ts`, which is what `preview:worker` and `deploy` do.
+
+`wrangler.jsonc` also gains a top-level `migrations` array, which has **nothing**
+to do with `d1_databases[0].migrations_dir` beside it: that one is SQL applied by
+`npm run db:migrate:d1`, this one is Durable Object class lifecycle. It declares
+`new_sqlite_classes`, not `new_classes`, because SQLite-backed Durable Objects
+are the only kind available on the Workers Free plan.
+
 ## Not built yet
 
 The honest boundary:
 
-- **Trust on first use.** The safety number and the pin state machine are
-  implemented and tested, but nothing renders or pins one, so a substituted
-  partner key would not be noticed. The board does surface an open restore
-  request and tells both sides to compare a number — with nothing yet to
-  compare it against.
-- **Partner-assisted restore.** The data layer, the request table and the
-  endpoints' server functions exist and are tested; there is no UI to run the
-  re-encryption, so a restore request can be raised but not acted on.
-- **Realtime.** `listBoard` and `getThread` are plain loads, and the loads
-  declare `depends()` keys (`messages:board:<id>`, `messages:thread:<id>`,
-  `messages:unread`) so a sender refreshes its own view — but the _other_ side
-  only sees a new message on their next navigation. No Durable Object, no SSE,
-  and no polling yet.
+- **Pins are per-device.** A new phone has seen no keys, so it trusts what it is
+  first told — which is what "on first use" means, but it does mean a device
+  change is indistinguishable from a substitution until the number is compared
+  again. Surviving that needs `user_keys.sealed_pins` (the pin list encrypted to
+  your own key), which is a noted follow-up. The UI shows when a key was first
+  seen so "a moment ago" is not mistaken for "two years ago".
+- **The Durable Object is not covered end to end.** The Playwright suite runs
+  against `vite dev`, so the live-update tests exercise the in-process notifier.
+  The object itself is covered by direct unit tests of the class
+  (`durable-object.test.ts`), and `npm run preview:worker` confirms the custom
+  entry builds, the `REALTIME` binding registers as a SQLite-backed class, and
+  `GET .../events` reaches the worker and refuses an unauthenticated caller. An
+  event has **not** been observed travelling through a real Durable Object,
+  because a page cannot currently be loaded on the built worker at all — see the
+  known bug at the end of AGENTS.md, which predates this work. Pointing
+  Playwright at `wrangler dev` would close both gaps and is not done.
 - **Video** is accepted and capped, but has had no real exercise beyond a unit
   test of the encryption; only a small PNG is covered end to end.

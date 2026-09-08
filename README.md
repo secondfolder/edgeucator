@@ -40,8 +40,23 @@ npm run deploy
 
 Run `npm run preview:worker` before every deploy — it is the only local step that
 exercises the real Workers runtime (`nodejs_compat`, the assets binding,
-`platform.env`, the real bundle), and therefore the only one that can catch the
-dev/production divergences described below.
+`platform.env`, the R2 bucket, the Durable Object, the real bundle), and
+therefore the only one that can catch the dev/production divergences described
+below.
+
+Both it and `deploy` pass the entry **positionally** — `wrangler dev worker.ts`,
+not plain `wrangler dev`. `worker.ts` re-exports the adapter's generated worker
+plus the `RealtimeRoom` Durable Object class, which has to be exported from the
+worker's own module. `main` in `wrangler.jsonc` must stay on the adapter's
+default: the adapter treats `main` as its _output_ and deletes it before writing,
+so pointing it at `worker.ts` would make `npm run build` delete that file.
+
+> **Known issue:** the built worker currently 500s on every page —
+> `ReferenceError: HTMLElement is not defined`, because the root layout imports
+> Web Awesome's Lit components into the server graph. It predates the messaging
+> work and no test catches it, because the Playwright suite runs against
+> `vite dev`. The diagnosis and two rejected fixes are recorded at the end of
+> [AGENTS.md](AGENTS.md).
 
 ## How the database works
 

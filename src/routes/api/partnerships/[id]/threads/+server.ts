@@ -1,6 +1,7 @@
 import { error, json } from '@sveltejs/kit';
 import { newThreadSchema } from '$lib/schemas/messageForm';
 import { createMediaStore } from '$lib/server/media/dev';
+import { createNotifier } from '$lib/server/realtime/dev';
 import { requireMembership, startThread } from '$lib/server/messaging';
 import type { RequestHandler } from './$types';
 import { parseSend, sendFailureStatus } from '../send';
@@ -42,5 +43,12 @@ export const POST: RequestHandler = async (event) => {
 	});
 
 	if (!result.ok) error(sendFailureStatus(result.reason), result.reason);
+
+	// After the write, and awaited but unable to fail — `publish` swallows its
+	// own errors, because the message is already stored and a fan-out problem
+	// must not turn into a retryable 500 for a send that worked.
+	const notifier = await createNotifier({ platform });
+	await notifier.publish(params.id, { kind: 'thread', threadId: result.threadId });
+
 	return json({ threadId: result.threadId, messageId: result.messageId }, { status: 201 });
 };

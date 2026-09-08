@@ -1,10 +1,11 @@
 import { error, json } from '@sveltejs/kit';
 import { reactionSchema } from '$lib/schemas/messageForm';
 import { clearReaction, setReaction } from '$lib/server/messaging';
+import { createNotifier } from '$lib/server/realtime/dev';
 import type { RequestHandler } from './$types';
 
 /** Sets or replaces the viewer's tapback. One per person per message. */
-export const PUT: RequestHandler = async ({ locals, params, request }) => {
+export const PUT: RequestHandler = async ({ locals, params, request, platform }) => {
 	if (!locals.user) error(401, 'Not signed in');
 
 	const parsed = reactionSchema.safeParse(await request.json().catch(() => null));
@@ -23,10 +24,14 @@ export const PUT: RequestHandler = async ({ locals, params, request }) => {
 		// for. The UI does not offer the control on your own bubbles anyway.
 		error(result.reason === 'not-a-member' ? 404 : 409, result.reason);
 	}
+
+	const notifier = await createNotifier({ platform });
+	await notifier.publish(params.id, { kind: 'reaction', threadId: result.threadId });
+
 	return json({ ok: true });
 };
 
-export const DELETE: RequestHandler = async ({ locals, params }) => {
+export const DELETE: RequestHandler = async ({ locals, params, platform }) => {
 	if (!locals.user) error(401, 'Not signed in');
 
 	const result = await clearReaction(locals.db, {
@@ -35,5 +40,9 @@ export const DELETE: RequestHandler = async ({ locals, params }) => {
 		viewerId: locals.user.id
 	});
 	if (!result.ok) error(404, 'Not found');
+
+	const notifier = await createNotifier({ platform });
+	await notifier.publish(params.id, { kind: 'reaction', threadId: result.threadId });
+
 	return json({ ok: true });
 };

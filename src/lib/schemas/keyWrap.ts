@@ -11,7 +11,7 @@ import { RECIPIENT_PATTERN } from '$lib/crypto/identity';
  * it is now structurally client-side. What it *can* check is that these fields
  * look like the output of the client KDF, and that is all these do.
  *
- * That is not the thing AGENTS.md invariant 13 forbids. The invariant is about
+ * That is not the thing AGENTS.md invariant 14 forbids. The invariant is about
  * a *permission* being enforced by a disabled input; this is a policy that has
  * genuinely moved off the server, deliberately, and cannot be moved back
  * without giving up the property the whole feature exists for. See

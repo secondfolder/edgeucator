@@ -1,5 +1,11 @@
 import { z } from 'zod';
-import { MAX_CIPHERTEXT_BYTES, MAX_REACTION_CIPHERTEXT_BYTES, THREAD_ICONS } from '$lib/messaging';
+import {
+	MAX_CIPHERTEXT_BYTES,
+	MAX_REACTIONS_PER_MESSAGE,
+	MAX_REACTION_CIPHERTEXT_BYTES,
+	RESTORE_PAGE_SIZE,
+	THREAD_ICONS
+} from '$lib/messaging';
 
 /**
  * What the browser posts when sending a message.
@@ -37,9 +43,42 @@ export const newThreadSchema = z.object({
 
 export const replySchema = z.object({ ciphertext: ciphertextSchema });
 
-export const reactionSchema = z.object({
-	ciphertext: ciphertextSchema.max(MAX_REACTION_CIPHERTEXT_BYTES, 'That reaction is too long')
+const reactionCiphertextSchema = ciphertextSchema.max(
+	MAX_REACTION_CIPHERTEXT_BYTES,
+	'That reaction is too long'
+);
+
+export const reactionSchema = z.object({ ciphertext: reactionCiphertextSchema });
+
+/**
+ * One page of a partner-assisted history restore.
+ *
+ * `RESTORE_PAGE_SIZE` is the server's own page size, so a client cannot send
+ * back more rows than it could have been given. The ids are checked as UUIDs
+ * rather than free strings because they go into a `WHERE id = ?` — the query is
+ * parameterised either way, but a shape check here turns a client bug into a
+ * 400 instead of a silent no-op update.
+ */
+const restoreRowSchema = z.object({
+	id: z.string().uuid('Malformed id'),
+	ciphertext: ciphertextSchema
+});
+
+export const restoreApplySchema = z.object({
+	requestId: z.string().uuid('Malformed request id'),
+	messages: z.array(restoreRowSchema).max(RESTORE_PAGE_SIZE, 'Too many messages at once'),
+	reactions: z
+		.array(restoreRowSchema.extend({ ciphertext: reactionCiphertextSchema }))
+		.max(RESTORE_PAGE_SIZE * MAX_REACTIONS_PER_MESSAGE, 'Too many reactions at once')
+		.default([]),
+	/** The last page closes the request, so the requester stops being prompted. */
+	final: z.boolean()
+});
+
+export const restoreDeclineSchema = z.object({
+	requestId: z.string().uuid('Malformed request id')
 });
 
 export type NewThreadInput = z.infer<typeof newThreadSchema>;
 export type ReplyInput = z.infer<typeof replySchema>;
+export type RestoreApplyInput = z.infer<typeof restoreApplySchema>;

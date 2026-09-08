@@ -5,7 +5,7 @@
  * state at the top of the file: the server never receives the password, only a
  * fixed-length value derived from it, so it cannot check length or anything
  * else about it. Strength is structurally client-side now. See
- * docs/encryption.md, and note that this is not the thing AGENTS.md invariant 13
+ * docs/encryption.md, and note that this is not the thing AGENTS.md invariant 14
  * forbids — that is about a *permission* being enforced by a disabled input.
  *
  * Deliberately not zxcvbn: it is ~400 KB of dictionaries for a nicer number on

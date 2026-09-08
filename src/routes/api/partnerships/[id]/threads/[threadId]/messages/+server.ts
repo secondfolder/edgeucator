@@ -1,6 +1,7 @@
 import { error, json } from '@sveltejs/kit';
 import { replySchema } from '$lib/schemas/messageForm';
 import { createMediaStore } from '$lib/server/media/dev';
+import { createNotifier } from '$lib/server/realtime/dev';
 import { requireThreadMembership, sendMessage } from '$lib/server/messaging';
 import type { RequestHandler } from './$types';
 import { parseSend, sendFailureStatus } from '../../../send';
@@ -31,5 +32,9 @@ export const POST: RequestHandler = async (event) => {
 	});
 
 	if (!result.ok) error(sendFailureStatus(result.reason), result.reason);
+
+	const notifier = await createNotifier({ platform });
+	await notifier.publish(params.id, { kind: 'message', threadId: params.threadId });
+
 	return json({ messageId: result.messageId }, { status: 201 });
 };

@@ -218,7 +218,7 @@ reach the component cannot derive a key either, so the failure mode is a
 refused submission rather than a weak one.
 
 Password _strength_ being unenforceable server-side looks like a violation of
-AGENTS.md invariant 13. It is not: that invariant is about a **permission**
+AGENTS.md invariant 14. It is not: that invariant is about a **permission**
 being enforced by a disabled input, which is still forbidden. This is a
 **policy** that has structurally moved into the browser, and cannot move back
 without giving up the property this whole document is about. The compensating
@@ -311,6 +311,50 @@ The last remaining unlock method cannot be removed. A recipient with no wraps is
 an identity nobody can open again, and the tempting recovery from it —
 generating a fresh key — silently orphans every message the user has received.
 
+## Trust on first use
+
+The server hands you your partner's public recipient, so a dishonest server
+could hand you its own and read everything you send afterwards. Nothing in the
+protocol prevents that. What the design gives you instead is that a
+**substitution is visible**.
+
+- **A safety number.** The first 80 bits of
+  `SHA-256("edgeucator-safety-v1\n" + the two recipients, sorted)`, as Crockford
+  base32 in groups of four. Sorted so both people derive the same string without
+  either needing to know who is "first"; Crockford because it has no I, L, O or
+  U to misread aloud. 80 bits makes forging a match a 2^80 search, and 16
+  characters is short enough to read down a phone line without losing your
+  place. The copy tells you to compare it **somewhere other than this app**,
+  which is the whole point — a server that can swap a key can also swap what
+  both people see on screen.
+- **Pin on first sight, and never re-pin silently.** A mismatch is the signal
+  the whole mechanism exists to produce, so it has to survive the load that
+  notices it. Accepting a changed key is a separate, deliberate act, and the new
+  pin is **unverified** whatever the old one was — carrying verification across
+  a key change would defeat the point of having pinned anything.
+- **Your own recipient is pinned too**, separately. A server that swapped
+  _your_ key would make everything your partner sends undecryptable by you,
+  which without a pin looks like data loss rather than an attack. The two
+  mismatches read very differently and are worded differently.
+- **A changed key blocks sending** — on the board and in the thread, since a
+  reply is a send too — until the user explicitly accepts it. The banner says
+  that already-received messages stay readable, because "key changed" otherwise
+  reads as "your history is gone" and would make the safe action look expensive.
+
+Two things about this that look like flaws and are not:
+
+**The blocking is client-side only, necessarily.** The server is the adversary
+in this threat model, so it cannot be asked to enforce a warning about itself.
+This is _not_ the thing AGENTS.md invariant 14 forbids — that is about a
+_permission_ being enforced in the browser, which is still forbidden. There is
+no server-side version of this check to have skipped.
+
+**A device that cannot remember keys does not block sending.** The keystore
+already falls back to memory when IndexedDB refuses it, so reaching that state
+means something more unusual — and refusing to let someone message their partner
+because their browser will not persist a pin would be the wrong trade. The UI
+says so instead.
+
 ## Not built yet
 
 The honest boundary of the above:
@@ -319,8 +363,16 @@ The honest boundary of the above:
   the credentials can do it, but nothing derives from the PRF output yet and no
   `webauthn-prf` wrap is ever written. The schema and the derivation
   (`deriveWrapKeyFromPrf`) are in place and tested.
-- **Trust on first use.** The safety number and the pin state machine are
-  implemented and tested (`safetyNumber`, `pinStateFor`), and the keystore has a
-  place to put pins, but nothing renders or writes one.
-- Everything in [docs/messaging.md](messaging.md) beyond the schema and the
-  server data layer.
+- **Pins do not survive a new device.** They live in IndexedDB, per device, so a
+  new phone trusts what it is first told and a device change is
+  indistinguishable from a substitution until the number is compared again.
+  `user_keys.sealed_pins` — the pin list age-encrypted to your own recipient —
+  would fix it and is not built. Until then the UI shows _when_ a key was first
+  seen, so "first seen a moment ago" cannot be mistaken for "first seen two
+  years ago".
+- **Nothing delivers a recipient out of band.** The noted follow-up is to put
+  the inviter's recipient in the invite URL's _fragment_, which never reaches
+  the server — genuine out-of-band key delivery that would remove
+  trust-on-first-use for that direction entirely. It needs the inviter to hold
+  keys at invite-creation time, so it is a change to the partners flow rather
+  than this one.

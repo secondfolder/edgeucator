@@ -134,6 +134,27 @@ export const MAX_BODY_CHARS = 4000;
 /** Threads per board before paging would be needed. */
 export const BOARD_LIMIT = 200;
 
+/**
+ * Reactions one message can carry.
+ *
+ * Two, and this is a fact about the domain rather than a policy: a reaction is
+ * unique per `(message, user)` and a partnership has exactly two members. Used
+ * to bound the restore payload.
+ */
+export const MAX_REACTIONS_PER_MESSAGE = 2;
+
+/**
+ * Messages per page of a partner-assisted history restore.
+ *
+ * Lives here, in the pure module, rather than beside the query that uses it,
+ * because the endpoint's Zod schema needs it too — a client must not be able
+ * to post back more rows than a page could have contained. Bounded because the
+ * whole page is decrypted and re-encrypted in the browser, and because D1
+ * bills on bytes read: 100 bodies at the 64 KB cap is a 6 MB worst case, which
+ * is a lot but not a hang. In practice a sext is a few hundred bytes.
+ */
+export const RESTORE_PAGE_SIZE = 100;
+
 // ── unread ───────────────────────────────────────────────────────────────────
 
 export type ThreadUnreadInput = {

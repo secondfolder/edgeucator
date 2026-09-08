@@ -26,6 +26,31 @@
 			"bucket_name": "edgeucator-media"
 		}
 	],
+	"durable_objects": {
+		"bindings": [
+			{
+				"name": "REALTIME",
+				// One object per partnership, holding only the open SSE connections
+				// watching it. No storage, and it never sees message content.
+				"class_name": "RealtimeRoom"
+			}
+		]
+	},
+	// NOTHING to do with `d1_databases[0].migrations_dir` below, despite the
+	// shared word. That one is SQL applied by `npm run db:migrate:d1`; this is
+	// the Durable Object *class* lifecycle, which wrangler applies itself on
+	// deploy and which no db script touches.
+	//
+	// `new_sqlite_classes`, not `new_classes`: SQLite-backed Durable Objects are
+	// the only kind available on the Workers Free plan. This class stores
+	// nothing either way, so the backend is a billing decision rather than a
+	// technical one.
+	"migrations": [
+		{
+			"tag": "v1",
+			"new_sqlite_classes": ["RealtimeRoom"]
+		}
+	],
 	"d1_databases": [
 		{
 			"binding": "DB",

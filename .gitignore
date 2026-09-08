@@ -44,3 +44,6 @@ e2e.db-wal
 
 # Encrypted attachments written by `npm run dev` (R2 stands in for this in production)
 local-media/
+
+# Miscellaneous
+.local

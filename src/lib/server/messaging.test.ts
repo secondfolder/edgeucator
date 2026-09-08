@@ -13,7 +13,7 @@ import {
 	type TestUser
 } from '../testing/fixtures';
 import { createTestMediaStore, outgoingAttachment, type TestMediaStore } from '../testing/media';
-import { MAX_ATTACHMENT_TOTAL_BYTES, MAX_CIPHERTEXT_BYTES } from '../messaging';
+import { MAX_ATTACHMENT_TOTAL_BYTES, MAX_CIPHERTEXT_BYTES, RESTORE_PAGE_SIZE } from '../messaging';
 import { attachmentKey, partnershipMediaPrefix } from './media';
 import {
 	applyHistoryRestore,
@@ -22,6 +22,7 @@ import {
 	getAttachmentForDownload,
 	getThread,
 	listBoard,
+	listHistoryForRestore,
 	listRestoreRequests,
 	listUnreadCounts,
 	markThreadOpened,
@@ -521,9 +522,11 @@ describe('setReaction / clearReaction', () => {
 			ciphertext: 'ZQ'
 		});
 
+		// `threadId` comes back so the endpoint can publish a realtime event
+		// without a second lookup — see the note on `ReactionResult`.
 		await expect(
 			clearReaction(harness.db, { partnershipId, messageId: reply.messageId, viewerId: ada.id })
-		).resolves.toEqual({ ok: true });
+		).resolves.toEqual({ ok: true, threadId });
 		const thread = await getThread(harness.db, threadId, 'envelope', ada.id);
 		expect(thread.messages[1].reactions).toEqual([]);
 	});
@@ -787,5 +790,245 @@ describe('history restore', () => {
 				recipient: 'age1x'
 			})
 		).resolves.toEqual({ ok: false, reason: 'not-a-member' });
+	});
+});
+
+describe('listHistoryForRestore', () => {
+	/** Raises a request from Ada and returns its id, for the tests below. */
+	async function openRequest() {
+		const request = await requestHistoryRestore(harness.db, {
+			partnershipId,
+			requesterId: ada.id,
+			recipient: 'age1newkey'
+		});
+		if (!request.ok) throw new Error('fixture could not open a request');
+		return request.id;
+	}
+
+	it('hands the partner every body and the reactions on them', async () => {
+		const { threadId, messageId } = await createTestThread(harness.db, partnershipId, jun, {
+			ciphertext: 'Zmlyc3Q='
+		});
+		const second = await createTestMessage(harness.db, partnershipId, threadId, ada, {
+			ciphertext: 'c2Vjb25k'
+		});
+		// Jun's message, so Ada is allowed to react to it.
+		await setReaction(harness.db, {
+			partnershipId,
+			messageId,
+			viewerId: ada.id,
+			ciphertext: 'cmVhY3Q='
+		});
+
+		const requestId = await openRequest();
+		const page = await listHistoryForRestore(harness.db, {
+			partnershipId,
+			requestId,
+			actorId: jun.id
+		});
+
+		expect(page?.messages.map((row) => row.id)).toEqual([messageId, second.messageId]);
+		expect(page?.reactions).toEqual([{ id: expect.any(String), ciphertext: 'cmVhY3Q=' }]);
+		expect(page?.nextCursor).toBeNull();
+	});
+
+	/**
+	 * The gate is not "are you a member" but "are you the member who did not ask"
+	 * — this endpoint hands over the entire shared history, and the person who
+	 * lost their key cannot read any of it, so a request from them is either a
+	 * bug or a stolen session.
+	 */
+	it('refuses the requester reading their own request', async () => {
+		await createTestThread(harness.db, partnershipId, jun);
+		const requestId = await openRequest();
+
+		await expect(
+			listHistoryForRestore(harness.db, { partnershipId, requestId, actorId: ada.id })
+		).resolves.toBeNull();
+	});
+
+	it('refuses a non-member', async () => {
+		const stranger = await createTestUser(harness.db);
+		const requestId = await openRequest();
+
+		await expect(
+			listHistoryForRestore(harness.db, { partnershipId, requestId, actorId: stranger.id })
+		).resolves.toBeNull();
+	});
+
+	it('refuses a request id belonging to another partnership', async () => {
+		const cas = await createTestUser(harness.db, { name: 'Cas' });
+		const other = await createTestPartnership(harness.db, ada, cas);
+		const elsewhere = await requestHistoryRestore(harness.db, {
+			partnershipId: other.id,
+			requesterId: ada.id,
+			recipient: 'age1elsewhere'
+		});
+		if (!elsewhere.ok) return;
+
+		// Jun is a member of `partnershipId` but the request lives in `other`.
+		await expect(
+			listHistoryForRestore(harness.db, {
+				partnershipId,
+				requestId: elsewhere.id,
+				actorId: jun.id
+			})
+		).resolves.toBeNull();
+	});
+
+	it('never leaks another partnership’s messages into the page', async () => {
+		const cas = await createTestUser(harness.db, { name: 'Cas' });
+		const other = await createTestPartnership(harness.db, ada, cas);
+		await createTestThread(harness.db, other.id, cas, { ciphertext: 'ZWxzZXdoZXJl' });
+		const mine = await createTestThread(harness.db, partnershipId, jun, { ciphertext: 'bWluZQ==' });
+
+		const requestId = await openRequest();
+		const page = await listHistoryForRestore(harness.db, {
+			partnershipId,
+			requestId,
+			actorId: jun.id
+		});
+
+		expect(page?.messages).toEqual([{ id: mine.messageId, ciphertext: 'bWluZQ==' }]);
+	});
+
+	/**
+	 * The keyset cursor, over more rows than fit in one page.
+	 *
+	 * Asserted as "every message exactly once" rather than by checking the
+	 * boundary by hand, because the two ways a cursor breaks are skipping a row
+	 * and repeating one, and a set comparison catches both.
+	 */
+	it('pages through everything without skipping or repeating a row', async () => {
+		const { threadId, messageId } = await createTestThread(harness.db, partnershipId, jun);
+		const expected = [messageId];
+		for (let i = 0; i < RESTORE_PAGE_SIZE + 5; i++) {
+			const extra = await createTestMessage(harness.db, partnershipId, threadId, i % 2 ? ada : jun);
+			expected.push(extra.messageId);
+		}
+
+		const requestId = await openRequest();
+		const seen: string[] = [];
+		let cursor: string | null = null;
+		let pages = 0;
+		do {
+			const page = await listHistoryForRestore(harness.db, {
+				partnershipId,
+				requestId,
+				actorId: jun.id,
+				cursor
+			});
+			if (!page) throw new Error('page was refused');
+			seen.push(...page.messages.map((row) => row.id));
+			cursor = page.nextCursor;
+			pages += 1;
+		} while (cursor);
+
+		expect(pages).toBeGreaterThan(1);
+		expect(seen).toHaveLength(expected.length);
+		expect(new Set(seen)).toEqual(new Set(expected));
+	});
+
+	it('starts from the beginning when given a malformed cursor', async () => {
+		const { messageId } = await createTestThread(harness.db, partnershipId, jun);
+		const requestId = await openRequest();
+
+		for (const cursor of ['', 'nonsense', ':abc', '12x:abc']) {
+			const page = await listHistoryForRestore(harness.db, {
+				partnershipId,
+				requestId,
+				actorId: jun.id,
+				cursor
+			});
+			expect(page?.messages.map((row) => row.id)).toEqual([messageId]);
+		}
+	});
+});
+
+describe('applyHistoryRestore reactions', () => {
+	it('re-encrypts reactions alongside bodies', async () => {
+		const { threadId, messageId } = await createTestThread(harness.db, partnershipId, jun);
+		await setReaction(harness.db, {
+			partnershipId,
+			messageId,
+			viewerId: ada.id,
+			ciphertext: 'b2xkcmVhY3Q='
+		});
+
+		const request = await requestHistoryRestore(harness.db, {
+			partnershipId,
+			requesterId: ada.id,
+			recipient: 'age1newkey'
+		});
+		if (!request.ok) return;
+
+		const page = await listHistoryForRestore(harness.db, {
+			partnershipId,
+			requestId: request.id,
+			actorId: jun.id
+		});
+		const reactionId = page?.reactions[0]?.id;
+		expect(reactionId).toBeDefined();
+
+		await expect(
+			applyHistoryRestore(harness.db, {
+				partnershipId,
+				requestId: request.id,
+				actorId: jun.id,
+				messages: [{ id: messageId, ciphertext: 'bmV3Ym9keQ==' }],
+				reactions: [{ id: reactionId as string, ciphertext: 'bmV3cmVhY3Q=' }],
+				final: true
+			})
+		).resolves.toEqual({ ok: true, updated: 2 });
+
+		const thread = await getThread(harness.db, threadId, 'envelope', ada.id);
+		expect(thread.messages[0].ciphertext).toBe('bmV3Ym9keQ==');
+		expect(thread.messages[0].reactions[0].ciphertext).toBe('bmV3cmVhY3Q=');
+	});
+
+	it('cannot rewrite a reaction in another partnership', async () => {
+		const cas = await createTestUser(harness.db, { name: 'Cas' });
+		const other = await createTestPartnership(harness.db, ada, cas);
+		const elsewhere = await createTestThread(harness.db, other.id, cas);
+		await setReaction(harness.db, {
+			partnershipId: other.id,
+			messageId: elsewhere.messageId,
+			viewerId: ada.id,
+			ciphertext: 'c2FmZQ=='
+		});
+
+		const theirRequest = await requestHistoryRestore(harness.db, {
+			partnershipId: other.id,
+			requesterId: ada.id,
+			recipient: 'age1x'
+		});
+		if (!theirRequest.ok) return;
+		const theirPage = await listHistoryForRestore(harness.db, {
+			partnershipId: other.id,
+			requestId: theirRequest.id,
+			actorId: cas.id
+		});
+		const reactionId = theirPage?.reactions[0]?.id as string;
+
+		// Jun raises nothing in `other`; he tries to reach that reaction through
+		// his own partnership's request.
+		const mine = await requestHistoryRestore(harness.db, {
+			partnershipId,
+			requesterId: ada.id,
+			recipient: 'age1newkey'
+		});
+		if (!mine.ok) return;
+
+		await applyHistoryRestore(harness.db, {
+			partnershipId,
+			requestId: mine.id,
+			actorId: jun.id,
+			messages: [],
+			reactions: [{ id: reactionId, ciphertext: 'dGFtcGVyZWQ=' }],
+			final: true
+		});
+
+		const thread = await getThread(harness.db, elsewhere.threadId, 'envelope', ada.id);
+		expect(thread.messages[0].reactions[0].ciphertext).toBe('c2FmZQ==');
 	});
 });

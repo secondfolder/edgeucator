@@ -12,11 +12,21 @@
 	let {
 		thread,
 		partnershipId,
-		recipients
+		recipients,
+		/**
+		 * False while this device distrusts one of the two keys.
+		 *
+		 * The reply box is removed rather than disabled: the reason is a callout
+		 * on the board, and an inert textarea with no explanation next to it
+		 * reads as a bug. Passed in rather than derived here so the board and
+		 * the thread cannot disagree about it.
+		 */
+		canSend = true
 	}: {
 		thread: ThreadView;
 		partnershipId: string;
 		recipients: PartnerRecipientsView;
+		canSend?: boolean;
 	} = $props();
 
 	const keyring = $derived(currentKeyring());
@@ -137,9 +147,11 @@
 		either, because <body> does not scroll — Task.svelte's footer is the
 		working precedent, gradient fade included.
 	-->
-	<footer>
-		<MessageComposer {send} placeholder="Reply…" />
-	</footer>
+	{#if canSend}
+		<footer>
+			<MessageComposer {send} placeholder="Reply…" />
+		</footer>
+	{/if}
 </div>
 
 <style>

@@ -16,6 +16,7 @@ import {
 	MAX_ATTACHMENT_TOTAL_BYTES,
 	MAX_CIPHERTEXT_BYTES,
 	MAX_REACTION_CIPHERTEXT_BYTES,
+	RESTORE_PAGE_SIZE,
 	isThreadIcon,
 	type ThreadIcon
 } from '../messaging';
@@ -41,7 +42,7 @@ import type { PartnerView } from '../types';
  * `icon`, which is plaintext because the board must render before any key is
  * unlocked; every write path re-validates it against the closed list, because a
  * free-text plaintext column reachable from the network would be a covert
- * channel (AGENTS.md invariant 13).
+ * channel (AGENTS.md invariant 14).
  */
 
 // ── column lists ─────────────────────────────────────────────────────────────
@@ -461,7 +462,7 @@ async function writeAttachments(
  * read this thread", which is what the whole unread definition rests on. It
  * goes in the same batch as the message insert so the two cannot come apart —
  * and it is enforced here rather than relying on the composer only being
- * reachable from an opened thread (invariant 13).
+ * reachable from an opened thread (invariant 14).
  */
 function markSenderRead(db: Db, threadId: string, senderId: string, now: Date) {
 	return db
@@ -619,7 +620,14 @@ export async function markThreadOpened(
 }
 
 export type ReactionResult =
-	{ ok: true } | { ok: false; reason: 'not-a-member' | 'own-message' | 'too-large' };
+	/**
+	 * `threadId` is returned so the caller can publish a realtime event without
+	 * a second lookup — `requireMessageMembership` has already resolved it, so
+	 * not returning it would mean re-reading the row to name the thread that
+	 * just changed.
+	 */
+	| { ok: true; threadId: string }
+	| { ok: false; reason: 'not-a-member' | 'own-message' | 'too-large' };
 
 /**
  * Sets or replaces the viewer's reaction to a message.
@@ -656,7 +664,7 @@ export async function setReaction(
 			set: { ciphertext: input.ciphertext, updatedAt: new Date() }
 		});
 
-	return { ok: true };
+	return { ok: true, threadId: membership.threadId };
 }
 
 export async function clearReaction(
@@ -680,7 +688,7 @@ export async function clearReaction(
 			)
 		);
 
-	return { ok: true };
+	return { ok: true, threadId: membership.threadId };
 }
 
 // ── history restore ──────────────────────────────────────────────────────────
@@ -753,6 +761,121 @@ export async function listRestoreRequests(
 	}));
 }
 
+export type RestorePage = {
+	messages: { id: string; ciphertext: string }[];
+	/** The reactions on *these* messages, so a page is self-contained. */
+	reactions: { id: string; ciphertext: string }[];
+	/** Pass back as `cursor` for the next page. Null means this was the last. */
+	nextCursor: string | null;
+};
+
+/**
+ * A page of the shared history, for the partner who is re-encrypting it.
+ *
+ * Only ever called by the *other* member — the person who lost their key
+ * cannot read any of this, which is the whole reason the flow exists. That is
+ * checked against the request row rather than assumed from the caller.
+ *
+ * Ordered by `(created_at, id)` and paged on that same pair rather than on an
+ * offset: a keyset cursor cannot skip or repeat a row if anything is written
+ * while the restore is in flight, and an OFFSET can do both.
+ */
+export async function listHistoryForRestore(
+	db: Db,
+	input: { partnershipId: string; requestId: string; actorId: string; cursor?: string | null }
+): Promise<RestorePage | null> {
+	const request = await findRestorableRequest(db, input);
+	if (!request) return null;
+
+	const after = parseRestoreCursor(input.cursor);
+
+	const rows = await db
+		.select({ id: messages.id, ciphertext: messages.ciphertext, createdAt: messages.createdAt })
+		.from(messages)
+		.where(
+			and(
+				inArray(
+					messages.threadId,
+					db
+						.select({ id: messageThreads.id })
+						.from(messageThreads)
+						.where(eq(messageThreads.partnershipId, input.partnershipId))
+				),
+				// The keyset predicate: strictly after (createdAt, id) as a pair.
+				after
+					? sql`(${messages.createdAt} > ${after.createdAt} or (${messages.createdAt} = ${after.createdAt} and ${messages.id} > ${after.id}))`
+					: undefined
+			)
+		)
+		.orderBy(asc(messages.createdAt), asc(messages.id))
+		.limit(RESTORE_PAGE_SIZE);
+
+	const ids = rows.map((row) => row.id);
+	const reactions = ids.length
+		? await db
+				.select({ id: messageReactions.id, ciphertext: messageReactions.ciphertext })
+				.from(messageReactions)
+				.where(inArray(messageReactions.messageId, ids))
+		: [];
+
+	const last = rows[rows.length - 1];
+	return {
+		messages: rows.map((row) => ({ id: row.id, ciphertext: row.ciphertext })),
+		reactions,
+		// A short page is the last page. A full page might be exactly the end, in
+		// which case the next call returns nothing and stops — one wasted read,
+		// versus a count query on every page.
+		nextCursor:
+			rows.length === RESTORE_PAGE_SIZE && last ? `${last.createdAt.getTime()}:${last.id}` : null
+	};
+}
+
+/** `<epoch millis>:<uuid>`. Anything else is treated as "start from the beginning". */
+function parseRestoreCursor(
+	cursor: string | null | undefined
+): { createdAt: Date; id: string } | null {
+	if (!cursor) return null;
+	const separator = cursor.indexOf(':');
+	if (separator < 1) return null;
+	const millis = Number(cursor.slice(0, separator));
+	const id = cursor.slice(separator + 1);
+	if (!Number.isSafeInteger(millis) || id.length === 0) return null;
+	return { createdAt: new Date(millis), id };
+}
+
+/**
+ * The pending request, if `actorId` is the member who can actually act on it.
+ *
+ * Shared by the read and the write so the two cannot disagree about who is
+ * allowed — the read hands over the entire shared history, so it needs exactly
+ * the same gate as the write.
+ */
+async function findRestorableRequest(
+	db: Db,
+	input: { partnershipId: string; requestId: string; actorId: string }
+): Promise<{ id: string; requesterId: string } | null> {
+	const membership = await requireMembership(db, input.partnershipId, input.actorId);
+	if (!membership) return null;
+
+	const rows = await db
+		.select({ id: historyRestoreRequests.id, requesterId: historyRestoreRequests.requesterId })
+		.from(historyRestoreRequests)
+		.where(
+			and(
+				eq(historyRestoreRequests.id, input.requestId),
+				eq(historyRestoreRequests.partnershipId, input.partnershipId),
+				eq(historyRestoreRequests.status, 'pending')
+			)
+		)
+		.limit(1);
+
+	const request = rows[0];
+	// The actor must be the OTHER member: the person who lost their key cannot
+	// re-encrypt anything, since they cannot read it.
+	if (!request || request.requesterId === input.actorId) return null;
+	return request;
+}
+
 /**
  * Replaces message bodies with copies re-encrypted to the requester's new key.
  *
@@ -774,6 +897,15 @@ export async function applyHistoryRestore(
 		/** The partner doing the re-encryption, not the one who lost their key. */
 		actorId: string;
 		messages: { id: string; ciphertext: string }[];
+		/**
+		 * Reactions re-encrypted alongside the bodies.
+		 *
+		 * Included because a reaction is encrypted too (see docs/messaging.md on
+		 * why, when the thread icon is not), so a restore that skipped them would
+		 * hand back a readable history dotted with tapbacks the owner cannot
+		 * open. Optional so the existing callers and tests keep working.
+		 */
+		reactions?: { id: string; ciphertext: string }[];
 		/** True on the final page, which closes the request. */
 		final: boolean;
 	},
@@ -784,49 +916,52 @@ export async function applyHistoryRestore(
 	const membership = await requireMembership(db, input.partnershipId, input.actorId);
 	if (!membership) return { ok: false, reason: 'not-a-member' };
 
-	const requests = await db
-		.select({ id: historyRestoreRequests.id, requesterId: historyRestoreRequests.requesterId })
-		.from(historyRestoreRequests)
-		.where(
-			and(
-				eq(historyRestoreRequests.id, input.requestId),
-				eq(historyRestoreRequests.partnershipId, input.partnershipId),
-				eq(historyRestoreRequests.status, 'pending')
-			)
-		)
-		.limit(1);
+	const request = await findRestorableRequest(db, input);
+	if (!request) return { ok: false, reason: 'no-such-request' };
 
-	const request = requests[0];
-	// The actor must be the OTHER member: the person who lost their key cannot
-	// re-encrypt anything, since they cannot read it.
-	if (!request || request.requesterId === input.actorId) {
+	const reactions = input.reactions ?? [];
+	const tooBig = (value: string, cap: number) => value.length === 0 || value.length > cap;
+	if (
+		input.messages.some((message) => tooBig(message.ciphertext, MAX_CIPHERTEXT_BYTES)) ||
+		reactions.some((reaction) => tooBig(reaction.ciphertext, MAX_REACTION_CIPHERTEXT_BYTES))
+	) {
 		return { ok: false, reason: 'no-such-request' };
 	}
 
-	const oversized = input.messages.some(
-		(message) => message.ciphertext.length === 0 || message.ciphertext.length > MAX_CIPHERTEXT_BYTES
-	);
-	if (oversized) return { ok: false, reason: 'no-such-request' };
+	// Every write is scoped through the thread to this partnership, so a request
+	// cannot be used to rewrite something in somebody else's conversation. This
+	// is the confused-deputy guard for the restore path.
+	const inThisPartnership = db
+		.select({ id: messageThreads.id })
+		.from(messageThreads)
+		.where(eq(messageThreads.partnershipId, input.partnershipId));
 
-	const updates = input.messages.map((message) =>
-		db
-			.update(messages)
-			.set({ ciphertext: message.ciphertext })
-			// Scoped through the thread to this partnership, so a request cannot be
-			// used to rewrite a message belonging to somebody else's conversation.
-			.where(
-				and(
-					eq(messages.id, message.id),
-					inArray(
-						messages.threadId,
-						db
-							.select({ id: messageThreads.id })
-							.from(messageThreads)
-							.where(eq(messageThreads.partnershipId, input.partnershipId))
+	const updates = [
+		...input.messages.map((message) =>
+			db
+				.update(messages)
+				.set({ ciphertext: message.ciphertext })
+				.where(and(eq(messages.id, message.id), inArray(messages.threadId, inThisPartnership)))
+		),
+		...reactions.map((reaction) =>
+			db
+				.update(messageReactions)
+				.set({ ciphertext: reaction.ciphertext })
+				.where(
+					and(
+						eq(messageReactions.id, reaction.id),
+						// Two levels out: reaction → message → thread → partnership.
+						inArray(
+							messageReactions.messageId,
+							db
+								.select({ id: messages.id })
+								.from(messages)
+								.where(inArray(messages.threadId, inThisPartnership))
+						)
 					)
 				)
-			)
-	);
+		)
+	];
 
 	const closing = input.final
 		? [
@@ -842,7 +977,7 @@ export async function applyHistoryRestore(
 		await db.batch(statements as [(typeof statements)[number], ...typeof statements]);
 	}
 
-	return { ok: true, updated: input.messages.length };
+	return { ok: true, updated: input.messages.length + reactions.length };
 }
 
 /** Marks a restore request refused, so the requester is told rather than left waiting. */

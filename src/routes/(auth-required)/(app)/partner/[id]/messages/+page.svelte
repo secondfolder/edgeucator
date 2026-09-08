@@ -3,11 +3,21 @@
 	import { goto } from '$app/navigation';
 	import { resolve } from '$app/paths';
 	import { currentKeyring, unlockWithPassword } from '$lib/crypto/session.svelte';
+	import {
+		acceptKeyChange,
+		markVerified,
+		refreshTrust,
+		trustAllowsSending,
+		trustFor
+	} from '$lib/crypto/trust.svelte';
 	import { acknowledgeWarning, sendMessage } from '$lib/messaging/client';
+	import { watchPartnership } from '$lib/messaging/live';
 	import { DEFAULT_THREAD_ICON, type ThreadIcon } from '$lib/messaging';
 	import { page } from '$app/state';
 	import HistoryWarning from '$lib/components/HistoryWarning.svelte';
 	import MessageComposer from '$lib/components/MessageComposer.svelte';
+	import PartnerKeyNotice from '$lib/components/PartnerKeyNotice.svelte';
+	import RestoreRequests from '$lib/components/RestoreRequests.svelte';
 	import StickerBoard from '$lib/components/StickerBoard.svelte';
 	import ThreadIconPicker from '$lib/components/ThreadIconPicker.svelte';
 	import UnlockForm from '$lib/components/UnlockForm.svelte';
@@ -18,6 +28,51 @@
 	const user = $derived(page.data.user as { id: string; email: string });
 	const keyring = $derived(currentKeyring());
 	const acknowledged = $derived(data.historyWarningAcknowledged);
+
+	const trust = $derived(trustFor(data.partner.id));
+	const canSend = $derived(trustAllowsSending(trust));
+
+	/**
+	 * Checks the served keys against what this device pinned, and pins on first
+	 * sight. Runs on every load rather than once: `recipients` changes when
+	 * either partner resets their password, which is exactly the case that must
+	 * not be missed.
+	 *
+	 * Gated on being unlocked only because there is nothing to send while
+	 * locked, so a warning about what to send to would be noise.
+	 */
+	$effect(() => {
+		if (keyring.status !== 'unlocked') return;
+		void refreshTrust(user.id, data.partner.id, data.recipients);
+	});
+
+	/**
+	 * The live feed, for as long as this board is on screen.
+	 *
+	 * The callback is a plain `invalidate` of this board's own key, so an event
+	 * re-runs the load through the same authorised path as a navigation — the
+	 * event itself carries no content and is not trusted for anything beyond
+	 * "something changed". It is also called speculatively on reconnect, which
+	 * is why it has to be idempotent.
+	 *
+	 * The effect depends on `partnershipId`, a `$derived` of a **string**, and
+	 * not on `data` — that detail is the difference between one long-lived
+	 * stream and one per message. `invalidate()` reassigns the `data` prop, so
+	 * an effect that read `data.partner.id` directly re-ran on every arriving
+	 * event and tore the connection down to open a new one. It still worked,
+	 * which is why nothing else noticed; on Workers each of those reconnects is
+	 * a fresh billed request to the Durable Object. A derived primitive stops
+	 * propagating when its value is unchanged, so the effect stays put.
+	 * `e2e/messaging.spec.ts` counts `EventSource` constructions to hold this.
+	 */
+	const partnershipId = $derived(data.partner.id);
+	$effect(() => {
+		const id = partnershipId;
+		return watchPartnership({
+			partnershipId: id,
+			onChange: () => void invalidate(`messages:board:${id}`)
+		});
+	});
 
 	let composing = $state(false);
 	let icon: ThreadIcon = $state(DEFAULT_THREAD_ICON);
@@ -97,28 +152,35 @@
 	<section class="board">
 		<header>
 			<h1>{data.partner.name}</h1>
-			{#if data.recipients.theirs === null}
-				<wa-callout variant="neutral" size="small">
-					{data.partner.name} hasn't set up encrypted messaging yet, so there is nobody to encrypt to.
-					Nudge them.
-				</wa-callout>
-			{/if}
-			{#each data.restoreRequests as request (request.id)}
-				<wa-callout variant="warning" size="small">
-					{#if request.mine}
-						You asked {data.partner.name} to restore your history. They need to compare a safety number
-						with you before they can.
-					{:else}
-						{data.partner.name} lost their key and is asking for your shared history back. Check the safety
-						number with them first.
-					{/if}
-				</wa-callout>
-			{/each}
+			<!--
+				The "they have not set up messaging" case lives in here too, rather
+				than beside it: `pinStateFor` already calls that `missing`, and two
+				components deciding when to mention the partner's key would drift.
+			-->
+			<PartnerKeyNotice
+				{trust}
+				partnerName={data.partner.name}
+				verify={() => markVerified(user.id, data.partner.id, data.recipients)}
+				accept={(which) => acceptKeyChange(user.id, data.partner.id, data.recipients, which)}
+			/>
+			<!--
+				`mine`, not the trust view's safety number: a restore's number must be
+				derived from the recipient snapshotted on the request, which is the
+				value the re-encryption actually seals to. See the comment in
+				RestoreRequests.svelte — using the served key here would defeat the
+				out-of-band check entirely.
+			-->
+			<RestoreRequests
+				requests={data.restoreRequests}
+				partnershipId={data.partner.id}
+				partnerName={data.partner.name}
+				mine={data.recipients.mine}
+			/>
 		</header>
 
 		<StickerBoard threads={data.threads} partnershipId={data.partner.id} {formatWhen} />
 
-		{#if data.recipients.theirs !== null}
+		{#if data.recipients.theirs !== null && canSend}
 			<div class="new">
 				{#if composing}
 					<div class="composer">
