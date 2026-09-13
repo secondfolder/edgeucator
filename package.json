@@ -9,7 +9,7 @@
 		"preview": "vite preview",
 		"preview:worker": "npm run build && npm run db:migrate:d1 && wrangler dev worker.ts",
 		"deploy": "npm run build && wrangler deploy worker.ts",
-		"prepare": "svelte-kit sync || echo ''",
+		"prepare": "husky",
 		"check": "svelte-kit sync && svelte-check --tsconfig ./tsconfig.json",
 		"check:watch": "svelte-kit sync && svelte-check --tsconfig ./tsconfig.json --watch",
 		"format": "prettier --write .",
@@ -28,6 +28,13 @@
 		"auth:secret": "auth secret",
 		"cf-typegen": "wrangler types ./src/worker-env.d.ts --include-runtime=false"
 	},
+	"lint-staged": {
+		"*.{js,mjs,cjs,ts,svelte,css,html,json,md}": "prettier --write",
+		"*.{js,mjs,cjs,ts,svelte}": [
+			"eslint --fix",
+			"vitest related --run --passWithNoTests"
+		]
+	},
 	"devDependencies": {
 		"@cloudflare/workers-types": "^5.20260906.1",
 		"@eslint/compat": "^2.1.1",
@@ -45,7 +52,9 @@
 		"eslint-config-prettier": "^10.1.8",
 		"eslint-plugin-svelte": "^3.23.0",
 		"globals": "^17.12.0",
+		"husky": "^9.1.7",
 		"jsdom": "^29.1.1",
+		"lint-staged": "^17.5.1",
 		"prettier": "^3.9.6",
 		"prettier-plugin-svelte": "^4.1.1",
 		"svelte": "^5.57.0",

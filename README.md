@@ -127,6 +127,17 @@ memory from the committed migrations. `npm run test:e2e` starts its own
 `local.db` — but it does load Web Awesome from the CDN, so it needs a network
 connection. `AGENTS.md` has the details of how each level is meant to be used.
 
+### Pre-commit
+
+`git commit` runs [husky](https://typicode.github.io/husky/) +
+[lint-staged](https://github.com/lint-staged/lint-staged): svelte-check over the
+whole project first, then over the staged files — prettier rewrites them, eslint
+fixes what it can, and `vitest related` runs the unit tests whose files import
+the staged ones (see the `lint-staged` entry in `package.json`). Anything a task
+rewrites is re-staged automatically. It is not a substitute for the full loop in
+`AGENTS.md` — the e2e suite is too slow for a hook and still runs in CI or by
+hand.
+
 ## Scripts
 
 | Script                                               | What it does                                                  |

@@ -50,6 +50,13 @@ npm run test:e2e # playwright, real browser against vite dev
 npm run format   # fixes prettier complaints
 ```
 
+`git commit` also runs husky over the staged files: `npm run check` first
+(svelte-check is project-wide, so it cannot be scoped by lint-staged), then
+lint-staged (prettier, eslint --fix, then `vitest related --run` on the tests
+that import them — config lives in `package.json`). It is a fast partial gate,
+not the loop: it does not run the e2e suite, and a commit passing it is not
+"done".
+
 Honest baseline as of this writing — `lint`, `check`, `test` and `test:e2e` are
 all clean. It was not always so; both suppression conventions below exist
 because a warning was either a false positive or an intentional pattern, and

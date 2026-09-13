@@ -1,0 +1,11 @@
+# Project-wide, so it lives here rather than in lint-staged: svelte-check has
+# no per-file mode — it needs the whole type graph to catch a staged edit
+# breaking a file that was not staged. ~5s; blocks on any error or warning,
+# which is fine now the baseline is 0/0.
+npm run check
+
+# Lint the staged files and run the vitest tests related to them (see the
+# "lint-staged" entry in package.json). Unstaged-in-staged-file edits are
+# stashed by lint-staged for the duration, so the checks run on exactly what
+# would be committed.
+npx lint-staged
