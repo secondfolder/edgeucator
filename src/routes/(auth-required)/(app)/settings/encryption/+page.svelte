@@ -292,7 +292,7 @@
 					<wa-button
 						type="button"
 						appearance="outlined"
-						size="small"
+						size="s"
 						onclick={generatePhrase}
 						disabled={generating}
 					>
@@ -375,7 +375,7 @@
 					{#if wraps.length > 1}
 						<form method="POST" action="?/revokeWrap" use:setupForm.enhance>
 							<input type="hidden" name="wrapId" value={wrap.id} />
-							<wa-button type="submit" appearance="plain" size="small">Remove</wa-button>
+							<wa-button type="submit" appearance="plain" size="s">Remove</wa-button>
 						</form>
 					{/if}
 				</li>

@@ -610,8 +610,11 @@ export const threadReads = sqliteTable(
 		userId: text('user_id')
 			.notNull()
 			.references(() => user.id, { onDelete: 'cascade' }),
-		/** Drives the read half of the board order: most recently opened first. */
-		lastOpenedAt: integer('last_opened_at', { mode: 'timestamp_ms' }).notNull(),
+		/**
+		 * Drives the read half of the board order: when the thread most recently
+		 * became fully read.
+		 */
+		lastFullyReadAt: integer('last_fully_read_at', { mode: 'timestamp_ms' }).notNull(),
 		lastReadMessageAt: integer('last_read_message_at', { mode: 'timestamp_ms' }).notNull(),
 		...timestamps
 	},

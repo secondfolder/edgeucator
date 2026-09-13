@@ -1,5 +1,5 @@
+import { Buffer } from 'node:buffer';
 import { expect, test } from './fixtures';
-import { THREAD_ICON_LABELS } from '../src/lib/messaging';
 import {
 	clickWaButton,
 	fillWaTextarea,
@@ -37,7 +37,7 @@ test.describe('a message between partners', () => {
 			await openBoard(ada.page, 'Jun');
 			await expect(ada.page.getByText(/Nothing here yet/)).toBeVisible();
 
-			await writeThread(ada.page, secret, 'bottle-droplet');
+			await writeThread(ada.page, secret);
 			// She is in the thread she just started, and can read her own message.
 			await expect(ada.page.getByText(secret)).toBeVisible();
 
@@ -49,13 +49,13 @@ test.describe('a message between partners', () => {
 			// ── Jun reads it ────────────────────────────────────────────────────
 			await link.click();
 			await jun.page.waitForURL(/\/messages$/);
-			// Past the one-time warning, then the sticker Ada chose.
+			// Past the one-time warning, then the unopened envelope Jun sees.
 			await jun.page.getByRole('checkbox').check();
 			await clickWaButton(jun.page, 'Start messaging');
 
 			const sticker = jun.page.getByRole('link', { name: /^Unread message 1 of 1/ });
 			await expect(sticker).toBeVisible();
-			await expect(sticker.locator('wa-icon')).toHaveAttribute('name', 'bottle-droplet');
+			await expect(sticker.locator('wa-icon')).toHaveAttribute('name', 'envelope');
 
 			await sticker.click();
 			await jun.page.waitForURL(/\/messages\/[0-9a-f-]{36}$/);
@@ -172,9 +172,9 @@ test.describe('the board', () => {
 			// Two threads from Ada, in order.
 			await ada.page.goto('/home');
 			await openBoard(ada.page, 'Jun');
-			await writeThread(ada.page, 'the first one', 'envelope');
+			await writeThread(ada.page, 'the first one');
 			await ada.page.goBack();
-			await writeThread(ada.page, 'the second one', 'fire');
+			await writeThread(ada.page, 'the second one');
 
 			await jun.page.goto('/home');
 			await openBoard(jun.page, 'Ada');
@@ -182,7 +182,10 @@ test.describe('the board', () => {
 			// Both unread, newest at the top, and no seam yet.
 			const unread = jun.page.getByRole('list', { name: 'Unread' });
 			await expect(unread.getByRole('listitem')).toHaveCount(2);
-			await expect(unread.locator('wa-icon').first()).toHaveAttribute('name', 'fire');
+			await expect(unread.getByRole('link').first().locator('wa-icon')).toHaveAttribute(
+				'name',
+				'envelope'
+			);
 			await expect(jun.page.getByText('Already read')).toBeHidden();
 
 			// Open the newest; it crosses the seam.
@@ -197,19 +200,27 @@ test.describe('the board', () => {
 			).toHaveCount(1);
 			const read = jun.page.getByRole('list', { name: 'Already read' });
 			await expect(read.getByRole('listitem')).toHaveCount(1);
-			await expect(read.locator('wa-icon').first()).toHaveAttribute('name', 'fire');
+			await expect(read.getByText('the second one')).toBeVisible();
+
+			await fillWaTextarea(ada.page, 'and another');
+			await clickWaButton(ada.page, 'Send');
+			await expect(ada.page.getByText('and another')).toBeVisible();
+
+			await jun.page.reload();
+			const unreadAgain = jun.page.getByRole('list', { name: 'Unread' });
+			await expect(unreadAgain.getByRole('listitem')).toHaveCount(2);
+			const reopened = unreadAgain.getByRole('listitem').first();
+			await expect(reopened.getByText('the second one')).toBeVisible();
+			await expect(reopened.locator('wa-icon[name="envelope"]')).toHaveCount(0);
 		} finally {
 			await ada.close();
 			await jun.close();
 		}
 	});
 
-	/**
-	 * The sticker layout is derived from the thread id, so it has to be
-	 * identical across reloads — that is the requirement, and an
-	 * index-derived layout would silently satisfy every other assertion here.
-	 */
-	test('lays the stickers out identically on every load', async ({ browser }) => {
+	test('keeps board tiles aligned in a plain grid and opens the composer only on tap', async ({
+		browser
+	}) => {
 		const ada = await newSide(browser, 'Ada');
 		const jun = await newSide(browser, 'Jun');
 
@@ -220,34 +231,53 @@ test.describe('the board', () => {
 
 			await ada.page.goto('/home');
 			await openBoard(ada.page, 'Jun');
-			for (const text of ['one', 'two', 'three']) {
-				await writeThread(ada.page, text);
-				await ada.page.goBack();
-			}
+			const shell = ada.page.locator('wa-dialog.composer-dialog');
+			await expect(shell).toHaveCount(0);
+			await clickWaButton(ada.page, 'Write something');
+			await expect(shell).toHaveCount(1);
+			const sizing = await shell.evaluate((element) => {
+				const root = element.shadowRoot;
+				const body = root?.querySelector<HTMLElement>('[part~="body"]');
+				const panel = root?.querySelector<HTMLElement>('[part~="dialog"]');
+				const title = root?.querySelector<HTMLElement>('[part~="title"]');
+				const composer = element.querySelector<HTMLElement>('.composer');
+				if (!body || !panel || !title || !composer) return null;
+				const bodyRect = body.getBoundingClientRect();
+				const composerRect = composer.getBoundingClientRect();
+				const panelRect = panel.getBoundingClientRect();
+				return {
+					open: element.hasAttribute('open'),
+					title: title.textContent?.trim() ?? '',
+					bodyWidth: bodyRect.width,
+					bodyHeight: bodyRect.height,
+					composerWidth: composerRect.width,
+					composerHeight: composerRect.height,
+					leftGap: panelRect.left,
+					rightGap: window.innerWidth - panelRect.right
+				};
+			});
+			expect(sizing).not.toBeNull();
+			expect(sizing!.open).toBe(true);
+			expect(sizing!.title).toBe('Send to Jun');
+			expect(Math.abs(sizing!.composerWidth - sizing!.bodyWidth)).toBeLessThanOrEqual(1);
+			expect(Math.abs(sizing!.composerHeight - sizing!.bodyHeight)).toBeLessThanOrEqual(1);
+			expect(Math.abs(sizing!.leftGap - sizing!.rightGap)).toBeLessThanOrEqual(8);
+			await fillWaTextarea(ada.page, 'one');
+			await clickWaButton(ada.page, 'Send');
+			await ada.page.waitForURL(/\/messages\/[0-9a-f-]{36}$/);
+			await ada.page.goBack();
 
-			const stickers = ada.page.locator('ul[aria-label] > li > a');
-			await expect(stickers).toHaveCount(3);
+			await writeThread(ada.page, 'two');
+			await ada.page.goBack();
+			await writeThread(ada.page, 'three');
+			await ada.page.goBack();
 
-			/**
-			 * The computed transform rather than the `style` attribute.
-			 *
-			 * It is what the requirement is actually about — the sticker being
-			 * tilted and offset — and it holds however the custom properties reach
-			 * the element.
-			 */
-			const transforms = () =>
-				stickers.evaluateAll((els) => els.map((el) => getComputedStyle(el).transform));
-
-			const before = await transforms();
-			// Applied at all: a matrix, not `none`.
-			expect(before.every((value) => value.startsWith('matrix'))).toBe(true);
-			// And not all identical, or the jitter is not deriving from the id.
-			expect(new Set(before).size).toBeGreaterThan(1);
-
-			await ada.page.reload();
-			await expect(stickers).toHaveCount(3);
-			// The actual requirement: identical on every load.
-			expect(await transforms()).toEqual(before);
+			const tiles = ada.page.locator('ul[aria-label] > li > a');
+			await expect(tiles).toHaveCount(3);
+			const transforms = await tiles.evaluateAll((els) =>
+				els.map((el) => getComputedStyle(el).transform)
+			);
+			expect(transforms).toEqual(['none', 'none', 'none']);
 		} finally {
 			await ada.close();
 			await jun.close();
@@ -282,9 +312,11 @@ test.describe('live updates', () => {
 			// the flow.
 			await ada.page.addInitScript(() => {
 				const target = window as unknown as { EventSource: unknown; __streams?: number };
-				const Real = target.EventSource as new (url: string) => unknown;
+				const Real = target.EventSource as {
+					new (url: string, eventSourceInitDict?: EventSourceInit): EventSource;
+				};
 				target.__streams = 0;
-				target.EventSource = class extends (Real as never) {
+				target.EventSource = class extends Real {
 					constructor(url: string) {
 						super(url);
 						target.__streams = (target.__streams ?? 0) + 1;
@@ -396,18 +428,37 @@ test.describe('attachments', () => {
 
 			await ada.page.goto('/home');
 			await openBoard(ada.page, 'Jun');
+			await expect(ada.page.locator('wa-dialog.composer-dialog')).toHaveCount(0);
 			await clickWaButton(ada.page, 'Write something');
-			await ada.page.getByRole('radio', { name: THREAD_ICON_LABELS['gem'] }).click({ force: true });
-			await fillWaTextarea(ada.page, 'look at this');
 			await ada.page
 				.locator('input[type="file"]')
 				.setInputFiles({ name: 'sunset.png', mimeType: 'image/png', buffer: PNG });
 			// The chip confirms the composer took it before the send.
 			await expect(ada.page.getByText('sunset.png')).toBeVisible();
 
-			await expect(ada.page.getByRole('button', { name: 'Send it' })).toBeEnabled();
-			await clickWaButton(ada.page, 'Send it');
+			await expect(ada.page.getByRole('button', { name: 'Send' })).toBeEnabled();
+			await clickWaButton(ada.page, 'Send');
 			await ada.page.waitForURL(/\/messages\/[0-9a-f-]{36}$/);
+			await ada.page.goBack();
+			const boardThumb = ada.page.locator('ul[aria-label] img.thumb').first();
+			await expect(boardThumb).toBeVisible();
+			await expect(boardThumb).toHaveAttribute('src', /^blob:/);
+			const previewSizing = await boardThumb.evaluate((thumb) => {
+				const preview = thumb.closest<HTMLElement>('.preview');
+				if (!preview) return null;
+				const previewRect = preview.getBoundingClientRect();
+				const thumbRect = thumb.getBoundingClientRect();
+				const style = getComputedStyle(thumb);
+				return {
+					widthDelta: Math.abs(previewRect.width - thumbRect.width),
+					heightDelta: Math.abs(previewRect.height - thumbRect.height),
+					objectFit: style.objectFit
+				};
+			});
+			expect(previewSizing).not.toBeNull();
+			expect(previewSizing!.widthDelta).toBeLessThanOrEqual(1);
+			expect(previewSizing!.heightDelta).toBeLessThanOrEqual(1);
+			expect(previewSizing!.objectFit).toBe('cover');
 
 			// Jun reads it and the decrypted image renders from a blob: URL, which
 			// is the proof it was decrypted in the browser rather than served.
@@ -415,7 +466,6 @@ test.describe('attachments', () => {
 			await openBoard(jun.page, 'Ada');
 			await jun.page.getByRole('link', { name: /^Unread message/ }).click();
 			await jun.page.waitForURL(/\/messages\/[0-9a-f-]{36}$/);
-			await expect(jun.page.getByText('look at this')).toBeVisible();
 
 			const image = jun.page.getByRole('img', { name: 'sunset.png' });
 			await expect(image).toBeVisible();
@@ -424,6 +474,87 @@ test.describe('attachments', () => {
 			await expect
 				.poll(() => image.evaluate((el) => (el as HTMLImageElement).naturalWidth))
 				.toBeGreaterThan(0);
+		} finally {
+			await ada.close();
+			await jun.close();
+		}
+	});
+
+	test('first-message preview fans out at most four items on the board', async ({ browser }) => {
+		const ada = await newSide(browser, 'Ada');
+		const jun = await newSide(browser, 'Jun');
+
+		try {
+			await signUp(ada.page, ada.who);
+			await signUp(jun.page, jun.who);
+			await linkAccounts(ada, jun);
+
+			await ada.page.goto('/home');
+			await openBoard(ada.page, 'Jun');
+			await clickWaButton(ada.page, 'Write something');
+			await fillWaTextarea(ada.page, 'look at these');
+			await ada.page.locator('input[type="file"]').setInputFiles([
+				{ name: 'one.png', mimeType: 'image/png', buffer: PNG },
+				{ name: 'two.png', mimeType: 'image/png', buffer: PNG },
+				{ name: 'three.png', mimeType: 'image/png', buffer: PNG },
+				{ name: 'four.png', mimeType: 'image/png', buffer: PNG },
+				{ name: 'five.png', mimeType: 'image/png', buffer: PNG }
+			]);
+
+			await expect(ada.page.getByText('one.png')).toBeVisible();
+			await expect(ada.page.getByText('two.png')).toBeVisible();
+			await expect(ada.page.getByRole('button', { name: 'Send' })).toBeEnabled();
+			await clickWaButton(ada.page, 'Send');
+			await ada.page.waitForURL(/\/messages\/[0-9a-f-]{36}$/);
+			await ada.page.goBack();
+
+			const fan = ada.page.locator('ul[aria-label] .fan').first();
+			await expect(fan).toBeVisible();
+			await expect(fan.getByText('look at these')).toBeVisible();
+			await expect(fan.locator('.fan-card')).toHaveCount(4);
+			await expect(fan.locator('img.thumb')).toHaveCount(3);
+			const fanSpread = async () =>
+				fan.evaluate((element) => {
+					const cards = Array.from(element.querySelectorAll<HTMLElement>('.fan-card'));
+					if (cards.length === 0) return null;
+					const fanRect = element.getBoundingClientRect();
+					const rects = cards.map((card) => card.getBoundingClientRect());
+					const minLeft = Math.min(...rects.map((rect) => rect.left));
+					const maxRight = Math.max(...rects.map((rect) => rect.right));
+					return {
+						leftGap: minLeft - fanRect.left,
+						rightGap: fanRect.right - maxRight,
+						spread: maxRight - minLeft
+					};
+				});
+
+			const before = await fanSpread();
+			expect(before).not.toBeNull();
+			expect(before!.leftGap).toBeLessThanOrEqual(24);
+			expect(before!.rightGap).toBeLessThanOrEqual(24);
+			const transition = await fan
+				.locator('.fan-card')
+				.first()
+				.evaluate((card) => {
+					const style = getComputedStyle(card);
+					return { property: style.transitionProperty, duration: style.transitionDuration };
+				});
+			expect(transition.property).toContain('inset-inline-start');
+			expect(transition.duration).not.toBe('0s');
+
+			await fan.hover();
+			await expect
+				.poll(async () => {
+					const after = await fanSpread();
+					return after ? after.spread - before!.spread : 0;
+				})
+				.toBeGreaterThan(10);
+			await expect
+				.poll(async () => {
+					const after = await fanSpread();
+					return after ? Math.max(after.leftGap, after.rightGap) : 0;
+				})
+				.toBeLessThan(-10);
 		} finally {
 			await ada.close();
 			await jun.close();
@@ -457,18 +588,20 @@ test.describe('attachments', () => {
 
 			await ada.page.goto('/home');
 			await openBoard(ada.page, 'Jun');
+			await expect(ada.page.locator('wa-dialog.composer-dialog')).toHaveCount(0);
 			await clickWaButton(ada.page, 'Write something');
 			await fillWaTextarea(ada.page, 'private');
 			await ada.page
 				.locator('input[type="file"]')
 				.setInputFiles({ name: 'a.png', mimeType: 'image/png', buffer: PNG });
-			await expect(ada.page.getByRole('button', { name: 'Send it' })).toBeEnabled();
-			await clickWaButton(ada.page, 'Send it');
+			await expect(ada.page.getByRole('button', { name: 'Send' })).toBeEnabled();
+			await clickWaButton(ada.page, 'Send');
 			await ada.page.waitForURL(/\/messages\/[0-9a-f-]{36}$/);
 			await expect(ada.page.getByRole('img', { name: 'a.png' })).toBeVisible();
 
-			expect(requested).toHaveLength(1);
-			const path = new URL(requested[0]).pathname;
+			expect(requested.length).toBeGreaterThan(0);
+			expect(new Set(requested).size).toBe(1);
+			const path = new URL(requested[0]!).pathname;
 			const junPartnership = path.split('/')[3];
 			const attachmentId = path.split('/').at(-1);
 

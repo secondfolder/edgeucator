@@ -81,7 +81,7 @@
 			</p>
 			<!-- svelte-ignore a11y_click_events_have_key_events,a11y_no_static_element_interactions -->
 			<wa-button
-				size="small"
+				size="s"
 				variant="danger"
 				disabled={working}
 				onclick={() => run(() => accept('own'))}
@@ -111,7 +111,7 @@
 			{/if}
 			<!-- svelte-ignore a11y_click_events_have_key_events,a11y_no_static_element_interactions -->
 			<wa-button
-				size="small"
+				size="s"
 				variant="danger"
 				disabled={working}
 				onclick={() => run(() => accept('partner'))}
@@ -144,17 +144,17 @@
 					<SafetyNumber value={trust.safetyNumber} {partnerName} />
 					<div class="actions">
 						<!-- svelte-ignore a11y_click_events_have_key_events,a11y_no_static_element_interactions -->
-						<wa-button size="small" disabled={working} onclick={() => run(verify)}>
+						<wa-button size="s" disabled={working} onclick={() => run(verify)}>
 							It matches
 						</wa-button>
 						<!-- svelte-ignore a11y_click_events_have_key_events,a11y_no_static_element_interactions -->
-						<wa-button size="small" appearance="plain" onclick={() => (showNumber = false)}>
+						<wa-button size="s" appearance="plain" onclick={() => (showNumber = false)}>
 							Not now
 						</wa-button>
 					</div>
 				{:else}
 					<!-- svelte-ignore a11y_click_events_have_key_events,a11y_no_static_element_interactions -->
-					<wa-button size="small" appearance="plain" onclick={() => (showNumber = true)}>
+					<wa-button size="s" appearance="plain" onclick={() => (showNumber = true)}>
 						Check your safety number
 					</wa-button>
 				{/if}

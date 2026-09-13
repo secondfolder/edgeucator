@@ -12,7 +12,7 @@
 <section>
 	<header>
 		<h1>Partners</h1>
-		<wa-button href={resolve('/(auth-required)/(app)/settings/partners/new')} size="small">
+		<wa-button href={resolve('/(auth-required)/(app)/settings/partners/new')} size="s">
 			<wa-icon slot="start" name="plus" variant="solid"></wa-icon>
 			Add
 		</wa-button>

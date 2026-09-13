@@ -30,7 +30,6 @@
 		backText={data.partner.name}
 		title="Rewards"
 		{description}
-		iconName="gift"
 	/>
 
 	<div class="content">

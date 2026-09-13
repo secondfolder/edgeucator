@@ -4,15 +4,13 @@
 		backLabel,
 		backText,
 		title = null,
-		description = null,
-		iconName = null
+		description = null
 	}: {
 		backHref: string;
 		backLabel: string;
 		backText: string;
 		title?: string | null;
 		description?: string | null;
-		iconName?: string | null;
 	} = $props();
 </script>
 
@@ -32,9 +30,6 @@
 			<wa-icon name="chevron-left" variant="solid"></wa-icon>
 			<span>{backText}</span>
 		</a>
-		{#if iconName}
-			<wa-icon class="trailing" name={iconName} variant="solid"></wa-icon>
-		{/if}
 	</div>
 
 	{#if title || description}
@@ -68,12 +63,6 @@
 		text-decoration: none;
 		color: inherit;
 		font-weight: var(--wa-font-weight-semibold, 600);
-	}
-
-	.trailing {
-		margin-inline-start: auto;
-		color: var(--wa-color-text-quiet);
-		flex: none;
 	}
 
 	.copy {

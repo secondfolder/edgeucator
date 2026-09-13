@@ -36,6 +36,13 @@
       "when": 1789281596871,
       "tag": "0004_add_rewards",
       "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "6",
+      "when": 1789302642915,
+      "tag": "0005_rename-thread-reads-last-fully-read-at",
+      "breakpoints": true
     }
   ]
 }

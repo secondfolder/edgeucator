@@ -16,12 +16,10 @@
 	 */
 	let {
 		threads,
-		partnershipId,
-		formatWhen
+		partnershipId
 	}: {
 		threads: ThreadStickerView[];
 		partnershipId: string;
-		formatWhen: (date: Date) => string;
 	} = $props();
 
 	const unread = $derived(threads.filter((thread) => thread.unread));
@@ -34,13 +32,7 @@
 	{#if unread.length > 0}
 		<ul aria-label="Unread">
 			{#each unread as thread, index (thread.id)}
-				<ThreadSticker
-					{thread}
-					{partnershipId}
-					position={index + 1}
-					total={unread.length}
-					when={formatWhen(thread.lastMessageAt)}
-				/>
+				<ThreadSticker {thread} {partnershipId} position={index + 1} total={unread.length} />
 			{/each}
 		</ul>
 	{/if}
@@ -56,13 +48,7 @@
 	{#if read.length > 0}
 		<ul aria-label="Already read">
 			{#each read as thread, index (thread.id)}
-				<ThreadSticker
-					{thread}
-					{partnershipId}
-					position={index + 1}
-					total={read.length}
-					when={formatWhen(thread.lastMessageAt)}
-				/>
+				<ThreadSticker {thread} {partnershipId} position={index + 1} total={read.length} />
 			{/each}
 		</ul>
 	{/if}
@@ -79,7 +65,7 @@
 		 * and keeps a real tap target, where auto-fit would stretch two stickers
 		 * across the width.
 		 */
-		grid-template-columns: repeat(auto-fill, minmax(5.5rem, 1fr));
+		grid-template-columns: repeat(auto-fill, minmax(9rem, 1fr));
 		gap: var(--wa-space-s);
 	}
 

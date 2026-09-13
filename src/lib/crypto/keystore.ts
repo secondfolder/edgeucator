@@ -160,6 +160,15 @@ export function keyStore(): Promise<KeyStore> {
 		try {
 			const db = await openDatabase();
 			const store = createIndexedDbStore(db);
+			const existingIdentityCount = await promisify(
+				db.transaction(IDENTITY_STORE, 'readonly').objectStore(IDENTITY_STORE).count()
+			);
+
+			// A device that already has any cached identity has already proved that
+			// this browser/profile can round-trip a CryptoKey through IndexedDB, so
+			// there is no reason to burn another X25519 generate/write/read probe on
+			// every cold start before the app can even see whether THIS user has one.
+			if (existingIdentityCount > 0) return store;
 
 			const probeKey = (await crypto.subtle.generateKey({ name: 'X25519' }, false, [
 				'deriveBits'

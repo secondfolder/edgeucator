@@ -72,12 +72,7 @@
 <svelte:head><title>{data.partner.name} — message</title></svelte:head>
 
 <div class="page">
-	<NestedPageHeader
-		{backHref}
-		backLabel="Back to messages"
-		backText={data.partner.name}
-		iconName={data.thread.icon}
-	/>
+	<NestedPageHeader {backHref} backLabel="Back to messages" backText={data.partner.name} />
 
 	{#if keyring.status === 'unlocked'}
 		{#if !canSend}
@@ -107,7 +102,12 @@
 			/>
 		</div>
 	{:else}
-		<div class="locked"><p>Working out your keys…</p></div>
+		<ThreadView
+			thread={data.thread}
+			partnershipId={data.partner.id}
+			recipients={data.recipients}
+			{canSend}
+		/>
 	{/if}
 </div>
 

@@ -310,7 +310,7 @@ describe('listBoard', () => {
 	 * flips per person, so this is the analogue of the `viewPartnership` tests
 	 * that check the name columns from both ends.
 	 */
-	it('orders unread newest-first, then read most-recently-opened-first', async () => {
+	it('orders unread newest-first, then read by when the latest message was first read', async () => {
 		// Three from Jun that Ada has not read, staggered.
 		const unreadOld = await createTestThread(harness.db, partnershipId, jun, { at: at(1000) });
 		const unreadMid = await createTestThread(harness.db, partnershipId, jun, { at: at(2000) });
@@ -324,11 +324,11 @@ describe('listBoard', () => {
 		const mine = await createTestThread(harness.db, partnershipId, ada, { at: at(4000) });
 
 		const forAda = await listBoard(harness.db, partnershipId, ada.id);
-		// Note where `mine` lands. Posting marks the thread read *at the time of
-		// posting*, so Ada's own thread was "opened" at t=4000 — before she opened
-		// the other two at 8000 and 9000. It therefore sorts below them, and that
-		// is right: the read half is ordered by when you last looked at it, and
-		// writing something is the last time you looked.
+		// Note where `mine` lands. Posting marks the thread read at the time that
+		// latest message was first read, so Ada's own thread was read at t=4000 —
+		// before she read the other two at 8000 and 9000. It therefore sorts below
+		// them, and that is right: the read half is ordered by when the current
+		// latest message became read.
 		expect(forAda.map((t) => t.id)).toEqual([
 			unreadNew.threadId,
 			unreadMid.threadId,
@@ -356,8 +356,32 @@ describe('listBoard', () => {
 		const { threadId } = await createTestThread(harness.db, partnershipId, jun);
 		const board = await listBoard(harness.db, partnershipId, ada.id);
 		expect(board.map((t) => t.id)).toEqual([threadId]);
-		expect(board[0].lastOpenedAt).toBeNull();
+		expect(board[0].lastFullyReadAt).toBeNull();
 		expect(board[0].unread).toBe(true);
+		expect(board[0].previewCiphertext).toBeTruthy();
+	});
+
+	it('does not reshuffle a read thread when it is reopened without new messages', async () => {
+		const older = await createTestThread(harness.db, partnershipId, jun, { at: at(1000) });
+		const newer = await createTestThread(harness.db, partnershipId, jun, { at: at(2000) });
+
+		await markThreadOpened(harness.db, older.threadId, ada.id, at(5000));
+		await markThreadOpened(harness.db, newer.threadId, ada.id, at(6000));
+		await markThreadOpened(harness.db, older.threadId, ada.id, at(9000));
+
+		const board = await listBoard(harness.db, partnershipId, ada.id);
+		expect(board.map((thread) => thread.id)).toEqual([newer.threadId, older.threadId]);
+		expect(board[1].lastFullyReadAt?.getTime()).toBe(5000);
+	});
+
+	it('moves a thread back into unread without losing its opened state once it was read', async () => {
+		const { threadId } = await createTestThread(harness.db, partnershipId, jun, { at: at(1000) });
+		await markThreadOpened(harness.db, threadId, ada.id, at(2000));
+		await createTestMessage(harness.db, partnershipId, threadId, jun, { at: at(3000) });
+
+		const [thread] = await listBoard(harness.db, partnershipId, ada.id);
+		expect(thread.unread).toBe(true);
+		expect(thread.lastFullyReadAt?.getTime()).toBe(2000);
 	});
 
 	it('carries the icon and the message count', async () => {
@@ -398,10 +422,10 @@ describe('markThreadOpened', () => {
 			(r) => r.userId === ada.id
 		);
 		expect(read.lastReadMessageAt.getTime()).toBe(1000);
-		expect(read.lastOpenedAt.getTime()).toBe(9999);
+		expect(read.lastFullyReadAt.getTime()).toBe(9999);
 	});
 
-	it('keeps the first-open time while moving the last-open time', async () => {
+	it('keeps the first-read time for the current latest message when reopened with nothing new', async () => {
 		const { threadId } = await createTestThread(harness.db, partnershipId, jun, { at: at(1000) });
 		await markThreadOpened(harness.db, threadId, ada.id, at(2000));
 		const first = (await readThreadReadRows(harness.db, threadId)).find((r) => r.userId === ada.id);
@@ -412,7 +436,18 @@ describe('markThreadOpened', () => {
 
 		// created_at from the timestamps helper IS "first opened".
 		expect(second?.createdAt.getTime()).toBe(first?.createdAt.getTime());
-		expect(second?.lastOpenedAt.getTime()).toBe(3000);
+		expect(second?.lastFullyReadAt.getTime()).toBe(2000);
+	});
+
+	it('advances the opened time when a newer message becomes read', async () => {
+		const { threadId } = await createTestThread(harness.db, partnershipId, jun, { at: at(1000) });
+		await markThreadOpened(harness.db, threadId, ada.id, at(2000));
+		await createTestMessage(harness.db, partnershipId, threadId, jun, { at: at(2500) });
+		await markThreadOpened(harness.db, threadId, ada.id, at(3000));
+
+		const read = (await readThreadReadRows(harness.db, threadId)).find((r) => r.userId === ada.id);
+		expect(read?.lastReadMessageAt.getTime()).toBe(2500);
+		expect(read?.lastFullyReadAt.getTime()).toBe(3000);
 	});
 
 	it('does nothing for a thread that is not there', async () => {

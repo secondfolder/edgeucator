@@ -189,20 +189,20 @@ export type BoardThread = {
 	id: string;
 	unread: boolean;
 	lastMessageAt: Date;
-	/** Null for a thread this viewer has never opened. */
-	lastOpenedAt: Date | null;
+	/** Null for a thread this viewer has never read up to its current latest message. */
+	lastFullyReadAt: Date | null;
 };
 
 /**
  * The board order: unread first with the newest at the top, then the read ones,
- * most recently opened first.
+ * by when the current latest message was first read.
  *
  * The two halves sort on different columns, which is why this is one comparator
  * rather than a single key — and why the SQL version needs a CASE expression.
  * This exists mainly so that order is testable without a database; the query is
  * the thing that actually runs.
  *
- * A read thread with no `lastOpenedAt` cannot happen by construction (a thread
+ * A read thread with no `lastFullyReadAt` cannot happen by construction (a thread
  * is only read because a `thread_reads` row exists), but it sorts last rather
  * than throwing: an ordering function is the wrong place to discover a data
  * problem.
@@ -214,8 +214,8 @@ export function compareBoardThreads(a: BoardThread, b: BoardThread): number {
 		const byRecency = b.lastMessageAt.getTime() - a.lastMessageAt.getTime();
 		if (byRecency !== 0) return byRecency;
 	} else {
-		const aOpened = a.lastOpenedAt?.getTime() ?? -Infinity;
-		const bOpened = b.lastOpenedAt?.getTime() ?? -Infinity;
+		const aOpened = a.lastFullyReadAt?.getTime() ?? -Infinity;
+		const bOpened = b.lastFullyReadAt?.getTime() ?? -Infinity;
 		if (aOpened !== bOpened) return bOpened - aOpened;
 	}
 

@@ -54,7 +54,7 @@
 							<input type="hidden" name="partnershipId" value={claimPartnershipId} />
 						{/if}
 						<input type="hidden" name="rewardId" value={reward.id} />
-						<wa-button type="submit" size="small" disabled={!reward.canClaim}>Claim</wa-button>
+						<wa-button type="submit" size="s" disabled={!reward.canClaim}>Claim</wa-button>
 						<span class="quiet">
 							{#if !reward.active}
 								Inactive right now.

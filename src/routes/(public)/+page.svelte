@@ -8,6 +8,9 @@
 	const user = $derived(page.data.user);
 	let viewportWidth = $state(0);
 	let ctaBlurStdDeviation = $state('0.45');
+	let ctaWobbleBaseFrequency = $state('0.0200');
+	let ctaWobbleScale = $state('40.00');
+	let ctaGrainScale = $state('6.00');
 	const narrowViewport = $derived(viewportWidth > 0 && viewportWidth < 640);
 	// On smaller screens the rings need larger gaps and thinner ink: otherwise
 	// the denser desktop screen collapses into mush once the whole effect is
@@ -16,6 +19,7 @@
 	const halftoneMaxInk = $derived(narrowViewport ? 0.035 : 0.1);
 
 	onMount(() => {
+		const prefersReducedMotion = matchMedia('(prefers-reduced-motion: reduce)').matches;
 		const userAgent = navigator.userAgent;
 		const isSafari =
 			navigator.vendor === 'Apple Computer, Inc.' &&
@@ -27,6 +31,32 @@
 			// Lower its cleanup blur there instead of changing the whole filter.
 			ctaBlurStdDeviation = '0';
 		}
+
+		if (prefersReducedMotion) {
+			return;
+		}
+
+		let animationFrame = 0;
+		const start = performance.now();
+		const tick = (now: number) => {
+			const seconds = (now - start) / 1000;
+			// Two slow waves keep the outline drifting rather than pulsing on one
+			// obvious beat, which reads more like a hand-cut edge breathing.
+			ctaWobbleBaseFrequency = (0.02 + Math.sin(seconds * 0.55) * 0.003).toFixed(4);
+			ctaWobbleScale = (
+				38 +
+				Math.sin(seconds * 0.8) * 4 +
+				Math.sin(seconds * 0.31 + 1.2) * 2
+			).toFixed(2);
+			ctaGrainScale = (6 + Math.sin(seconds * 1.05 + 0.4) * 1.1).toFixed(2);
+			animationFrame = requestAnimationFrame(tick);
+		};
+
+		animationFrame = requestAnimationFrame(tick);
+
+		return () => {
+			cancelAnimationFrame(animationFrame);
+		};
 	});
 </script>
 
@@ -64,7 +94,7 @@
 		<filter id="ragged-edge" x="-10%" y="-10%" width="120%" height="120%">
 			<feTurbulence
 				type="fractalNoise"
-				baseFrequency="0.02"
+				baseFrequency={ctaWobbleBaseFrequency}
 				numOctaves="2"
 				seed="61"
 				result="wobbleNoise"
@@ -77,7 +107,7 @@
 				in2="wobbleNoise"
 				xChannelSelector="R"
 				yChannelSelector="G"
-				scale="14"
+				scale={ctaWobbleScale}
 				result="wobbled"
 			/>
 			<feTurbulence
@@ -92,7 +122,7 @@
 				in2="grainNoise"
 				xChannelSelector="R"
 				yChannelSelector="G"
-				scale="6"
+				scale={ctaGrainScale}
 				result="ragged"
 			/>
 			<!-- The displacement gives the outline the right torn shape, but it

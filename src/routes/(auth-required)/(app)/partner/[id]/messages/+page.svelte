@@ -1,6 +1,5 @@
 <script lang="ts">
-	import { invalidate } from '$app/navigation';
-	import { goto } from '$app/navigation';
+	import { goto, invalidate } from '$app/navigation';
 	import { resolve } from '$app/paths';
 	import { currentKeyring, unlockWithPassword } from '$lib/crypto/session.svelte';
 	import {
@@ -12,15 +11,13 @@
 	} from '$lib/crypto/trust.svelte';
 	import { acknowledgeWarning, sendMessage } from '$lib/messaging/client';
 	import { watchPartnership } from '$lib/messaging/live';
-	import { DEFAULT_THREAD_ICON, type ThreadIcon } from '$lib/messaging';
 	import { page } from '$app/state';
 	import HistoryWarning from '$lib/components/HistoryWarning.svelte';
-	import MessageComposer from '$lib/components/MessageComposer.svelte';
+	import NewMessageDialog from '$lib/components/NewMessageDialog.svelte';
 	import NestedPageHeader from '$lib/components/NestedPageHeader.svelte';
 	import PartnerKeyNotice from '$lib/components/PartnerKeyNotice.svelte';
 	import RestoreRequests from '$lib/components/RestoreRequests.svelte';
 	import StickerBoard from '$lib/components/StickerBoard.svelte';
-	import ThreadIconPicker from '$lib/components/ThreadIconPicker.svelte';
 	import UnlockForm from '$lib/components/UnlockForm.svelte';
 	import type { PageData } from './$types';
 
@@ -79,7 +76,6 @@
 	);
 
 	let composing = $state(false);
-	let icon: ThreadIcon = $state(DEFAULT_THREAD_ICON);
 
 	const targets = $derived(
 		[data.recipients.mine, data.recipients.theirs].filter(
@@ -87,29 +83,15 @@
 		)
 	);
 
-	/** Relative, because "3 days ago" is what matters on a board, not a clock. */
-	function formatWhen(date: Date): string {
-		const seconds = Math.round((Date.now() - date.getTime()) / 1000);
-		if (seconds < 60) return 'just now';
-		const minutes = Math.round(seconds / 60);
-		if (minutes < 60) return `${minutes} minute${minutes === 1 ? '' : 's'} ago`;
-		const hours = Math.round(minutes / 60);
-		if (hours < 24) return `${hours} hour${hours === 1 ? '' : 's'} ago`;
-		const days = Math.round(hours / 24);
-		if (days < 30) return `${days} day${days === 1 ? '' : 's'} ago`;
-		return new Intl.DateTimeFormat(undefined, { dateStyle: 'medium' }).format(date);
-	}
-
 	async function send(message: { text: string; files: File[] }): Promise<string | null> {
 		const outcome = await sendMessage(
-			{ kind: 'new-thread', partnershipId: data.partner.id, icon },
+			{ kind: 'new-thread', partnershipId: data.partner.id },
 			message,
 			targets
 		);
 		if (!outcome.ok) return outcome.message;
 
 		composing = false;
-		icon = DEFAULT_THREAD_ICON;
 		await invalidate(`messages:board:${data.partner.id}`);
 		// Straight into the thread that was just started, which is where the
 		// reply will land.
@@ -159,7 +141,6 @@
 			backLabel="Back to partner"
 			backText={data.partner.name}
 			title="Messages"
-			iconName="envelope"
 		/>
 
 		<div class="board">
@@ -190,38 +171,34 @@
 				/>
 			</header>
 
-			<StickerBoard threads={data.threads} partnershipId={data.partner.id} {formatWhen} />
+			<StickerBoard threads={data.threads} partnershipId={data.partner.id} />
 
 			{#if data.recipients.theirs !== null && canSend}
 				<div class="new">
-					{#if composing}
-						<div class="composer">
-							<ThreadIconPicker bind:value={icon} />
-							<!--
-							No autofocus. `<wa-textarea autofocus>` reaches for its inner
-							textarea before the shadow root exists and throws "Cannot read
-							properties of null (reading 'focus')" — an uncaught error during
-							hydration, which stops Svelte wiring up the rest of the component
-							and leaves the whole composer dead. Focusing the host by hand
-							after `updateComplete` had the same effect. The composer appears
-							on a tap, so the user is already looking at it.
-						-->
-							<MessageComposer {send} placeholder="What are you thinking?" submitLabel="Send it" />
-							<!-- svelte-ignore a11y_click_events_have_key_events,a11y_no_static_element_interactions -->
-							<wa-button appearance="plain" size="small" onclick={() => (composing = false)}>
-								Cancel
-							</wa-button>
-						</div>
-					{:else}
-						<!-- "Write something" rather than "New message": /home already has
+					<!-- "Write something" rather than "New message": /home already has
 					     a "new messages from …" link, and two controls must not share an
 					     accessible name. -->
-						<!-- svelte-ignore a11y_click_events_have_key_events,a11y_no_static_element_interactions -->
-						<wa-button variant="brand" size="large" onclick={() => (composing = true)}>
-							Write something
-						</wa-button>
-					{/if}
+					<!-- svelte-ignore a11y_click_events_have_key_events,a11y_no_static_element_interactions -->
+					<wa-button
+						variant="brand"
+						appearance="filled"
+						size="xl"
+						pill
+						class="fab"
+						aria-label="Write something"
+						onclick={() => (composing = true)}
+					>
+						<wa-icon name="paper-plane" variant="solid" label="Write something"></wa-icon>
+					</wa-button>
 				</div>
+			{/if}
+
+			{#if data.recipients.theirs !== null && canSend && composing}
+				<NewMessageDialog
+					partnerName={data.partner.name}
+					{send}
+					close={() => (composing = false)}
+				/>
 			{/if}
 		</div>
 	</section>
@@ -255,6 +232,31 @@
 		}
 	}
 
+	wa-button.fab::part(button) {
+		display: grid;
+		place-items: center;
+		inline-size: 3.75rem;
+		block-size: 3.75rem;
+		padding: 0;
+		border-radius: 999px;
+		box-shadow: 0 0.8rem 1.6rem rgb(0 0 0 / 18%);
+	}
+
+	wa-button.fab::part(label) {
+		display: grid;
+		place-items: center;
+		inline-size: 100%;
+		block-size: 100%;
+		/* Visually center icon */
+		margin-left: -0.1em;
+		margin-bottom: -0.1em;
+
+		wa-icon {
+			display: block;
+			line-height: 1;
+		}
+	}
+
 	.board {
 		display: flex;
 		flex-direction: column;
@@ -272,23 +274,22 @@
 	}
 
 	.new {
-		/* Sticky INSIDE the scrolling <main>, which pins it above AppNav. Against
-		   the viewport it would not work at all — see Task.svelte. */
 		position: sticky;
 		inset-block-end: 0;
-		padding: var(--wa-space-s) var(--wa-space-m) var(--wa-space-m);
+		z-index: 1;
+		margin-block-start: auto;
 		display: flex;
-		flex-direction: column;
+		justify-content: flex-end;
+		padding: var(--wa-space-s) var(--wa-space-m) var(--wa-space-m);
 		background: linear-gradient(
 			to bottom,
 			transparent,
 			var(--wa-color-surface-default, white) 0.75rem
 		);
+		pointer-events: none;
 
-		.composer {
-			display: flex;
-			flex-direction: column;
-			gap: 0.75rem;
+		wa-button {
+			pointer-events: auto;
 		}
 	}
 </style>

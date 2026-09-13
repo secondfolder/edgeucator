@@ -53,7 +53,7 @@ const threadStickerColumns = {
 	icon: messageThreads.icon,
 	lastMessageAt: messageThreads.lastMessageAt,
 	lastMessageSenderId: messageThreads.lastMessageSenderId,
-	lastOpenedAt: threadReads.lastOpenedAt,
+	lastFullyReadAt: threadReads.lastFullyReadAt,
 	lastReadMessageAt: threadReads.lastReadMessageAt
 } as const;
 
@@ -63,6 +63,14 @@ const messageColumns = {
 	ciphertext: messages.ciphertext,
 	createdAt: messages.createdAt
 } as const;
+
+const previewCiphertext = sql<string>`(
+	select ${messages.ciphertext}
+	from ${messages}
+	where ${messages.threadId} = ${messageThreads.id}
+	order by ${messages.createdAt} asc, ${messages.id} asc
+	limit 1
+)`;
 
 // ── membership ───────────────────────────────────────────────────────────────
 
@@ -154,9 +162,10 @@ export async function requireMessageMembership(
  * in the select and in both sort keys — the JS twin of it is `isUnreadFor` in
  * `src/lib/messaging.ts`, and the two must agree.
  *
- * `messages` is never read here. That is what the two denormalised columns on
- * `message_threads` are for, and it is why drawing a board costs one row per
- * thread rather than one per message.
+ * `messages` is still not scanned to build recency or unread state; the one
+ * correlated read here is only the first ciphertext for the preview tile.
+ * The hot-path ordering still comes entirely from the denormalised columns on
+ * `message_threads`.
  */
 export async function listBoard(
 	db: Db,
@@ -176,7 +185,7 @@ export async function listBoard(
 	)`;
 
 	const rows = await db
-		.select({ ...threadStickerColumns, unread, messageCount })
+		.select({ ...threadStickerColumns, unread, messageCount, previewCiphertext })
 		.from(messageThreads)
 		// The user predicate belongs in the ON, not the WHERE. In the WHERE it
 		// turns this left join into an inner one and every thread the viewer has
@@ -187,12 +196,12 @@ export async function listBoard(
 		)
 		.where(eq(messageThreads.partnershipId, partnershipId))
 		.orderBy(
-			// Requirement: unread first, newest at the top; then read, most
-			// recently opened first. The CASE is what lets the two halves sort on
-			// different columns without a second round trip.
+			// Requirement: unread first by newest message, then read by when that
+			// current latest message was first read. The CASE is what lets the two
+			// halves sort on different columns without a second round trip.
 			desc(unread),
 			desc(sql`case when ${unread} then ${messageThreads.lastMessageAt}
-			              else ${threadReads.lastOpenedAt} end`),
+			              else ${threadReads.lastFullyReadAt} end`),
 			asc(messageThreads.id)
 		)
 		.limit(BOARD_LIMIT);
@@ -204,8 +213,9 @@ export async function listBoard(
 		// component ever receives a number pretending to be a flag.
 		unread: Boolean(row.unread),
 		lastMessageAt: row.lastMessageAt,
-		lastOpenedAt: row.lastOpenedAt ?? null,
-		messageCount: Number(row.messageCount)
+		lastFullyReadAt: row.lastFullyReadAt ?? null,
+		messageCount: Number(row.messageCount),
+		previewCiphertext: row.previewCiphertext
 	}));
 }
 
@@ -467,10 +477,18 @@ async function writeAttachments(
 function markSenderRead(db: Db, threadId: string, senderId: string, now: Date) {
 	return db
 		.insert(threadReads)
-		.values({ threadId, userId: senderId, lastOpenedAt: now, lastReadMessageAt: now })
+		.values({ threadId, userId: senderId, lastFullyReadAt: now, lastReadMessageAt: now })
 		.onConflictDoUpdate({
 			target: [threadReads.threadId, threadReads.userId],
-			set: { lastOpenedAt: now, lastReadMessageAt: now }
+			set: {
+				lastFullyReadAt: sql`case
+					when ${threadReads.lastReadMessageAt} is null
+					  or ${threadReads.lastReadMessageAt} < ${now}
+					then ${now}
+					else ${threadReads.lastFullyReadAt}
+				end`,
+				lastReadMessageAt: now
+			}
 		});
 }
 
@@ -584,11 +602,15 @@ export async function sendMessage(
 }
 
 /**
- * Records that the viewer opened a thread.
+ * Records that the viewer read the thread up to its current latest message.
  *
  * `lastReadMessageAt` is set to the thread's CURRENT `last_message_at`, read
  * inside the same call — not to `now`. Using `now` would mark a message that
  * arrived in the same second as already read, and it would be silent.
+ *
+ * `lastFullyReadAt` is only advanced when the latest message changes from unread
+ * to read. Reopening a thread with no new messages must not reshuffle the
+ * board's read section.
  */
 export async function markThreadOpened(
 	db: Db,
@@ -610,12 +632,20 @@ export async function markThreadOpened(
 		.values({
 			threadId,
 			userId: viewerId,
-			lastOpenedAt: now,
+			lastFullyReadAt: now,
 			lastReadMessageAt: row.lastMessageAt
 		})
 		.onConflictDoUpdate({
 			target: [threadReads.threadId, threadReads.userId],
-			set: { lastOpenedAt: now, lastReadMessageAt: row.lastMessageAt }
+			set: {
+				lastFullyReadAt: sql`case
+					when ${threadReads.lastReadMessageAt} is null
+					  or ${threadReads.lastReadMessageAt} < ${row.lastMessageAt}
+					then ${now}
+					else ${threadReads.lastFullyReadAt}
+				end`,
+				lastReadMessageAt: row.lastMessageAt
+			}
 		});
 }
 

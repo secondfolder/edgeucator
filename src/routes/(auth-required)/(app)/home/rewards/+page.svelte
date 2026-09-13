@@ -18,7 +18,6 @@
 		backText="Home"
 		title="Rewards"
 		description="Manage your own rewards here, then claim what your partners have set aside for you."
-		iconName="gift"
 	/>
 
 	<div class="content">

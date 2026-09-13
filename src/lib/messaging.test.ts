@@ -141,13 +141,13 @@ describe('compareBoardThreads', () => {
 	const thread = (over: Partial<BoardThread> & { id: string }): BoardThread => ({
 		unread: false,
 		lastMessageAt: at(0),
-		lastOpenedAt: null,
+		lastFullyReadAt: null,
 		...over
 	});
 
 	it('puts every unread thread above every read one', () => {
 		const board = [
-			thread({ id: 'read-recent', lastOpenedAt: at(9000) }),
+			thread({ id: 'read-recent', lastFullyReadAt: at(9000) }),
 			thread({ id: 'unread-old', unread: true, lastMessageAt: at(1) })
 		];
 		expect(board.sort(compareBoardThreads).map((t) => t.id)).toEqual(['unread-old', 'read-recent']);
@@ -164,9 +164,9 @@ describe('compareBoardThreads', () => {
 
 	it('orders read by most recently opened', () => {
 		const board = [
-			thread({ id: 'yesterday', lastOpenedAt: at(200) }),
-			thread({ id: 'last-month', lastOpenedAt: at(100) }),
-			thread({ id: 'just-now', lastOpenedAt: at(300) })
+			thread({ id: 'yesterday', lastFullyReadAt: at(200) }),
+			thread({ id: 'last-month', lastFullyReadAt: at(100) }),
+			thread({ id: 'just-now', lastFullyReadAt: at(300) })
 		];
 		expect(board.sort(compareBoardThreads).map((t) => t.id)).toEqual([
 			'just-now',
@@ -179,8 +179,8 @@ describe('compareBoardThreads', () => {
 	// message — that is the whole difference between the two halves.
 	it('ignores lastMessageAt for read threads', () => {
 		const board = [
-			thread({ id: 'newer-message', lastMessageAt: at(9000), lastOpenedAt: at(100) }),
-			thread({ id: 'older-message', lastMessageAt: at(1), lastOpenedAt: at(200) })
+			thread({ id: 'newer-message', lastMessageAt: at(9000), lastFullyReadAt: at(100) }),
+			thread({ id: 'older-message', lastMessageAt: at(1), lastFullyReadAt: at(200) })
 		];
 		expect(board.sort(compareBoardThreads).map((t) => t.id)).toEqual([
 			'older-message',
@@ -200,8 +200,8 @@ describe('compareBoardThreads', () => {
 	// to discover a data problem.
 	it('sorts a read thread with no open time last instead of throwing', () => {
 		const board = [
-			thread({ id: 'never-opened', lastOpenedAt: null }),
-			thread({ id: 'opened', lastOpenedAt: at(100) })
+			thread({ id: 'never-opened', lastFullyReadAt: null }),
+			thread({ id: 'opened', lastFullyReadAt: at(100) })
 		];
 		expect(board.sort(compareBoardThreads).map((t) => t.id)).toEqual(['opened', 'never-opened']);
 	});
@@ -212,7 +212,7 @@ describe('compareBoardThreads', () => {
 				id: `t${String(i).padStart(2, '0')}`,
 				unread: i % 3 === 0,
 				lastMessageAt: at((i * 7) % 11),
-				lastOpenedAt: i % 5 === 0 ? null : at((i * 13) % 17)
+				lastFullyReadAt: i % 5 === 0 ? null : at((i * 13) % 17)
 			})
 		);
 		const once = [...board].sort(compareBoardThreads).map((t) => t.id);

@@ -104,9 +104,11 @@ export type ThreadStickerView = {
 	icon: ThreadIcon;
 	unread: boolean;
 	lastMessageAt: Date;
-	/** Null for a thread this viewer has never opened. */
-	lastOpenedAt: Date | null;
+	/** Null for a thread this viewer has never read up to its current latest message. */
+	lastFullyReadAt: Date | null;
 	messageCount: number;
+	/** The thread's first message, used for the board preview once unlocked. */
+	previewCiphertext: string;
 };
 
 /** An attachment, as much of it as the server knows: an id and a size. */

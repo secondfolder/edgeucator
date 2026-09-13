@@ -141,7 +141,7 @@
 				<!-- disabled={busy !== null}, never `|| undefined` — invariant 11. -->
 				<!-- svelte-ignore a11y_click_events_have_key_events,a11y_no_static_element_interactions -->
 				<wa-button
-					size="small"
+					size="s"
 					variant="brand"
 					disabled={busy !== null}
 					onclick={() => restore(request)}
@@ -154,7 +154,7 @@
 				</wa-button>
 				<!-- svelte-ignore a11y_click_events_have_key_events,a11y_no_static_element_interactions -->
 				<wa-button
-					size="small"
+					size="s"
 					appearance="outlined"
 					disabled={busy !== null}
 					onclick={() => decline(request)}

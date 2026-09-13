@@ -1,5 +1,4 @@
 import { expect, type Browser, type Page } from '@playwright/test';
-import { THREAD_ICON_LABELS, type ThreadIcon } from '../src/lib/messaging';
 
 /**
  * Shared steps for the invite flows.
@@ -234,23 +233,15 @@ export async function openBoard(page: Page, partnerName: string): Promise<void> 
 }
 
 /** Writes a new thread and waits for the thread page it lands on. */
-export async function writeThread(
-	page: Page,
-	text: string,
-	icon: ThreadIcon = 'bottle-droplet'
-): Promise<void> {
+export async function writeThread(page: Page, text: string): Promise<void> {
 	await clickWaButton(page, 'Write something');
-	// Clicked by its accessible name, which reaches the visible label. The radio
-	// itself is visually hidden (clip-path), so Playwright refuses to click it
-	// directly — `.check()` on it waits for visibility and times out.
-	await page.getByRole('radio', { name: THREAD_ICON_LABELS[icon] }).click({ force: true });
 	await fillWaTextarea(page, text);
 	// Asserted rather than assumed. The send button is disabled while there is
 	// nothing to send, so if the fill did not reach the component's state the
 	// next click is a silent no-op and the failure surfaces 90 seconds later as
 	// a navigation timeout with no clue attached.
-	await expect(page.getByRole('button', { name: 'Send it' })).toBeEnabled();
-	await clickWaButton(page, 'Send it');
+	await expect(page.getByRole('button', { name: 'Send' })).toBeEnabled();
+	await clickWaButton(page, 'Send');
 	await page.waitForURL(/\/messages\/[0-9a-f-]{36}$/);
 }
 

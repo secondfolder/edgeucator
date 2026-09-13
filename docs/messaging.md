@@ -17,6 +17,22 @@ has another channel for ordinary conversation; this is for the other thing.
 A partner's messaging page is therefore a board of little stickers, one per
 thread, rather than a scrolling transcript.
 
+What the board shows depends on whether the recipient has ever opened that
+thread. A never-opened unread thread shows as a sealed envelope to the
+recipient only. Every other tile shows a small preview of the thread's first
+message, decrypted in the browser after unlock, with the latest send date under
+it and, for read threads whose latest message was first read on a later day, an
+additional `opened …` line. A first message with text, or with more than one
+attachment, is shown as a small fanned stack: the text sits in its own bubble
+and up to the first few attachments sit behind it as thumbnails. The fan uses
+the whole preview width, sits on a transparent preview background, and spreads
+further apart on hover. An attachment-only first message with just one
+attachment shows that thumbnail on its own, uncanted and cropped to fill the
+whole preview area, instead of a generic "photo attached" label. While the
+browser is still working out whether this device can open the history, the
+board and thread render immediately with placeholder previews instead of a
+full-page loading wall.
+
 ## Tables
 
 | Table                      | What it holds                                                    |
@@ -34,12 +50,13 @@ the media store, which nothing cascades into. See "Media" below.
 
 ### Three decisions worth the argument
 
-**`icon` is plaintext, from a closed list of sixteen.** The board is the screen
-you look at to decide what to open, so it has to render before any key is
-unlocked; encrypting it would leave a page of grey squares until a password was
-typed. What it leaks is about four bits from a fixed list, next to timestamps,
-sender ids, read receipts and exact ciphertext byte sizes that the server cannot
-avoid knowing anyway.
+**`icon` is plaintext, from a closed list of sixteen.** This is now mostly a
+legacy implementation detail: the current UI no longer lets a sender choose one,
+and older threads' stored icons are ignored unless the recipient has never
+opened that thread, in which case the board shows the generic sealed envelope.
+The column still exists because the board has to show _something_ before a key
+is unlocked and because removing it would need a migration rather than a UI
+change.
 
 The closed list is the load-bearing part. A free-text plaintext column reachable
 from the network would be a covert channel for arbitrary prose, so `isThreadIcon`
@@ -86,17 +103,19 @@ what is waiting for you.
 
 ## Board order
 
-Unread first, newest at the top. Then a divider. Then the read ones, most
-recently opened first.
+Unread first, newest at the top. Then a divider. Then the read ones, by the day
+and time that the thread's **current latest message** was first read.
 
 One SQL statement for both halves: `desc(unread)`, then a `CASE` picking
-`last_message_at` for the unread half and `last_opened_at` for the read half,
-then `id` purely as a tiebreak for two rows inside the same millisecond.
+`last_message_at` for the unread half and `last_fully_read_at` for the read
+half, then `id` purely as a tiebreak for two rows inside the same millisecond.
+The application code uses the same idea as `lastFullyReadAt`.
 
-Note where a thread you wrote yourself lands. Posting marks it read _at the time
-of posting_, so it sits in the read half ordered by when you wrote it — below
-anything you have opened since. That is intended: the read half is ordered by
-when you last looked at a thread, and writing in it is the last time you looked.
+`lastFullyReadAt` does **not** mean "the last time the page was opened". It
+advances only when an unread latest message becomes read. Reopening a thread
+with no new messages therefore leaves the board alone, while replying in it
+advances your own read position because sending the latest message is also
+reading it.
 
 **In `listBoard`, the `thread_reads` user predicate belongs in the join's `ON`,
 not the `WHERE`.** In the `WHERE` it silently turns the left join into an inner
@@ -104,19 +123,11 @@ one, and every thread the viewer has never opened disappears from their own
 board — which is exactly the threads the feature exists to surface. There is a
 test for it.
 
-## Stickers
+## Board tiles
 
-Each thread's position and tilt come from an FNV-1a hash of its **id**, in
-`src/lib/sticker.ts` — not `Math.random`, and not its index in the list. The id
-is what makes the board look identical on every reload, on both people's
-phones, and after a new thread arrives and pushes the others down; an
-index-derived layout would reshuffle every sticker every time anyone sent
-anything.
-
-The offset is bounded at ±12% of the sticker's own size and the tilt at ±9°, and
-the sticker lives in a CSS grid cell. That bound is what makes the layout safe:
-free absolute positioning from a hash could not promise non-overlap, could not
-express the board's ordering, and could not reflow onto a narrow phone.
+Threads now sit in a plain grid rather than a jittered sticker layout. The
+preview and timestamp lines want stable alignment more than they want novelty,
+so the board no longer offsets or tilts each tile.
 
 ## Attachments and media
 
@@ -211,25 +222,26 @@ plainly, because the framing of this feature invites the assumption that it does
 - How many attachments each message has, and **each one's exact byte size** — so
   approximate media sizes.
 - When each side opened each thread, and when they last read it.
-- Which of the sixteen stickers was chosen.
+- Which of the sixteen stored icons a thread has, even though the current UI no
+  longer surfaces that choice directly.
 
 What it does not know: any message text, any filename, any file type, any
 reaction, and anything that would let it read or forge any of them.
 
 ## Screens and endpoints
 
-| Route                               | What                                              |
-| ----------------------------------- | ------------------------------------------------- |
-| `/partner/[id]/messages`            | The board. SSRs fully — the icons are plaintext.  |
-| `/partner/[id]/messages/[threadId]` | One thread. Its load also records the open.       |
-| `/home`                             | A link per partner with something waiting.        |
-| `api/partnerships/[id]/threads`     | `POST` multipart: a thread and its first message. |
-| `.../threads/[threadId]/messages`   | `POST` multipart: a reply.                        |
-| `.../messages/[messageId]/reaction` | `PUT` / `DELETE`.                                 |
-| `.../attachments/[attachmentId]`    | `GET`, streams ciphertext.                        |
-| `.../ack-warning`                   | `POST`, the one-time warning acknowledgement.     |
-| `.../restore`                       | `GET` a page, `POST` re-encrypted rows, `DELETE`. |
-| `.../events`                        | `GET`, the SSE feed. Metadata only.               |
+| Route                               | What                                                                        |
+| ----------------------------------- | --------------------------------------------------------------------------- |
+| `/partner/[id]/messages`            | The board. The unopened-envelope state SSRs; previews decrypt after unlock. |
+| `/partner/[id]/messages/[threadId]` | One thread. Its load also records the open.                                 |
+| `/home`                             | A link per partner with something waiting.                                  |
+| `api/partnerships/[id]/threads`     | `POST` multipart: a thread and its first message.                           |
+| `.../threads/[threadId]/messages`   | `POST` multipart: a reply.                                                  |
+| `.../messages/[messageId]/reaction` | `PUT` / `DELETE`.                                                           |
+| `.../attachments/[attachmentId]`    | `GET`, streams ciphertext.                                                  |
+| `.../ack-warning`                   | `POST`, the one-time warning acknowledgement.                               |
+| `.../restore`                       | `GET` a page, `POST` re-encrypted rows, `DELETE`.                           |
+| `.../events`                        | `GET`, the SSE feed. Metadata only.                                         |
 
 **`src/routes/api/` sits outside both route groups deliberately.** A group guard
 is a layout `+layout.server.ts`, and layout loads never run for a `+server.ts`

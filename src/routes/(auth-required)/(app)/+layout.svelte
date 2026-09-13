@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { page } from '$app/state';
 	import AppNav from '$lib/components/AppNav.svelte';
 	import EncryptionGate from '$lib/components/EncryptionGate.svelte';
 	import type { Snippet } from 'svelte';
@@ -24,7 +25,11 @@
 		<!-- Inside <main> so it scrolls with the page: `position: fixed` against
 		     the viewport does not work in this shell, and a callout pinned over
 		     the content would cover it. -->
-		<EncryptionGate />
+		<EncryptionGate
+			user={data.user}
+			handledByPage={(page.route.id?.includes('/partner/[id]/messages') ?? false) ||
+				(page.route.id?.endsWith('/settings/encryption') ?? false)}
+		/>
 		{@render children()}
 	</main>
 	<AppNav partners={data.partners} />

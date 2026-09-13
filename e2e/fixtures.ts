@@ -1,7 +1,7 @@
 import { test as base, type Browser, type Page } from '@playwright/test';
 
 /**
- * The one net the suite did not have: browser-engine errors.
+ * The one net the suite did not have: browser-engine diagnostics.
  *
  * Neither the jsdom component tests (where `wa-*` elements never upgrade) nor
  * these specs asserted on the browser console, so a `pattern` attribute that
@@ -14,18 +14,20 @@ import { test as base, type Browser, type Page } from '@playwright/test';
  *
  * This fixture wraps `browser` so that every context the tests create — the
  * default `page` fixture goes through `browser.newContext()` too — gets its
- * pages watched. Any console message at `error` level, or any uncaught
- * `pageerror`, is collected and fails the run at worker teardown, when it can
- * no longer break the steps that follow. `browser` is worker-scoped, so the
- * collection spans every test in the file rather than one test — with the
- * suite pinned to a single worker that still points at the spec file, which
- * is enough to act on.
+ * pages watched. Any console warning or error, or any uncaught `pageerror`, is
+ * collected and fails the run at worker teardown, when it can no longer break
+ * the steps that follow. `browser` is worker-scoped, so the collection spans
+ * every test in the file rather than one test — with the suite pinned to a
+ * single worker that still points at the spec file, which is enough to act on.
  *
  * Two deliberate exclusions:
  *
  * - "Failed to load resource" is Chromium's network log, not script output.
  *   Several specs intentionally provoke 401/404 responses, and those belong to
  *   the assertions that check them, not to this net.
+ * - Lit logs a dev-mode banner under `vite dev`, which is the server Playwright
+ *   runs against. That is environment noise rather than an app regression, so
+ *   the watcher ignores it instead of making every e2e run fail by design.
  * - The list of watchers is per-test (the fixture rebuilds it), so nothing
  *   leaks between tests even though contexts are closed lazily.
  *
@@ -34,21 +36,25 @@ import { test as base, type Browser, type Page } from '@playwright/test';
  * it through `newContext().newPage()` instead.
  */
 
-const IGNORED = [/^Failed to load resource/];
+const IGNORED = [
+	/^Failed to load resource/,
+	/^Lit is in dev mode\. Not recommended for production!/
+];
+const FAILING_CONSOLE_TYPES = new Set(['warning', 'error']);
 
 export const test = base.extend<{ browser: Browser }>({
 	browser: [
 		async ({ browser }, use) => {
-			const errors: string[] = [];
+			const diagnostics: string[] = [];
 
 			function watchPage(page: Page) {
 				page.on('console', (message) => {
-					if (message.type() !== 'error') return;
+					if (!FAILING_CONSOLE_TYPES.has(message.type())) return;
 					const text = message.text();
 					if (IGNORED.some((pattern) => pattern.test(text))) return;
-					errors.push(text);
+					diagnostics.push(`${message.type()}: ${text}`);
 				});
-				page.on('pageerror', (error) => errors.push(String(error)));
+				page.on('pageerror', (error) => diagnostics.push(`pageerror: ${String(error)}`));
 			}
 
 			const watched = new Proxy(browser, {
@@ -66,11 +72,11 @@ export const test = base.extend<{ browser: Browser }>({
 
 			await use(watched);
 
-			if (errors.length > 0) {
+			if (diagnostics.length > 0) {
 				// Thrown from worker teardown, so the run fails with the messages
 				// even though every behavioural assertion still passed.
 				throw new Error(
-					`Browser reported errors during this spec file:\n${[...new Set(errors)]
+					`Browser reported diagnostics during this spec file:\n${[...new Set(diagnostics)]
 						.map((text) => `  - ${text}`)
 						.join('\n')}`
 				);

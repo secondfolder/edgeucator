@@ -427,13 +427,15 @@ Notes that cost a debugging round each:
 
 - Every spec imports `test` from `./fixtures`, not `@playwright/test`. The
   fixture wraps `browser` so every page — including contexts the specs create
-  by hand — fails the run on browser-engine errors: console messages at
-  `error` level (minus Chromium's "Failed to load resource" network log, which
-  specs intentionally provoke) and uncaught `pageerror`s. This is the only net
-  for errors no assertion can see, like an invalid `pattern` attribute
+  by hand — fails the run on browser-engine diagnostics: console warnings and
+  errors (minus Chromium's "Failed to load resource" network log, which specs
+  intentionally provoke, plus Lit's own dev-mode banner under `vite dev`) and
+  uncaught `pageerror`s. This is the only net for problems no assertion can
+  see, like an invalid `pattern` attribute
   (Chromium compiles those with the `v` flag; Zod's `z.email()` regex is not
   valid under it, which is why `InputField.svelte` strips `pattern` from
-  superforms' constraints before spreading them).
+  superforms' constraints before spreading them) or a third-party deprecation
+  that still leaves the page working today but would break on the next major.
 
 - Web Awesome text inputs are custom elements whose editable `<input>` is in a
   shadow root. Fill them as `wa-input[name=x] input`, which Playwright's

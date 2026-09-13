@@ -1,0 +1,1 @@
+ALTER TABLE `thread_reads` RENAME COLUMN "last_opened_at" TO "last_fully_read_at";

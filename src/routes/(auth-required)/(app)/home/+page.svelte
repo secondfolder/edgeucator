@@ -12,10 +12,10 @@
 		<span class="subtitle">Your Edging Escort</span>
 	</header>
 	<div class="quick-links">
-		<wa-button variant="brand" size="large" href={resolve('/(auth-required)/(app)/home/guides')}
+		<wa-button variant="brand" size="l" href={resolve('/(auth-required)/(app)/home/guides')}
 			>Guides</wa-button
 		>
-		<wa-button variant="brand" size="large" href={resolve('/(auth-required)/(app)/home/rewards')}
+		<wa-button variant="brand" size="l" href={resolve('/(auth-required)/(app)/home/rewards')}
 			><wa-icon slot="start" name="gift" variant="solid"></wa-icon>Rewards</wa-button
 		>
 	</div>

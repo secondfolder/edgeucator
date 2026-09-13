@@ -25,7 +25,7 @@
 	<div class="actions">
 		<wa-button
 			variant="brand"
-			size="large"
+			size="l"
 			href={resolve('/(auth-required)/(app)/partner/[id]/messages', { id: partner.id })}
 		>
 			<wa-icon slot="start" name="envelope" variant="solid"></wa-icon>
@@ -34,7 +34,7 @@
 
 		<wa-button
 			variant="brand"
-			size="large"
+			size="l"
 			href={resolve('/(auth-required)/(app)/partner/[id]/rewards', { id: partner.id })}
 		>
 			<wa-icon slot="start" name="gift" variant="solid"></wa-icon>

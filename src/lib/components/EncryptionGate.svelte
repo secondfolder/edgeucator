@@ -1,6 +1,5 @@
 <script lang="ts">
 	import { onMount } from 'svelte';
-	import { page } from '$app/state';
 	import { resolve } from '$app/paths';
 	import {
 		currentKeyring,
@@ -21,7 +20,13 @@
 	 *
 	 * Only the messaging screens themselves refuse to render while locked.
 	 */
-	let user = $derived(page.data.user as { id: string; email: string } | null);
+	let {
+		user = null,
+		handledByPage = false
+	}: {
+		user?: { id: string; email: string } | null;
+		handledByPage?: boolean;
+	} = $props();
 	const keyring = $derived(currentKeyring());
 
 	let lastUserId: string | null = null;
@@ -67,10 +72,6 @@
 	 * own would put two identical buttons on one screen, which is confusing and
 	 * exactly the sort of duplicate accessible name AGENTS.md warns about.
 	 */
-	const handledByPage = $derived(
-		(page.route.id?.includes('/partner/[id]/messages') ?? false) ||
-			(page.route.id?.endsWith('/settings/encryption') ?? false)
-	);
 </script>
 
 {#if user && keyring.status === 'locked' && !handledByPage}

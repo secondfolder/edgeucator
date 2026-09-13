@@ -7,10 +7,10 @@
  */
 
 import {
+	DEFAULT_THREAD_ICON,
 	MAX_ATTACHMENTS_PER_MESSAGE,
 	MAX_ATTACHMENT_TOTAL_BYTES,
-	MAX_VIDEO_BYTES,
-	type ThreadIcon
+	MAX_VIDEO_BYTES
 } from '$lib/messaging';
 import {
 	decryptAttachment,
@@ -116,7 +116,7 @@ async function buildBody(message: ComposedMessage, recipients: string[]): Promis
 }
 
 export type SendTarget =
-	| { kind: 'new-thread'; partnershipId: string; icon: ThreadIcon }
+	| { kind: 'new-thread'; partnershipId: string }
 	| { kind: 'reply'; partnershipId: string; threadId: string };
 
 export type SendOutcome =
@@ -140,7 +140,7 @@ export async function sendMessage(
 	}
 
 	const body = await buildBody(message, recipients);
-	if (target.kind === 'new-thread') body.set('icon', target.icon);
+	if (target.kind === 'new-thread') body.set('icon', DEFAULT_THREAD_ICON);
 
 	const response = await fetch(endpointFor(target), { method: 'POST', body });
 	if (!response.ok) {

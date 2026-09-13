@@ -46,6 +46,8 @@ export type Keyring =
 	  };
 
 let keyring = $state<Keyring>({ status: 'unknown' });
+let initialisingForUserId: string | null = null;
+let initialisingPromise: Promise<Keyring> | null = null;
 
 /** The current keyring. Reactive: reading this in a template tracks it. */
 export function currentKeyring(): Keyring {
@@ -110,53 +112,70 @@ async function tryWraps(
  * keys at all, which is `absent` rather than locked.
  */
 export async function initialiseKeyring(user: { id: string; email: string }): Promise<Keyring> {
-	const store = await keyStore();
+	if (keyring.status !== 'unknown') return keyring;
+	if (initialisingForUserId === user.id && initialisingPromise) return initialisingPromise;
 
-	const cached = await store.getIdentity(user.id);
-	if (cached) {
+	const run = (async (): Promise<Keyring> => {
+		const storePromise = keyStore();
+		const bundlePromise = fetchBundle();
+		const store = await storePromise;
+
+		const cached = await store.getIdentity(user.id);
+		if (cached) {
+			keyring = {
+				status: 'unlocked',
+				recipient: cached.recipient,
+				identity: cached.key,
+				durable: store.durable
+			};
+			return keyring;
+		}
+
+		const bundle = await bundlePromise;
+		if (!bundle.recipient) {
+			keyring = { status: 'absent' };
+			return keyring;
+		}
+
+		// Handed over by the login or signup form a moment ago, so a fresh sign-in
+		// does not ask for the same password twice in a row.
+		const stashed = takeUnlock(normaliseEmail(user.email));
+		if (stashed) {
+			// Signup already has the identity in hand; login has to open a wrap.
+			if (stashed.identity && stashed.recipient === bundle.recipient) {
+				keyring = await cache(user.id, bundle.recipient, stashed.identity);
+				return keyring;
+			}
+			const opened = await tryWraps(
+				bundle.wraps.filter((wrap) => wrap.type === 'password'),
+				bundle.recipient,
+				async () => stashed.wrapKey
+			);
+			if (opened) {
+				keyring = await cache(user.id, bundle.recipient, opened.identity);
+				void noteWrapUsed(opened.wrapId);
+				return keyring;
+			}
+		}
+
 		keyring = {
-			status: 'unlocked',
-			recipient: cached.recipient,
-			identity: cached.key,
-			durable: store.durable
+			status: 'locked',
+			recipient: bundle.recipient,
+			wraps: bundle.wraps,
+			reason: bundle.wraps.length === 0 ? 'no-usable-wrap' : 'cold'
 		};
 		return keyring;
-	}
+	})();
 
-	const bundle = await fetchBundle();
-	if (!bundle.recipient) {
-		keyring = { status: 'absent' };
-		return keyring;
-	}
-
-	// Handed over by the login or signup form a moment ago, so a fresh sign-in
-	// does not ask for the same password twice in a row.
-	const stashed = takeUnlock(normaliseEmail(user.email));
-	if (stashed) {
-		// Signup already has the identity in hand; login has to open a wrap.
-		if (stashed.identity && stashed.recipient === bundle.recipient) {
-			keyring = await cache(user.id, bundle.recipient, stashed.identity);
-			return keyring;
+	initialisingForUserId = user.id;
+	initialisingPromise = run.finally(() => {
+		if (initialisingForUserId === user.id) {
+			initialisingForUserId = null;
+			initialisingPromise = null;
 		}
-		const opened = await tryWraps(
-			bundle.wraps.filter((wrap) => wrap.type === 'password'),
-			bundle.recipient,
-			async () => stashed.wrapKey
-		);
-		if (opened) {
-			keyring = await cache(user.id, bundle.recipient, opened.identity);
-			void noteWrapUsed(opened.wrapId);
-			return keyring;
-		}
-	}
+	});
 
-	keyring = {
-		status: 'locked',
-		recipient: bundle.recipient,
-		wraps: bundle.wraps,
-		reason: bundle.wraps.length === 0 ? 'no-usable-wrap' : 'cold'
-	};
-	return keyring;
+	return initialisingPromise;
 }
 
 /** Unlocks with the account password. The ordinary path on a new device. */
@@ -209,6 +228,8 @@ export async function unlockWithPassword(
 export async function lock(userId: string): Promise<void> {
 	clearStash();
 	keyring = { status: 'unknown' };
+	initialisingForUserId = null;
+	initialisingPromise = null;
 	const store = await keyStore();
 	await store.clear(userId);
 }
@@ -217,6 +238,8 @@ export async function lock(userId: string): Promise<void> {
 export function resetKeyring(): void {
 	clearStash();
 	keyring = { status: 'unknown' };
+	initialisingForUserId = null;
+	initialisingPromise = null;
 }
 
 // ── server round trips ───────────────────────────────────────────────────────
