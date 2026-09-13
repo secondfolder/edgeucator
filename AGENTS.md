@@ -50,20 +50,33 @@ npm run test:e2e # playwright, real browser against vite dev
 npm run format   # fixes prettier complaints
 ```
 
-Honest baseline as of this writing — `test` and `test:e2e` are clean, `check`
-and `lint` are not. Do not assume you caused the existing problems, and do not
-"fix" them as a drive-by inside an unrelated change:
+Honest baseline as of this writing — `lint`, `check`, `test` and `test:e2e` are
+all clean. It was not always so; both suppression conventions below exist
+because a warning was either a false positive or an intentional pattern, and
+**`npm run check` reporting anything at all means a new problem**, not baseline
+noise:
 
-- `npm run lint`: **fails on ~110 files, none of them source.** 108 vendored
-  files under `.agents/skills/**` plus `skills-lock.json` (added by
-  `chore: add webawesome skills`, never run through prettier) and one
-  space-indented line in `vite.config.ts`. The vendored skills probably want a
-  `.prettierignore` entry rather than reformatting, since `skills-lock.json`
-  pins them. `npx eslint .` on its own is clean.
-- `npm run check`: **0 errors, 46 warnings.** Nearly all are a11y warnings on
-  `wa-*` custom elements (`a11y_click_events_have_key_events`,
-  `a11y_no_static_element_interactions`) plus a few `state_referenced_locally`.
-  Svelte cannot know a `<wa-button>` is a button.
+- `npm run lint`: clean. The vendored `.agents/` skills, `skills-lock.json` and
+  the frozen `docs/historical-plans/` are excluded in `.prettierignore` — the
+  first two because `skills-lock.json` pins them, the last because formatting
+  would silently rewrite frozen records (it reflows their tables and changes
+  emphasis markers). Keep new files formatted; keep those ignored.
+- `npm run check`: **0 errors, 0 warnings.** Two `svelte-ignore` conventions
+  keep it that way, both because svelte-check ignores `onwarn` in
+  `svelte.config.js` — a comment is the only suppression both it and the vite
+  dev server respect:
+  - Every `<wa-button>` with an `onclick` carries
+    `<!-- svelte-ignore a11y_click_events_have_key_events,a11y_no_static_element_interactions -->`.
+    The a11y warnings are false positives: `wa-*` elements upgrade to real
+    interactive controls, but the compiler only sees an unknown element (it
+    classifies interactivity by tag name against HTML-only schemas, so no
+    attribute can tell it otherwise — `role="button"`/`tabindex` placate it by
+    lying to assistive tech instead). Add one to new ones.
+  - Every `superForm(...)` / `formFieldProxy(...)` call seeded from a `data`
+    prop carries `// svelte-ignore state_referenced_locally` in the script.
+    The initial-capture is deliberate: `superForm` registers its lifecycle
+    once and its returned stores are the live connection, so re-deriving it on
+    every `invalidate()` would reset the form. Add one to new ones.
 - `npm test`: 471 tests. Partners and the encryption keys are covered end to end
   at three levels — see **Testing** below. Outside those the net is still thin.
 - `npm run test:e2e`: 32 Playwright specs, ~55s once the browser is installed

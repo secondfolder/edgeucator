@@ -51,6 +51,10 @@
 	let setupConfirmError: string[] | undefined = $state(undefined);
 	let acknowledged = $state(false);
 
+	// svelte-ignore state_referenced_locally
+	// Captures the load's initial `data.setupForm` on purpose: `superForm`
+	// registers its lifecycle once, and re-running it on every `invalidate()`
+	// would reset the form.
 	const setupForm = superForm(data.setupForm, {
 		id: 'setup',
 		async onSubmit({ formData, cancel }) {
@@ -125,6 +129,10 @@
 	let changeError: string[] | undefined = $state(undefined);
 	let changeConfirmError: string[] | undefined = $state(undefined);
 
+	// svelte-ignore state_referenced_locally
+	// Captures the load's initial `data.changeForm` on purpose: `superForm`
+	// registers its lifecycle once, and re-running it on every `invalidate()`
+	// would reset the form.
 	const changeForm = superForm(data.changeForm, {
 		id: 'change',
 		async onSubmit({ formData, cancel }) {
@@ -220,6 +228,7 @@
 				each time you open the app.
 			{/if}
 		</wa-callout>
+		<!-- svelte-ignore a11y_click_events_have_key_events,a11y_no_static_element_interactions -->
 		<wa-button appearance="outlined" onclick={lockNow}>Lock on this device</wa-button>
 	{:else if keyring.status === 'locked'}
 		<wa-callout variant="warning">
@@ -279,6 +288,7 @@
 				/>
 
 				<div class="generator">
+					<!-- svelte-ignore a11y_click_events_have_key_events,a11y_no_static_element_interactions -->
 					<wa-button
 						type="button"
 						appearance="outlined"

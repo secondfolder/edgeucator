@@ -55,6 +55,11 @@
 	//
 	// IMPORTANT: do not add a `validators` option here. See the same note in
 	// LoginForm.svelte — the password fields are deliberately not in `$form`.
+	//
+	// svelte-ignore state_referenced_locally
+	// Captures the load's initial `data` on purpose: `superForm` registers its
+	// lifecycle once, and re-running it on every `invalidate()` would reset the
+	// form. The stores it returns are the live connection.
 	const superform = superForm(data, {
 		/**
 		 * Everything cryptographic happens here, before anything is posted:

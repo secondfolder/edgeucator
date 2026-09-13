@@ -21,6 +21,10 @@
 		[attribute: string]: unknown;
 	} = $props();
 
+	// svelte-ignore state_referenced_locally
+	// Captures the initial `superform`/`field` on purpose: the proxies it
+	// returns are the live stores, so re-deriving them per render would
+	// rebuild every field's subscription instead.
 	const { value, errors, constraints } = formFieldProxy(superform, field);
 
 	/**

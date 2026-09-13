@@ -25,6 +25,9 @@
 		yourNameLabel?: string;
 	} = $props();
 
+	// svelte-ignore state_referenced_locally
+	// Captures the initial `superform` on purpose — the store it exposes is
+	// live, so there is nothing to gain from tracking the prop itself.
 	const { form } = superform;
 
 	// Deliberately not "You / Them / Both": the question is "who's in control?",

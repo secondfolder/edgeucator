@@ -79,6 +79,7 @@
 				password — it replaces your keys. If you did not, do not send anything: someone may have
 				changed them for you.
 			</p>
+			<!-- svelte-ignore a11y_click_events_have_key_events,a11y_no_static_element_interactions -->
 			<wa-button
 				size="small"
 				variant="danger"
@@ -108,6 +109,7 @@
 			{#if trust.safetyNumber}
 				<SafetyNumber value={trust.safetyNumber} {partnerName} tone="warning" />
 			{/if}
+			<!-- svelte-ignore a11y_click_events_have_key_events,a11y_no_static_element_interactions -->
 			<wa-button
 				size="small"
 				variant="danger"
@@ -141,14 +143,17 @@
 				{#if showNumber}
 					<SafetyNumber value={trust.safetyNumber} {partnerName} />
 					<div class="actions">
+						<!-- svelte-ignore a11y_click_events_have_key_events,a11y_no_static_element_interactions -->
 						<wa-button size="small" disabled={working} onclick={() => run(verify)}>
 							It matches
 						</wa-button>
+						<!-- svelte-ignore a11y_click_events_have_key_events,a11y_no_static_element_interactions -->
 						<wa-button size="small" appearance="plain" onclick={() => (showNumber = false)}>
 							Not now
 						</wa-button>
 					</div>
 				{:else}
+					<!-- svelte-ignore a11y_click_events_have_key_events,a11y_no_static_element_interactions -->
 					<wa-button size="small" appearance="plain" onclick={() => (showNumber = true)}>
 						Check your safety number
 					</wa-button>

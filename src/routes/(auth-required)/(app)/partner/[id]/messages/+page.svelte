@@ -195,6 +195,7 @@
 							on a tap, so the user is already looking at it.
 						-->
 						<MessageComposer {send} placeholder="What are you thinking?" submitLabel="Send it" />
+						<!-- svelte-ignore a11y_click_events_have_key_events,a11y_no_static_element_interactions -->
 						<wa-button appearance="plain" size="small" onclick={() => (composing = false)}>
 							Cancel
 						</wa-button>
@@ -203,6 +204,7 @@
 					<!-- "Write something" rather than "New message": /home already has
 					     a "new messages from …" link, and two controls must not share an
 					     accessible name. -->
+					<!-- svelte-ignore a11y_click_events_have_key_events,a11y_no_static_element_interactions -->
 					<wa-button variant="brand" size="large" onclick={() => (composing = true)}>
 						Write something
 					</wa-button>

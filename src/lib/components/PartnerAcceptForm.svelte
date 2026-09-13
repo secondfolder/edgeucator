@@ -16,6 +16,10 @@
 		editable
 	}: { data: SuperValidated<Infer<PartnerAcceptFormSchema>>; editable: boolean } = $props();
 
+	// svelte-ignore state_referenced_locally
+	// Captures the load's initial `data` on purpose: `superForm` registers its
+	// lifecycle once, and re-running it on every `invalidate()` would reset the
+	// form. The stores it returns are the live connection.
 	const superform = superForm(data);
 	const { errors, submitting } = superform;
 </script>

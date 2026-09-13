@@ -9,6 +9,10 @@
 
 	let { data }: { data: PageData } = $props();
 
+	// svelte-ignore state_referenced_locally
+	// Captures the load's initial `data.partnerInviteForm` on purpose:
+	// `superForm` registers its lifecycle once, and re-running it on every
+	// `invalidate()` would reset the form.
 	const superform = superForm(data.partnerInviteForm, {
 		// The action returns the link instead of redirecting, so this page owns
 		// the navigation. See the comment on the action.

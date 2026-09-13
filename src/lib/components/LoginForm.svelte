@@ -58,6 +58,11 @@
 	// validation runs against `$form`, whose `authSecret` is empty until
 	// `onSubmit` fills the FormData — and the password field is deliberately not
 	// in `$form` at all. It would reject every submission.
+	//
+	// svelte-ignore state_referenced_locally
+	// Captures the load's initial `data` on purpose: `superForm` registers its
+	// lifecycle once, and re-running it on every `invalidate()` would reset the
+	// form. The stores it returns are the live connection.
 	const superform = superForm(data, {
 		/**
 		 * The password is turned into a key here, in the browser, and only the
@@ -192,6 +197,7 @@
 	{#if $errors._errors}<span class="invalid">{$errors._errors}</span>{/if}
 
 	<div class="divider">or</div>
+	<!-- svelte-ignore a11y_click_events_have_key_events,a11y_no_static_element_interactions -->
 	<wa-button type="button" appearance="outlined" onclick={signInWithPasskey}>
 		Sign in with a passkey
 	</wa-button>

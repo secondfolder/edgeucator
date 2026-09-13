@@ -10,6 +10,10 @@
 	let { data }: { data: PageData } = $props();
 
 	const partnership = $derived(data.partnership);
+	// svelte-ignore state_referenced_locally
+	// Captures the load's initial `data.partnerEditForm` on purpose: `superForm`
+	// registers its lifecycle once, and re-running it on every `invalidate()`
+	// would reset the form. `resetForm: false` keeps a failed edit populated.
 	const superform = superForm(data.partnerEditForm, { resetForm: false });
 	const { errors, submitting } = superform;
 
@@ -48,6 +52,7 @@
 				<!-- readonly rather than disabled so the value can still be selected
 				     and copied by hand when the Clipboard API is unavailable. -->
 				<input class="link" type="text" readonly value={data.inviteUrl} aria-label="Invite link" />
+				<!-- svelte-ignore a11y_click_events_have_key_events,a11y_no_static_element_interactions -->
 				<wa-button onclick={() => data.inviteUrl && share(data.inviteUrl)}>
 					<wa-icon slot="start" name="share-nodes" variant="solid"></wa-icon>
 					Share link again

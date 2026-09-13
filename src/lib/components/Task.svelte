@@ -61,8 +61,10 @@
 			{count} edge{count !== 1 ? 's' : ''}, {remaining} to go
 		</div>
 		<div class="controls">
+			<!-- svelte-ignore a11y_click_events_have_key_events,a11y_no_static_element_interactions -->
 			<wa-button onclick={increment}>Record Edge</wa-button>
 			<wa-button-group label="Deduct edges">
+				<!-- svelte-ignore a11y_click_events_have_key_events,a11y_no_static_element_interactions -->
 				<wa-button appearance="outlined" onclick={() => decrement()}>Deduct Edge</wa-button>
 				<wa-dropdown placement="bottom-end" onwa-select={handleDeductSelect}>
 					<wa-button slot="trigger" with-caret appearance="outlined">
