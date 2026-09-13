@@ -16,6 +16,7 @@
 	import { page } from '$app/state';
 	import HistoryWarning from '$lib/components/HistoryWarning.svelte';
 	import MessageComposer from '$lib/components/MessageComposer.svelte';
+	import NestedPageHeader from '$lib/components/NestedPageHeader.svelte';
 	import PartnerKeyNotice from '$lib/components/PartnerKeyNotice.svelte';
 	import RestoreRequests from '$lib/components/RestoreRequests.svelte';
 	import StickerBoard from '$lib/components/StickerBoard.svelte';
@@ -73,6 +74,9 @@
 			onChange: () => void invalidate(`messages:board:${id}`)
 		});
 	});
+	const backHref = $derived(
+		resolve('/(auth-required)/(app)/partner/[id]', { id: data.partner.id })
+	);
 
 	let composing = $state(false);
 	let icon: ThreadIcon = $state(DEFAULT_THREAD_ICON);
@@ -149,43 +153,51 @@
 {:else if !acknowledged}
 	<HistoryWarning {acknowledge} />
 {:else}
-	<section class="board">
-		<header>
-			<h1>{data.partner.name}</h1>
-			<!--
+	<section class="page">
+		<NestedPageHeader
+			{backHref}
+			backLabel="Back to partner"
+			backText={data.partner.name}
+			title="Messages"
+			iconName="envelope"
+		/>
+
+		<div class="board">
+			<header>
+				<!--
 				The "they have not set up messaging" case lives in here too, rather
 				than beside it: `pinStateFor` already calls that `missing`, and two
 				components deciding when to mention the partner's key would drift.
 			-->
-			<PartnerKeyNotice
-				{trust}
-				partnerName={data.partner.name}
-				verify={() => markVerified(user.id, data.partner.id, data.recipients)}
-				accept={(which) => acceptKeyChange(user.id, data.partner.id, data.recipients, which)}
-			/>
-			<!--
+				<PartnerKeyNotice
+					{trust}
+					partnerName={data.partner.name}
+					verify={() => markVerified(user.id, data.partner.id, data.recipients)}
+					accept={(which) => acceptKeyChange(user.id, data.partner.id, data.recipients, which)}
+				/>
+				<!--
 				`mine`, not the trust view's safety number: a restore's number must be
 				derived from the recipient snapshotted on the request, which is the
 				value the re-encryption actually seals to. See the comment in
 				RestoreRequests.svelte — using the served key here would defeat the
 				out-of-band check entirely.
 			-->
-			<RestoreRequests
-				requests={data.restoreRequests}
-				partnershipId={data.partner.id}
-				partnerName={data.partner.name}
-				mine={data.recipients.mine}
-			/>
-		</header>
+				<RestoreRequests
+					requests={data.restoreRequests}
+					partnershipId={data.partner.id}
+					partnerName={data.partner.name}
+					mine={data.recipients.mine}
+				/>
+			</header>
 
-		<StickerBoard threads={data.threads} partnershipId={data.partner.id} {formatWhen} />
+			<StickerBoard threads={data.threads} partnershipId={data.partner.id} {formatWhen} />
 
-		{#if data.recipients.theirs !== null && canSend}
-			<div class="new">
-				{#if composing}
-					<div class="composer">
-						<ThreadIconPicker bind:value={icon} />
-						<!--
+			{#if data.recipients.theirs !== null && canSend}
+				<div class="new">
+					{#if composing}
+						<div class="composer">
+							<ThreadIconPicker bind:value={icon} />
+							<!--
 							No autofocus. `<wa-textarea autofocus>` reaches for its inner
 							textarea before the shadow root exists and throws "Cannot read
 							properties of null (reading 'focus')" — an uncaught error during
@@ -194,27 +206,35 @@
 							after `updateComplete` had the same effect. The composer appears
 							on a tap, so the user is already looking at it.
 						-->
-						<MessageComposer {send} placeholder="What are you thinking?" submitLabel="Send it" />
-						<!-- svelte-ignore a11y_click_events_have_key_events,a11y_no_static_element_interactions -->
-						<wa-button appearance="plain" size="small" onclick={() => (composing = false)}>
-							Cancel
-						</wa-button>
-					</div>
-				{:else}
-					<!-- "Write something" rather than "New message": /home already has
+							<MessageComposer {send} placeholder="What are you thinking?" submitLabel="Send it" />
+							<!-- svelte-ignore a11y_click_events_have_key_events,a11y_no_static_element_interactions -->
+							<wa-button appearance="plain" size="small" onclick={() => (composing = false)}>
+								Cancel
+							</wa-button>
+						</div>
+					{:else}
+						<!-- "Write something" rather than "New message": /home already has
 					     a "new messages from …" link, and two controls must not share an
 					     accessible name. -->
-					<!-- svelte-ignore a11y_click_events_have_key_events,a11y_no_static_element_interactions -->
-					<wa-button variant="brand" size="large" onclick={() => (composing = true)}>
-						Write something
-					</wa-button>
-				{/if}
-			</div>
-		{/if}
+						<!-- svelte-ignore a11y_click_events_have_key_events,a11y_no_static_element_interactions -->
+						<wa-button variant="brand" size="large" onclick={() => (composing = true)}>
+							Write something
+						</wa-button>
+					{/if}
+				</div>
+			{/if}
+		</div>
 	</section>
 {/if}
 
 <style>
+	.page {
+		display: flex;
+		flex-direction: column;
+		flex: 1 1 auto;
+		min-block-size: 0;
+	}
+
 	.notice {
 		max-width: 26rem;
 		margin: 0 auto;
@@ -244,15 +264,10 @@
 		min-block-size: 0;
 
 		header {
-			padding: var(--wa-space-m) var(--wa-space-m) 0;
+			padding: 0 var(--wa-space-m);
 			display: flex;
 			flex-direction: column;
 			gap: var(--wa-space-s);
-
-			h1 {
-				margin: 0;
-				font-size: 1.25rem;
-			}
 		}
 	}
 

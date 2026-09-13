@@ -1,10 +1,16 @@
-import { eq } from 'drizzle-orm';
+import { and, eq } from 'drizzle-orm';
 import type { Db } from '../server/db';
 import {
 	messageAttachments,
 	messageThreads,
 	messages,
+	partnershipRewardClaims,
+	partnershipRewardCredits,
+	partnershipRewards,
 	partnerships,
+	selfRewardClaims,
+	selfRewardCredits,
+	selfRewards,
 	threadReads,
 	user,
 	userKeyWraps,
@@ -20,6 +26,15 @@ import { createTestMediaStore } from './media';
 import type { ThreadIcon } from '../messaging';
 import type { ControlAnswer } from '../partnership';
 import { controlFromAnswer } from '../partnership';
+import {
+	claimPartnershipReward,
+	claimSelfReward,
+	createPartnershipReward,
+	createSelfReward,
+	setPartnershipRewardCredits,
+	setSelfRewardCredits
+} from '../server/rewards';
+import type { RewardInput } from '../rewards';
 
 /**
  * Fixtures for the partners tests.
@@ -163,6 +178,139 @@ export async function readUserKeysRow(db: Db, userId: string) {
 /** Every wrap row for a user, for counting after a password change. */
 export async function readWrapRows(db: Db, userId: string) {
 	return db.select().from(userKeyWraps).where(eq(userKeyWraps.userId, userId));
+}
+
+export async function createTestSelfReward(
+	db: Db,
+	owner: TestUser,
+	input: Partial<RewardInput> = {}
+): Promise<{ id: string }> {
+	const id = await createSelfReward(db, owner.id, {
+		title: input.title ?? 'Reward',
+		description: input.description ?? 'Reward description',
+		cost: input.cost ?? 3,
+		active: input.active ?? true
+	});
+	return { id };
+}
+
+export async function setTestSelfRewardCredits(
+	db: Db,
+	owner: TestUser,
+	credits: number
+): Promise<void> {
+	await setSelfRewardCredits(db, owner.id, credits);
+}
+
+export async function claimTestSelfReward(
+	db: Db,
+	owner: TestUser,
+	rewardId: string
+): Promise<void> {
+	const result = await claimSelfReward(db, owner.id, rewardId);
+	if (!result.ok) throw new Error(`fixture could not claim self reward: ${result.reason}`);
+}
+
+export async function readSelfRewardRow(db: Db, id: string) {
+	const rows = await db.select().from(selfRewards).where(eq(selfRewards.id, id)).limit(1);
+	return rows[0];
+}
+
+export async function readSelfRewardCreditRow(db: Db, ownerId: string) {
+	const rows = await db
+		.select()
+		.from(selfRewardCredits)
+		.where(eq(selfRewardCredits.ownerId, ownerId))
+		.limit(1);
+	return rows[0];
+}
+
+export async function readSelfRewardClaimRows(db: Db, ownerId: string) {
+	return db
+		.select()
+		.from(selfRewardClaims)
+		.where(eq(selfRewardClaims.ownerId, ownerId))
+		.orderBy(selfRewardClaims.createdAt, selfRewardClaims.id);
+}
+
+export async function createTestPartnershipReward(
+	db: Db,
+	partnershipId: string,
+	owner: TestUser,
+	input: Partial<RewardInput> = {}
+): Promise<{ id: string }> {
+	const result = await createPartnershipReward(db, partnershipId, owner.id, {
+		title: input.title ?? 'Partner reward',
+		description: input.description ?? 'Partner reward description',
+		cost: input.cost ?? 2,
+		active: input.active ?? true
+	});
+	if (!result.ok) throw new Error(`fixture could not create partnership reward: ${result.reason}`);
+	return { id: result.id };
+}
+
+export async function setTestPartnershipRewardCredits(
+	db: Db,
+	partnershipId: string,
+	actor: TestUser,
+	target: TestUser,
+	credits: number
+): Promise<void> {
+	const result = await setPartnershipRewardCredits(db, partnershipId, actor.id, target.id, credits);
+	if (!result.ok) throw new Error(`fixture could not set partnership credits: ${result.reason}`);
+}
+
+export async function claimTestPartnershipReward(
+	db: Db,
+	partnershipId: string,
+	viewer: TestUser,
+	rewardId: string
+): Promise<void> {
+	const result = await claimPartnershipReward(db, { partnershipId, rewardId, userId: viewer.id });
+	if (!result.ok) throw new Error(`fixture could not claim partnership reward: ${result.reason}`);
+}
+
+export async function readPartnershipRewardRow(db: Db, id: string) {
+	const rows = await db
+		.select()
+		.from(partnershipRewards)
+		.where(eq(partnershipRewards.id, id))
+		.limit(1);
+	return rows[0];
+}
+
+export async function readPartnershipRewardRows(db: Db, partnershipId: string) {
+	return db
+		.select()
+		.from(partnershipRewards)
+		.where(eq(partnershipRewards.partnershipId, partnershipId))
+		.orderBy(partnershipRewards.createdAt, partnershipRewards.id);
+}
+
+export async function readPartnershipRewardCreditRow(
+	db: Db,
+	partnershipId: string,
+	userId: string
+) {
+	const rows = await db
+		.select()
+		.from(partnershipRewardCredits)
+		.where(
+			and(
+				eq(partnershipRewardCredits.partnershipId, partnershipId),
+				eq(partnershipRewardCredits.userId, userId)
+			)
+		)
+		.limit(1);
+	return rows[0];
+}
+
+export async function readPartnershipRewardClaimRows(db: Db, partnershipId: string) {
+	return db
+		.select()
+		.from(partnershipRewardClaims)
+		.where(eq(partnershipRewardClaims.partnershipId, partnershipId))
+		.orderBy(partnershipRewardClaims.createdAt, partnershipRewardClaims.id);
 }
 
 /**

@@ -146,6 +146,179 @@ export type Partnership = typeof partnerships.$inferSelect;
 export type NewPartnership = typeof partnerships.$inferInsert;
 
 /**
+ * A reward a user can assign and redeem for themselves.
+ *
+ * Kept separate from partnership rewards because the permission model is not
+ * the same: self rewards are always managed and claimed by the owner, while
+ * partnership rewards are managed by control and claimed against authorship.
+ * A single polymorphic table would push those differences into nullable scope
+ * columns and case-heavy queries on every read path.
+ */
+export const selfRewards = sqliteTable(
+	'self_rewards',
+	{
+		id: text('id')
+			.primaryKey()
+			.$defaultFn(() => crypto.randomUUID()),
+		ownerId: text('owner_id')
+			.notNull()
+			.references(() => user.id, { onDelete: 'cascade' }),
+		title: text('title').notNull(),
+		description: text('description'),
+		cost: integer('cost').notNull(),
+		active: integer('active', { mode: 'boolean' }).notNull().default(true),
+		...timestamps
+	},
+	(table) => [
+		index('self_rewards_owner_active_idx').on(table.ownerId, table.active),
+		index('self_rewards_owner_created_idx').on(table.ownerId, table.createdAt)
+	]
+);
+
+/** One credit balance per user for their own self-reward pool. */
+export const selfRewardCredits = sqliteTable(
+	'self_reward_credits',
+	{
+		id: text('id')
+			.primaryKey()
+			.$defaultFn(() => crypto.randomUUID()),
+		ownerId: text('owner_id')
+			.notNull()
+			.unique()
+			.references(() => user.id, { onDelete: 'cascade' }),
+		credits: integer('credits').notNull().default(0),
+		...timestamps
+	},
+	(table) => [index('self_reward_credits_owner_idx').on(table.ownerId)]
+);
+
+/**
+ * One self-reward redemption.
+ *
+ * The title/description/cost are snapshotted so visible history stays truthful
+ * even if the reward is edited later. The foreign key still exists so the row
+ * can be grouped back to the source reward while it lives.
+ */
+export const selfRewardClaims = sqliteTable(
+	'self_reward_claims',
+	{
+		id: text('id')
+			.primaryKey()
+			.$defaultFn(() => crypto.randomUUID()),
+		ownerId: text('owner_id')
+			.notNull()
+			.references(() => user.id, { onDelete: 'cascade' }),
+		rewardId: text('reward_id')
+			.notNull()
+			.references(() => selfRewards.id, { onDelete: 'cascade' }),
+		rewardTitle: text('reward_title').notNull(),
+		rewardDescription: text('reward_description'),
+		rewardCost: integer('reward_cost').notNull(),
+		...timestamps
+	},
+	(table) => [
+		index('self_reward_claims_owner_created_idx').on(table.ownerId, table.createdAt),
+		index('self_reward_claims_reward_idx').on(table.rewardId)
+	]
+);
+
+/**
+ * A reward shared inside one partnership.
+ *
+ * `createdByUserId` is load-bearing: under shared control, both people may
+ * create and edit rewards, but a user may never claim one they authored.
+ */
+export const partnershipRewards = sqliteTable(
+	'partnership_rewards',
+	{
+		id: text('id')
+			.primaryKey()
+			.$defaultFn(() => crypto.randomUUID()),
+		partnershipId: text('partnership_id')
+			.notNull()
+			.references(() => partnerships.id, { onDelete: 'cascade' }),
+		createdByUserId: text('created_by_user_id')
+			.notNull()
+			.references(() => user.id, { onDelete: 'cascade' }),
+		title: text('title').notNull(),
+		description: text('description'),
+		cost: integer('cost').notNull(),
+		active: integer('active', { mode: 'boolean' }).notNull().default(true),
+		...timestamps
+	},
+	(table) => [
+		index('partnership_rewards_partnership_active_idx').on(table.partnershipId, table.active),
+		index('partnership_rewards_partnership_created_idx').on(table.partnershipId, table.createdAt),
+		index('partnership_rewards_creator_idx').on(table.createdByUserId)
+	]
+);
+
+/** One credit balance per member per partnership. */
+export const partnershipRewardCredits = sqliteTable(
+	'partnership_reward_credits',
+	{
+		id: text('id')
+			.primaryKey()
+			.$defaultFn(() => crypto.randomUUID()),
+		partnershipId: text('partnership_id')
+			.notNull()
+			.references(() => partnerships.id, { onDelete: 'cascade' }),
+		userId: text('user_id')
+			.notNull()
+			.references(() => user.id, { onDelete: 'cascade' }),
+		credits: integer('credits').notNull().default(0),
+		...timestamps
+	},
+	(table) => [
+		uniqueIndex('partnership_reward_credits_partnership_user_unq').on(
+			table.partnershipId,
+			table.userId
+		),
+		index('partnership_reward_credits_user_partnership_idx').on(table.userId, table.partnershipId)
+	]
+);
+
+/**
+ * One redemption of a partnership reward.
+ *
+ * `createdByUserId` is copied so history still shows whose reward it was if
+ * the source row is later edited inactive, and so home can render a compact
+ * history without joining back through the live reward table.
+ */
+export const partnershipRewardClaims = sqliteTable(
+	'partnership_reward_claims',
+	{
+		id: text('id')
+			.primaryKey()
+			.$defaultFn(() => crypto.randomUUID()),
+		partnershipId: text('partnership_id')
+			.notNull()
+			.references(() => partnerships.id, { onDelete: 'cascade' }),
+		rewardId: text('reward_id')
+			.notNull()
+			.references(() => partnershipRewards.id, { onDelete: 'cascade' }),
+		claimedByUserId: text('claimed_by_user_id')
+			.notNull()
+			.references(() => user.id, { onDelete: 'cascade' }),
+		createdByUserId: text('created_by_user_id')
+			.notNull()
+			.references(() => user.id, { onDelete: 'cascade' }),
+		rewardTitle: text('reward_title').notNull(),
+		rewardDescription: text('reward_description'),
+		rewardCost: integer('reward_cost').notNull(),
+		...timestamps
+	},
+	(table) => [
+		index('partnership_reward_claims_partnership_claimed_idx').on(
+			table.partnershipId,
+			table.claimedByUserId,
+			table.createdAt
+		),
+		index('partnership_reward_claims_reward_idx').on(table.rewardId)
+	]
+);
+
+/**
  * A user's long-term age recipient — their public key.
  *
  * Stored in the clear because it is public by construction: everything a

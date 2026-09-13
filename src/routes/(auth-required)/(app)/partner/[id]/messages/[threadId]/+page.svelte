@@ -11,6 +11,7 @@
 		trustFor
 	} from '$lib/crypto/trust.svelte';
 	import { watchPartnership } from '$lib/messaging/live';
+	import NestedPageHeader from '$lib/components/NestedPageHeader.svelte';
 	import PartnerKeyNotice from '$lib/components/PartnerKeyNotice.svelte';
 	import ThreadView from '$lib/components/ThreadView.svelte';
 	import UnlockForm from '$lib/components/UnlockForm.svelte';
@@ -71,15 +72,12 @@
 <svelte:head><title>{data.partner.name} — message</title></svelte:head>
 
 <div class="page">
-	<header>
-		<!-- "Back to messages", not "Messages": the partner page's own button is
-		     already called that, and two links must not share a name. -->
-		<a href={backHref} aria-label="Back to messages">
-			<wa-icon name="chevron-left" variant="solid"></wa-icon>
-			<span>{data.partner.name}</span>
-		</a>
-		<wa-icon name={data.thread.icon} variant="solid"></wa-icon>
-	</header>
+	<NestedPageHeader
+		{backHref}
+		backLabel="Back to messages"
+		backText={data.partner.name}
+		iconName={data.thread.icon}
+	/>
 
 	{#if keyring.status === 'unlocked'}
 		{#if !canSend}
@@ -119,28 +117,6 @@
 		flex-direction: column;
 		flex: 1 1 auto;
 		min-block-size: 0;
-
-		header {
-			display: flex;
-			align-items: center;
-			gap: 0.5rem;
-			padding: var(--wa-space-s) var(--wa-space-m);
-			border-block-end: 1px solid var(--wa-color-surface-border);
-
-			a {
-				display: flex;
-				align-items: center;
-				gap: 0.25rem;
-				text-decoration: none;
-				color: inherit;
-				font-weight: var(--wa-font-weight-semibold, 600);
-			}
-
-			> wa-icon {
-				margin-inline-start: auto;
-				color: var(--wa-color-text-quiet);
-			}
-		}
 	}
 
 	.trust {

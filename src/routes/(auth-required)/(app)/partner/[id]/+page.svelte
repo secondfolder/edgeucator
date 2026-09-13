@@ -22,19 +22,25 @@
 
 	<p>They call you <strong>{partner.yourName}</strong>.</p>
 
-	<wa-button
-		variant="brand"
-		size="large"
-		href={resolve('/(auth-required)/(app)/partner/[id]/messages', { id: partner.id })}
-	>
-		<wa-icon slot="start" name="envelope" variant="solid"></wa-icon>
-		Messages
-	</wa-button>
+	<div class="actions">
+		<wa-button
+			variant="brand"
+			size="large"
+			href={resolve('/(auth-required)/(app)/partner/[id]/messages', { id: partner.id })}
+		>
+			<wa-icon slot="start" name="envelope" variant="solid"></wa-icon>
+			Messages
+		</wa-button>
 
-	<p class="todo">
-		Shared guides and progress are not built yet. For now this page is where the link between the
-		two of you lives.
-	</p>
+		<wa-button
+			variant="brand"
+			size="large"
+			href={resolve('/(auth-required)/(app)/partner/[id]/rewards', { id: partner.id })}
+		>
+			<wa-icon slot="start" name="gift" variant="solid"></wa-icon>
+			Rewards
+		</wa-button>
+	</div>
 
 	<a href={resolve('/(auth-required)/(app)/settings/partners/[id]', { id: partner.id })}>
 		{partner.canEdit ? 'Edit this connection' : 'Connection settings'}
@@ -76,8 +82,16 @@
 			margin: 0;
 		}
 
-		.todo {
-			color: var(--wa-color-text-quiet);
+		.actions {
+			display: flex;
+			gap: 1rem;
+			flex-wrap: wrap;
+			justify-content: center;
+			width: min(100%, 32rem);
+
+			wa-button {
+				flex: 1 1 14rem;
+			}
 		}
 	}
 </style>

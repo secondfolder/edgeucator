@@ -191,45 +191,20 @@ site it applies to; go read that comment before deciding to break one.
       by wrangler itself. It uses `new_sqlite_classes`, because SQLite-backed
       Durable Objects are the only kind on the Workers Free plan.
 
-16. **KNOWN BUG: the built worker cannot serve a page.** Not caused by the
-    messaging work and not fixed by it — found while verifying stage 8 with
-    `npm run preview:worker`, which is the only thing that runs the real
-    server bundle.
+16. **Web Awesome's Lit dependencies must resolve to their `node/` builds in
+    the wrangler bundle.** `src/routes/+layout.svelte` statically imports the
+    registrations so hydration does not have to fetch them after load, which
+    also puts Lit in the server graph. workerd has no `HTMLElement`, so
+    `wrangler.jsonc` remaps `@lit/reactive-element` and `lit-html` to their
+    packaged `node/` shims; the browser build stays on the normal entries.
 
-    `src/routes/+layout.svelte` imports the Web Awesome components so they
-    register in the browser, which also puts them in the **server** graph. They
-    are Lit elements that do `class ReactiveElement extends HTMLElement` at
-    module scope. Lit ships a `node` build with an SSR shim and a
-    `browser`/default build without one; `vite dev` resolves the former, the
-    Cloudflare target deliberately excludes the `node` condition and resolves
-    the latter — and workerd has no `HTMLElement`. So every page 500s with
-    `ReferenceError: HTMLElement is not defined` once deployed.
-
-    **No test can catch this.** The Playwright suite runs against `vite dev`, so
-    it exercises the shimmed build. Only `npm run preview:worker` plus an actual
-    page load does.
-
-    Two fixes were tried and both traded the bug for a worse one, so neither is
-    in the tree:
-
-    - **Load the registrations from a browser-only dynamic import.** Correct on
-      the worker, but it moves several hundred dev module requests from page
-      load to hydration, where under `vite dev` (HTTP/1.1, six connections) they
-      starved the `await import('age-encryption')` inside signup's submit
-      handler. Signup then hung for the full 90-second timeout with every field
-      filled and the button stuck `disabled`. Adding all twelve modules to
-      `optimizeDeps.include` did not help.
-    - **Force the `node` condition for the SSR build.** Fixes Lit, but
-      `resolve.conditions` is an override rather than an addition, so it drops
-      `production` — and `dev` from `$app/environment` comes from `esm-env`,
-      which selects its build by exactly that condition. `esm-env` fell back to
-      reading `NODE_ENV` at runtime, `dev` became `true` on the worker, and
-      `createDb` took the libsql `file:` path and threw
-      `URL_SCHEME_NOT_SUPPORTED`.
-
-    A targeted alias for the Lit packages in the worker bundle (wrangler's
-    `alias`, or a per-environment `resolve.alias`) is the direction that has not
-    been tried.
+    Keep it this way. A browser-only dynamic import fixed the crash too, but it
+    moved several hundred requests into hydration under `vite dev` and starved
+    signup's `await import('age-encryption')`, leaving the form hung for the
+    full timeout. Forcing the global `node` condition fixed Lit but dropped
+    `production`, which broke `esm-env` and sent the worker down the dev
+    database path. `npm run preview:worker` plus a real page load is still the
+    only check that exercises this path.
 
 ## Conventions
 
@@ -327,13 +302,12 @@ bottom nav is what moving `SiteHeader` out of it fixed. Each shell sets the
 `body` rules it needs through `<svelte:head>`, so they are added and removed
 with the layout rather than fighting each other globally.
 
-**`/` is the logged-out landing page; `/home` is the signed-in one.** Every
-post-auth redirect points at `/home`, and `/` bounces a user who has a session.
-The guides live under it (`/home/guides`, `/home/guides/[id]`), so they are
-behind the auth guard — the public surface is now only `/`, `/login` and
-`/signup`. The landing page still links to the guides, which means an anonymous
-visitor is bounced to `/login` and, since the guard does not carry a
-`redirectTo`, lands on `/home` rather than the guide they clicked.
+**`/` is the landing page for everyone; `/home` is the signed-in app.** `/`
+does not bounce a session holder any more: its centred CTA says "Sign up"
+(with a "Log in" link under it) when logged out and "Start" → `/home` when
+logged in. Every post-auth redirect still points at `/home`. The guides live
+under it (`/home/guides`, `/home/guides/[id]`), behind the auth guard — the
+public surface is only `/`, `/login` and `/signup`.
 
 **Active nav state compares `page.route.id`, never a pathname.** During SSR
 `resolve()` returns a path relative to the page being rendered (`./home` on
@@ -519,6 +493,7 @@ Four places, split on scope:
 | Doc                                      | Feature                                                             |
 | ---------------------------------------- | ------------------------------------------------------------------- |
 | [docs/partners.md](docs/partners.md)     | Linking two accounts: invites, the control permission, the nav tabs |
+| [docs/rewards.md](docs/rewards.md)       | Self rewards and partnership rewards: credits, claims, control      |
 | [docs/encryption.md](docs/encryption.md) | Message keys: the client-side KDF, the wraps, what the guarantee is |
 | [docs/messaging.md](docs/messaging.md)   | Encrypted partner messages: threads, the board, unread, restore     |
 
@@ -550,12 +525,24 @@ Four places, split on scope:
 
 **Historical plans.** When a substantial plan is finished, copy the exact plan into
 `docs/historical-plans/`, filename led by the implementation date as
-`YYYY-MM-DD-`, so the directory sorts chronologically. Post-implementations to these
-plans should generally be avoided as they are intended to be frozen records of what
-was intended at a moment: never cite one as current behaviour, and never
-update one as the code moves on. If one has to be edited because it is actively
-misleading someone, mark the edit inline as post-implementation, dated, with who
-changed it and why — never a silent rewrite.
+`YYYY-MM-DD-`, so the directory sorts chronologically. Treat that copy as part
+of done, not as optional follow-up, and do it even when the plan only lived in
+chat or session memory rather than an existing repo file. Post-implementations
+to these plans should generally be avoided as they are intended to be frozen
+records of what was intended at a moment: never cite one as current behaviour,
+and never update one as the code moves on. If one has to be edited because it
+is actively misleading someone, mark the edit inline as post-implementation,
+dated, with who changed it and why — never a silent rewrite.
+
+If the implementation diverges from the plan, still copy the exact original
+plan and let the code, feature docs, and commit history show what changed.
+
+- Preserve reward authorship across later control changes so claim restrictions do not silently mutate when control flips.
+
+**Further Considerations**
+
+1. If the home page becomes too tall once self rewards, partner rewards, and unread links coexist, collapse each rewards section with a default-open summary rather than moving management off home; that preserves the requested collation without creating a second self-rewards destination.
+2. If claim history grows noisy, show a recent slice on home and the fuller history on the partner rewards page while still storing the full claim table from the start.
 
 ## Traps
 

@@ -90,11 +90,12 @@ The Zod schema accepts only `me` / `them` / `mix` — posting the _stored_ value
 
 ### What control gates
 
-| Action                                           | Who may do it                                |
-| ------------------------------------------------ | -------------------------------------------- |
-| Change the names, the label, the control setting | Whoever `control` names, or both             |
-| Rewrite the names while accepting an invite      | The accepter, if control is theirs or shared |
-| Disconnect, or cancel a pending invite           | **Either member, always**                    |
+| Action                                            | Who may do it                                |
+| ------------------------------------------------- | -------------------------------------------- |
+| Change the names, the label, the control setting  | Whoever `control` names, or both             |
+| Manage partnership rewards and set reward credits | Whoever `control` names, or both             |
+| Rewrite the names while accepting an invite       | The accepter, if control is theirs or shared |
+| Disconnect, or cancel a pending invite            | **Either member, always**                    |
 
 Disconnecting is deliberately not gated: a user who handed control to their
 partner must still be able to get out. `deletePartnership` checks membership and
@@ -141,13 +142,39 @@ token (`not-found`), an expired one (`expired`), the inviter's own link
 
 ## Screens
 
-| Route                     | Group             | What it does                                                         |
-| ------------------------- | ----------------- | -------------------------------------------------------------------- |
-| `/settings/partners`      | `(auth-required)` | Linked partners and outstanding invites. "Add" starts a new one.     |
-| `/settings/partners/new`  | `(auth-required)` | The four questions. Creates the pending row and the link.            |
-| `/settings/partners/[id]` | `(auth-required)` | Pending: the link, share, renew, cancel. Accepted: edit, disconnect. |
-| `/invite/[token]`         | **`(public)`**    | The landing page for the person being invited.                       |
-| `/partner/[id]`           | `(auth-required)` | The partner's own page. Accepted links only.                         |
+| Route                              | Group             | What it does                                                                                        |
+| ---------------------------------- | ----------------- | --------------------------------------------------------------------------------------------------- |
+| `/settings/partners`               | `(auth-required)` | Linked partners and outstanding invites. "Add" starts a new one.                                    |
+| `/settings/partners/new`           | `(auth-required)` | The four questions. Creates the pending row and the link.                                           |
+| `/settings/partners/[id]`          | `(auth-required)` | Pending: the link, share, renew, cancel. Accepted: edit, disconnect.                                |
+| `/invite/[token]`                  | **`(public)`**    | The landing page for the person being invited.                                                      |
+| `/partner/[id]`                    | `(auth-required)` | The partner's own page. Accepted links only.                                                        |
+| `/partner/[id]/rewards`            | `(auth-required)` | Shared rewards and reward credits for that link, with buttons to add rewards or open claim history. |
+| `/partner/[id]/rewards/add`        | `(auth-required)` | The add-reward form for the controlling side of that link.                                          |
+| `/partner/[id]/rewards/[rewardId]` | `(auth-required)` | The edit screen for one reward on that link, using the same form layout as add.                     |
+| `/partner/[id]/rewards/history`    | `(auth-required)` | Reward claim history for that link.                                                                 |
+
+## Partnership rewards
+
+Accepted partner pages now also have a rewards screen. It reuses the same
+control setting instead of inventing a separate permission model:
+
+- Whoever `control` names may create rewards, edit any reward in that
+  partnership, toggle rewards active or inactive, and set the other member's
+  reward credits.
+- The claiming side may spend their own partnership-scoped credits on active
+  rewards.
+- Shared control means both members may manage rewards and both may claim
+  rewards the other member created.
+- A user may never claim a partnership reward they created themselves, even
+  under shared control.
+
+On the list page, editable rewards now show an edit icon rather than an inline
+form. That icon opens a dedicated nested edit page which reuses the same reward
+form layout as the add screen, prefilled with the reward's current values.
+
+The full behaviour, including the dedicated home rewards hub at `/home/rewards`, is documented in
+[`docs/rewards.md`](rewards.md).
 
 ### Why `/invite/[token]` is public
 

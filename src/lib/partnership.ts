@@ -66,7 +66,10 @@ export type PartnershipView = {
 };
 
 /** Which end of the link `userId` is on, or null if they are on neither. */
-export function roleOf(record: PartnershipRecord, userId: string): PartnershipRole | null {
+export function roleOf(
+	record: Pick<PartnershipRecord, 'inviterId' | 'inviteeId'>,
+	userId: string
+): PartnershipRole | null {
 	if (record.inviterId === userId) return 'inviter';
 	if (record.inviteeId === userId) return 'invitee';
 	return null;

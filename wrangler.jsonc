@@ -8,6 +8,58 @@
 	// that would work; `nodejs_compat` is a superset and also populates
 	// process.env, which stops better-auth's env probing from coming up empty.
 	"compatibility_flags": ["nodejs_compat"],
+	// `src/routes/+layout.svelte` statically imports the Web Awesome
+	// registrations so hydration does not have to fetch them after load. That
+	// puts Lit in the server graph too, and workerd has no `HTMLElement`, so
+	// wrangler's esbuild pass must swap the two bare Lit entrypoints to their
+	// packaged node shims.
+	"alias": {
+		"@lit/reactive-element": "./node_modules/@lit/reactive-element/node/reactive-element.js",
+		"@lit/reactive-element/css-tag.js": "./node_modules/@lit/reactive-element/node/css-tag.js",
+		"@lit/reactive-element/reactive-element.js": "./node_modules/@lit/reactive-element/node/reactive-element.js",
+		"@lit/reactive-element/decorators.js": "./node_modules/@lit/reactive-element/node/decorators.js",
+		"@lit/reactive-element/decorators/base.js": "./node_modules/@lit/reactive-element/node/decorators/base.js",
+		"@lit/reactive-element/decorators/custom-element.js": "./node_modules/@lit/reactive-element/node/decorators/custom-element.js",
+		"@lit/reactive-element/decorators/event-options.js": "./node_modules/@lit/reactive-element/node/decorators/event-options.js",
+		"@lit/reactive-element/decorators/property.js": "./node_modules/@lit/reactive-element/node/decorators/property.js",
+		"@lit/reactive-element/decorators/query.js": "./node_modules/@lit/reactive-element/node/decorators/query.js",
+		"@lit/reactive-element/decorators/query-all.js": "./node_modules/@lit/reactive-element/node/decorators/query-all.js",
+		"@lit/reactive-element/decorators/query-async.js": "./node_modules/@lit/reactive-element/node/decorators/query-async.js",
+		"@lit/reactive-element/decorators/query-assigned-elements.js": "./node_modules/@lit/reactive-element/node/decorators/query-assigned-elements.js",
+		"@lit/reactive-element/decorators/query-assigned-nodes.js": "./node_modules/@lit/reactive-element/node/decorators/query-assigned-nodes.js",
+		"@lit/reactive-element/decorators/state.js": "./node_modules/@lit/reactive-element/node/decorators/state.js",
+		"@lit/reactive-element/polyfill-support.js": "./node_modules/@lit/reactive-element/node/polyfill-support.js",
+		"@lit/reactive-element/reactive-controller.js": "./node_modules/@lit/reactive-element/node/reactive-controller.js",
+		"lit-html": "./node_modules/lit-html/node/lit-html.js",
+		"lit-html/async-directive.js": "./node_modules/lit-html/node/async-directive.js",
+		"lit-html/directive-helpers.js": "./node_modules/lit-html/node/directive-helpers.js",
+		"lit-html/directive.js": "./node_modules/lit-html/node/directive.js",
+		"lit-html/directives/async-append.js": "./node_modules/lit-html/node/directives/async-append.js",
+		"lit-html/directives/async-replace.js": "./node_modules/lit-html/node/directives/async-replace.js",
+		"lit-html/directives/cache.js": "./node_modules/lit-html/node/directives/cache.js",
+		"lit-html/directives/choose.js": "./node_modules/lit-html/node/directives/choose.js",
+		"lit-html/directives/class-map.js": "./node_modules/lit-html/node/directives/class-map.js",
+		"lit-html/directives/guard.js": "./node_modules/lit-html/node/directives/guard.js",
+		"lit-html/directives/if-defined.js": "./node_modules/lit-html/node/directives/if-defined.js",
+		"lit-html/directives/join.js": "./node_modules/lit-html/node/directives/join.js",
+		"lit-html/directives/keyed.js": "./node_modules/lit-html/node/directives/keyed.js",
+		"lit-html/directives/live.js": "./node_modules/lit-html/node/directives/live.js",
+		"lit-html/directives/map.js": "./node_modules/lit-html/node/directives/map.js",
+		"lit-html/directives/range.js": "./node_modules/lit-html/node/directives/range.js",
+		"lit-html/directives/ref.js": "./node_modules/lit-html/node/directives/ref.js",
+		"lit-html/directives/repeat.js": "./node_modules/lit-html/node/directives/repeat.js",
+		"lit-html/directives/style-map.js": "./node_modules/lit-html/node/directives/style-map.js",
+		"lit-html/directives/template-content.js": "./node_modules/lit-html/node/directives/template-content.js",
+		"lit-html/directives/unsafe-html.js": "./node_modules/lit-html/node/directives/unsafe-html.js",
+		"lit-html/directives/unsafe-mathml.js": "./node_modules/lit-html/node/directives/unsafe-mathml.js",
+		"lit-html/directives/unsafe-svg.js": "./node_modules/lit-html/node/directives/unsafe-svg.js",
+		"lit-html/directives/until.js": "./node_modules/lit-html/node/directives/until.js",
+		"lit-html/directives/when.js": "./node_modules/lit-html/node/directives/when.js",
+		"lit-html/is-server.js": "./node_modules/lit-html/node/is-server.js",
+		"lit-html/lit-html.js": "./node_modules/lit-html/node/lit-html.js",
+		"lit-html/polyfill-support.js": "./node_modules/lit-html/node/polyfill-support.js",
+		"lit-html/static.js": "./node_modules/lit-html/node/static.js"
+	},
 	"assets": {
 		"binding": "ASSETS",
 		"directory": ".svelte-kit/cloudflare"

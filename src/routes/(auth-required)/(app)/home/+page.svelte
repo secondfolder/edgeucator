@@ -11,14 +11,18 @@
 		<h1>Edgeucator</h1>
 		<span class="subtitle">Your Edging Escort</span>
 	</header>
+	<div class="quick-links">
+		<wa-button variant="brand" size="large" href={resolve('/(auth-required)/(app)/home/guides')}
+			>Guides</wa-button
+		>
+		<wa-button variant="brand" size="large" href={resolve('/(auth-required)/(app)/home/rewards')}
+			><wa-icon slot="start" name="gift" variant="solid"></wa-icon>Rewards</wa-button
+		>
+	</div>
 	<!-- Above the Guides button on purpose: something waiting from a partner is
 	     the reason to have opened the app, and it should not be below the fold
 	     on a short phone. Renders nothing when there is nothing waiting. -->
 	<UnreadPartnerLinks unread={data.unread} />
-
-	<wa-button variant="brand" size="large" href={resolve('/(auth-required)/(app)/home/guides')}
-		>Guides</wa-button
-	>
 </div>
 
 <style>
@@ -29,10 +33,9 @@
 
 		display: flex;
 		flex-direction: column;
-		justify-content: center;
 		align-items: center;
 		text-align: center;
-		gap: 3rem;
+		gap: 2rem;
 
 		header {
 			h1 {

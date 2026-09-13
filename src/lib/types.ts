@@ -147,6 +147,56 @@ export type UnreadPartnerView = {
 	newestAt: Date;
 };
 
+export type RewardHistoryView = {
+	id: string;
+	rewardTitle: string;
+	rewardDescription: string | null;
+	rewardCost: number;
+	createdAt: Date;
+};
+
+export type SelfRewardView = {
+	id: string;
+	title: string;
+	description: string | null;
+	cost: number;
+	active: boolean;
+	canClaim: boolean;
+	createdAt: Date;
+	updatedAt: Date;
+};
+
+export type PartnershipRewardView = {
+	id: string;
+	title: string;
+	description: string | null;
+	cost: number;
+	active: boolean;
+	createdByMe: boolean;
+	canClaim: boolean;
+	createdAt: Date;
+	updatedAt: Date;
+};
+
+export type PartnershipRewardClaimView = RewardHistoryView & {
+	mine: boolean;
+	createdByMe: boolean;
+};
+
+export type SelfRewardsSectionView = {
+	credits: number;
+	rewards: SelfRewardView[];
+	claims: RewardHistoryView[];
+};
+
+export type HomePartnerRewardsSectionView = {
+	partnershipId: string;
+	name: string;
+	image: string | null;
+	credits: number;
+	rewards: PartnershipRewardView[];
+};
+
 /**
  * A partner asking to have the shared history re-encrypted to a new key.
  *
