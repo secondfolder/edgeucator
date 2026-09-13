@@ -1,4 +1,4 @@
-import { expect, test } from '@playwright/test';
+import { expect, test } from './fixtures';
 import { THREAD_ICON_LABELS } from '../src/lib/messaging';
 import {
 	clickWaButton,

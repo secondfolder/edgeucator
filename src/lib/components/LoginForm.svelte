@@ -4,7 +4,13 @@
 	import { resolve } from '$app/paths';
 	import { authClient } from '$lib/auth-client';
 	import { MASTER_KEY_VERSIONS } from '$lib/encryption';
-	import { deriveAuthSecret, deriveMasterKey, deriveWrapKey } from '$lib/crypto/kdf';
+	import {
+		deriveAuthSecret,
+		deriveMasterKey,
+		deriveWrapKey,
+		WEBCRYPTO_UNAVAILABLE,
+		webCryptoAvailable
+	} from '$lib/crypto/kdf';
 	import { stashUnlock } from '$lib/crypto/stash';
 	import type { LoginFormSchema } from '$lib/schemas/loginForm';
 	import type { Infer, SuperValidated } from 'sveltekit-superforms';
@@ -68,6 +74,15 @@
 		 * fail loudly if this ever stops working.
 		 */
 		async onSubmit({ formData, cancel }) {
+			// Checked before anything is derived so the message can name the real
+			// problem — an insecure page — rather than surfacing as the generic
+			// "try a different browser" catch below. Plain http on anything but
+			// localhost leaves `crypto.subtle` undefined (see kdf.ts).
+			if (!webCryptoAvailable()) {
+				cancel();
+				cryptoError = WEBCRYPTO_UNAVAILABLE;
+				return;
+			}
 			cryptoError = null;
 			deriving = true;
 			try {

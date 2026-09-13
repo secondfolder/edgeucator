@@ -24,6 +24,23 @@
 	const { value, errors, constraints } = formFieldProxy(superform, field);
 
 	/**
+	 * `pattern` is stripped before the constraints reach the element.
+	 *
+	 * Zod's `z.email()` default regex arrives here as superforms' `pattern`
+	 * constraint, and Chromium compiles pattern attributes with the `v` flag —
+	 * under which that regex is invalid ("invalid character in class"), so the
+	 * browser logged an error and ignored the constraint on every login and
+	 * signup page load. Nothing is lost by dropping it: `type="email"` does the
+	 * native check and the server action re-validates with Zod, which is the
+	 * authoritative gate anyway.
+	 */
+	const attributes = $derived.by(() => {
+		const rest = { ...$constraints };
+		delete rest.pattern;
+		return rest;
+	});
+
+	/**
 	 * The field is rendered FROM `$value` and writes back to it on input.
 	 *
 	 * Without this the input had no `value` at all: fine for login and signup,
@@ -59,7 +76,7 @@
 			oninput={onInput}
 			password-toggle
 			aria-invalid={$errors ? 'true' : undefined}
-			{...$constraints}
+			{...attributes}
 			{...otherProps}
 		></wa-input>
 	{:else if type === 'email' || type === 'text'}
@@ -70,7 +87,7 @@
 			value={displayValue}
 			oninput={onInput}
 			aria-invalid={$errors ? 'true' : undefined}
-			{...$constraints}
+			{...attributes}
 			{...otherProps}
 		></wa-input>
 	{:else}

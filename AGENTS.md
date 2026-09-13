@@ -431,6 +431,16 @@ underneath it leaves every write failing with `SQLITE_READONLY_DBMOVED`).
 
 Notes that cost a debugging round each:
 
+- Every spec imports `test` from `./fixtures`, not `@playwright/test`. The
+  fixture wraps `browser` so every page — including contexts the specs create
+  by hand — fails the run on browser-engine errors: console messages at
+  `error` level (minus Chromium's "Failed to load resource" network log, which
+  specs intentionally provoke) and uncaught `pageerror`s. This is the only net
+  for errors no assertion can see, like an invalid `pattern` attribute
+  (Chromium compiles those with the `v` flag; Zod's `z.email()` regex is not
+  valid under it, which is why `InputField.svelte` strips `pattern` from
+  superforms' constraints before spreading them).
+
 - Web Awesome text inputs are custom elements whose editable `<input>` is in a
   shadow root. Fill them as `wa-input[name=x] input`, which Playwright's
   selector engine reaches.
@@ -518,10 +528,10 @@ Four places, split on scope:
   rule, a new import boundary, a new directory with rules of its own. A rule
   that applies to one feature belongs in that feature's doc instead.
 
-**Historical plans.** When a substantial plan is finished, copy the exact plan into 
+**Historical plans.** When a substantial plan is finished, copy the exact plan into
 `docs/historical-plans/`, filename led by the implementation date as
 `YYYY-MM-DD-`, so the directory sorts chronologically. Post-implementations to these
-plans should generally be avoided as they are intended to be frozen records of what 
+plans should generally be avoided as they are intended to be frozen records of what
 was intended at a moment: never cite one as current behaviour, and never
 update one as the code moves on. If one has to be edited because it is actively
 misleading someone, mark the edit inline as post-implementation, dated, with who

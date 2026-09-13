@@ -13,7 +13,12 @@
 	} from '$lib/crypto/session.svelte';
 	import UnlockForm from '$lib/components/UnlockForm.svelte';
 	import { stashUnlock } from '$lib/crypto/stash';
-	import { deriveMasterKey, deriveWrapKey } from '$lib/crypto/kdf';
+	import {
+		deriveMasterKey,
+		deriveWrapKey,
+		webCryptoAvailable,
+		WEBCRYPTO_UNAVAILABLE
+	} from '$lib/crypto/kdf';
 	import { MASTER_KEY_VERSIONS } from '$lib/encryption';
 	import type { PageData } from './$types';
 
@@ -51,6 +56,15 @@
 		async onSubmit({ formData, cancel }) {
 			setupError = undefined;
 			setupConfirmError = undefined;
+
+			// crypto.subtle is undefined off secure contexts (plain http on anything
+			// but localhost — see kdf.ts), and the generic catch below would blame
+			// the browser rather than the page's scheme.
+			if (!webCryptoAvailable()) {
+				cancel();
+				setupError = [WEBCRYPTO_UNAVAILABLE];
+				return;
+			}
 
 			// `hasPassword` means the user is confirming an existing password rather
 			// than choosing one, so there is nothing to confirm twice and no
@@ -116,6 +130,13 @@
 		async onSubmit({ formData, cancel }) {
 			changeError = undefined;
 			changeConfirmError = undefined;
+
+			// Same check as setup above, same reason.
+			if (!webCryptoAvailable()) {
+				cancel();
+				changeError = [WEBCRYPTO_UNAVAILABLE];
+				return;
+			}
 
 			const strength = scorePassword(newPassword);
 			if (!strength.acceptable) {

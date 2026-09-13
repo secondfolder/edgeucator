@@ -52,6 +52,20 @@ export type MasterKey = {
 const encoder = new TextEncoder();
 
 /**
+ * `crypto.subtle` exists only in secure contexts: https, or http on localhost.
+ * The dev tunnel host is plain http, so a page loaded through it has no
+ * WebCrypto and every derivation below dies with the cryptic
+ * "can't access property 'importKey', crypto.subtle is undefined". The forms
+ * check this before they start and show `WEBCRYPTO_UNAVAILABLE` instead.
+ */
+export function webCryptoAvailable(): boolean {
+	return typeof crypto !== 'undefined' && crypto.subtle != null;
+}
+
+export const WEBCRYPTO_UNAVAILABLE =
+	'This page was loaded over plain http, so the browser has withheld WebCrypto — and the sign-in keys are derived here, in your browser. Open the app on https, or on http://localhost, and try again.';
+
+/**
  * PBKDF2 over the password, then re-imported as an HKDF key.
  *
  * Two steps rather than one `deriveKey` because WebCrypto will not derive
@@ -67,6 +81,8 @@ export async function deriveMasterKey(
 	email: string,
 	params: MasterKeyParams = MASTER_KEY_VERSIONS[0]
 ): Promise<MasterKey> {
+	if (!webCryptoAvailable()) throw new Error(WEBCRYPTO_UNAVAILABLE);
+
 	const base = await crypto.subtle.importKey('raw', encoder.encode(password), 'PBKDF2', false, [
 		'deriveBits'
 	]);

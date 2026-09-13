@@ -3,7 +3,13 @@
 	import type { SuperValidated, Infer } from 'sveltekit-superforms';
 	import { superForm } from 'sveltekit-superforms';
 	import { MASTER_KEY_VERSIONS } from '$lib/encryption';
-	import { deriveAuthSecret, deriveMasterKey, deriveWrapKey } from '$lib/crypto/kdf';
+	import {
+		deriveAuthSecret,
+		deriveMasterKey,
+		deriveWrapKey,
+		WEBCRYPTO_UNAVAILABLE,
+		webCryptoAvailable
+	} from '$lib/crypto/kdf';
 	import { generateAgeIdentity } from '$lib/crypto/identity';
 	import { wrapIdentity } from '$lib/crypto/wrap';
 	import { stashUnlock } from '$lib/crypto/stash';
@@ -68,6 +74,16 @@
 			passwordError = undefined;
 			confirmError = undefined;
 			cryptoError = null;
+
+			// Before any of the crypto below runs, so an insecure page gets the
+			// message that names the problem rather than the generic catch's
+			// "try a different browser". crypto.subtle is undefined off secure
+			// contexts (plain http on anything but localhost) — see kdf.ts.
+			if (!webCryptoAvailable()) {
+				cancel();
+				cryptoError = WEBCRYPTO_UNAVAILABLE;
+				return;
+			}
 
 			const strength = scorePassword(password);
 			if (!strength.acceptable) {
