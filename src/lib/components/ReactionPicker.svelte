@@ -42,7 +42,9 @@
 	aria-expanded={open}
 	onclick={() => (open = !open)}
 >
-	{current ?? '☺'}
+	<!-- Always the same smiley, never the chosen emoji: the reaction itself is
+	     already shown under the message, so echoing it here duplicated it. -->
+	☺
 </button>
 
 {#if open}
@@ -91,10 +93,11 @@
 			border: none;
 			background: none;
 			cursor: pointer;
-			font-size: 1.125rem;
+			font-size: 2rem;
 			line-height: 1;
 			padding: 0.125rem 0.25rem;
 			border-radius: 0.75rem;
+			height: 1.2em;
 
 			&.chosen {
 				background: var(--wa-color-brand-fill-quiet, rgb(0 0 0 / 8%));

@@ -40,6 +40,13 @@
 			flex: 1 1 auto;
 			min-height: 0;
 			overflow-y: auto;
+			/* Flex column so a page's `flex: 1 1 auto` root actually stretches to
+		   fill the pane — without it the root is a plain block of content height,
+		   and a short thread left the composer footer part-way up the screen
+		   instead of pinned above AppNav. Every (app) page has a single root
+		   element, which is what makes this safe. */
+			display: flex;
+			flex-direction: column;
 			/* Momentum scrolling inside the pane, not rubber-banding of the page. */
 			overscroll-behavior: contain;
 		}

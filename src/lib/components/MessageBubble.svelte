@@ -96,6 +96,11 @@
 				background: var(--wa-color-brand-fill-loud, #2563eb);
 				color: var(--wa-color-brand-on-loud, white);
 				border-end-end-radius: 0.25rem;
+
+				.reactions {
+					inset-inline-start: unset;
+					inset-inline-end: 0.5rem;
+				}
 			}
 		}
 
@@ -108,61 +113,72 @@
 				border-end-start-radius: 0.25rem;
 			}
 		}
-	}
+		.bubble {
+			position: relative;
+			padding: 0.5rem 0.75rem;
+			border-radius: 1rem;
+			display: flex;
+			flex-direction: column;
+			gap: 0.375rem;
 
-	.bubble {
-		position: relative;
-		padding: 0.5rem 0.75rem;
-		border-radius: 1rem;
-		display: flex;
-		flex-direction: column;
-		gap: 0.375rem;
+			&:has(.reactions) {
+				margin-block-end: 0.5rem;
+			}
 
-		.text {
+			&:not(:has(.text)) {
+				padding: 0;
+			}
+
+			.text {
+				margin: 0;
+				/* Preserves the newlines the sender typed without collapsing runs of
+                   spaces into nothing, and wraps long words rather than overflowing. */
+				white-space: pre-wrap;
+				overflow-wrap: anywhere;
+			}
+
+			.pending {
+				letter-spacing: 0.15em;
+				opacity: 0.6;
+			}
+
+			.unreadable {
+				font-size: 0.8125rem;
+				font-style: italic;
+				opacity: 0.85;
+			}
+		}
+
+		.reactions {
+			list-style: none;
 			margin: 0;
-			/* Preserves the newlines the sender typed without collapsing runs of
-			   spaces into nothing, and wraps long words rather than overflowing. */
-			white-space: pre-wrap;
-			overflow-wrap: anywhere;
-		}
-
-		.pending {
-			letter-spacing: 0.15em;
-			opacity: 0.6;
-		}
-
-		.unreadable {
+			padding: 0;
+			display: flex;
+			gap: 0.125rem;
+			/* Half-overlapping the bubble's bottom edge, the way a tapback sits.
+               Absolute inside a relative bubble — not against the viewport, which
+               would not work in this shell. */
+			position: absolute;
+			inset-block-end: -0.75rem;
+			inset-inline-start: 0.5rem;
+			background: var(--wa-color-surface-default, white);
+			border-radius: 1rem;
+			padding: 0.0625rem 0.25rem;
+			box-shadow: 0 1px 3px rgb(0 0 0 / 15%);
 			font-size: 0.8125rem;
-			font-style: italic;
-			opacity: 0.85;
+
+			li {
+				margin: 0;
+			}
 		}
-	}
 
-	.reactions {
-		list-style: none;
-		margin: 0;
-		padding: 0;
-		display: flex;
-		gap: 0.125rem;
-		/* Half-overlapping the bubble's bottom edge, the way a tapback sits.
-		   Absolute inside a relative bubble — not against the viewport, which
-		   would not work in this shell. */
-		position: absolute;
-		inset-block-end: -0.75rem;
-		inset-inline-start: 0.5rem;
-		background: var(--wa-color-surface-default, white);
-		border-radius: 1rem;
-		padding: 0.0625rem 0.25rem;
-		box-shadow: 0 1px 3px rgb(0 0 0 / 15%);
-		font-size: 0.8125rem;
-	}
-
-	.meta {
-		display: flex;
-		align-items: center;
-		gap: 0.375rem;
-		font-size: 0.6875rem;
-		color: var(--wa-color-text-quiet);
-		min-block-size: 1.25rem;
+		.meta {
+			display: flex;
+			align-items: center;
+			gap: 0.375rem;
+			font-size: 0.6875rem;
+			color: var(--wa-color-text-quiet);
+			min-block-size: 1.25rem;
+		}
 	}
 </style>

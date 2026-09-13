@@ -54,6 +54,26 @@
 		return () => element.removeEventListener('input', onInput);
 	});
 
+	/**
+	 * Enter sends, Shift+Enter inserts a newline.
+	 *
+	 * Attached by hand for the same reason as the input listener above: keydown
+	 * is one of Svelte's delegated events, and delegation does not cross the
+	 * custom element's shadow boundary. `isComposing` guards the IME case where
+	 * Enter confirms a candidate rather than meaning "send".
+	 */
+	$effect(() => {
+		const element = textarea;
+		if (!element) return;
+		const onKeydown = (event: KeyboardEvent) => {
+			if (event.key !== 'Enter' || event.shiftKey || event.isComposing) return;
+			event.preventDefault();
+			void submit();
+		};
+		element.addEventListener('keydown', onKeydown);
+		return () => element.removeEventListener('keydown', onKeydown);
+	});
+
 	const nothingToSend = $derived(text.trim().length === 0 && files.length === 0);
 
 	function onPick(event: Event) {
@@ -136,11 +156,6 @@
 
 	<div class="row">
 		<!--
-			Enter inserts a newline and the button sends: a sext is multi-line
-			prose more often than it is a chat line, so Enter-to-send would cut
-			people off mid-thought.
-		-->
-		<!--
 			`value` is set only as the initial/reset value; the element owns it from
 			then on — see the effect above for why the handler is imperative.
 
@@ -151,27 +166,36 @@
 			dead — which presented as the send button never enabling, nowhere near
 			the actual cause.
 		-->
-		<wa-textarea
-			bind:this={textarea}
-			name="text"
-			label={placeholder}
-			{placeholder}
-			resize="auto"
-			rows="1"
-			maxlength={MAX_BODY_CHARS}
-			value={text}
-		></wa-textarea>
+		<!--
+			The attach control and the textarea share a positioned `.field` box so the
+			button can sit INSIDE the input, at its inline-end and block-end: visually
+			centred on a one-line box and pinned to the bottom as `resize="auto"`
+			grows it. Text never runs under the button because the inner textarea's
+			inline-end padding (below) reserves the button's width.
+		-->
+		<div class="field">
+			<wa-textarea
+				bind:this={textarea}
+				name="text"
+				aria-label={placeholder}
+				{placeholder}
+				resize="auto"
+				rows="1"
+				maxlength={MAX_BODY_CHARS}
+				value={text}
+			></wa-textarea>
 
-		<label class="attach" aria-label="Attach a photo or video">
-			<wa-icon name="paperclip" variant="solid"></wa-icon>
-			<input
-				bind:this={fileInput}
-				type="file"
-				accept="image/*,video/*"
-				multiple
-				onchange={onPick}
-			/>
-		</label>
+			<label class="attach" aria-label="Attach a photo or video">
+				<wa-icon name="image" variant="solid"></wa-icon>
+				<input
+					bind:this={fileInput}
+					type="file"
+					accept="image/*,video/*"
+					multiple
+					onchange={onPick}
+				/>
+			</label>
+		</div>
 
 		<!-- disabled={...}, never `... || undefined` — invariant 11. -->
 		<wa-button variant="brand" disabled={sending || nothingToSend} onclick={submit}>
@@ -192,22 +216,41 @@
 		align-items: flex-end;
 		gap: 0.5rem;
 
-		wa-textarea {
-			flex: 1 1 auto;
-			min-inline-size: 0;
-		}
-
 		wa-button {
 			/* Stops iOS turning a double tap on the send button into a zoom. */
 			touch-action: manipulation;
 		}
 	}
 
+	.field {
+		position: relative;
+		flex: 1 1 auto;
+		min-inline-size: 0;
+		display: flex;
+
+		wa-textarea {
+			flex: 1 1 auto;
+			min-inline-size: 0;
+		}
+
+		/* Reserves the attach button's width inside the control, so wrapped
+		   lines stop short of the button instead of running under it. */
+		wa-textarea::part(textarea) {
+			padding-inline-end: 2.375rem;
+		}
+	}
+
 	.attach {
+		/* Inside `.field`'s box, over the textarea: bottom-anchored, so it is
+		   vertically centred on a one-line box and stays at the bottom as the
+		   textarea grows. 2rem + 2×0.25rem fits inside a one-line control. */
+		position: absolute;
+		inset-block-end: 0.3rem;
+		inset-inline-end: 0.3rem;
 		display: grid;
 		place-items: center;
-		inline-size: 2.5rem;
-		block-size: 2.5rem;
+		inline-size: 2rem;
+		block-size: 2rem;
 		border-radius: 50%;
 		cursor: pointer;
 		color: var(--wa-color-text-quiet);
