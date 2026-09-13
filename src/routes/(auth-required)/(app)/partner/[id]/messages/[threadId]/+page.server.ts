@@ -1,6 +1,11 @@
 import { error } from '@sveltejs/kit';
 import { getRecipientsForPartnership } from '$lib/server/keys';
-import { getThread, markThreadOpened, requireThreadMembership } from '$lib/server/messaging';
+import {
+	getThread,
+	listTags,
+	markThreadOpened,
+	requireThreadMembership
+} from '$lib/server/messaging';
 import type { PageServerLoad } from './$types';
 
 export const load: PageServerLoad = async ({ locals, params, depends }) => {
@@ -18,9 +23,10 @@ export const load: PageServerLoad = async ({ locals, params, depends }) => {
 
 	depends(`messages:thread:${params.threadId}`);
 
-	const [thread, recipients] = await Promise.all([
+	const [thread, recipients, tags] = await Promise.all([
 		getThread(locals.db, params.threadId, membership.icon, locals.user.id),
-		getRecipientsForPartnership(locals.db, params.id, locals.user.id)
+		getRecipientsForPartnership(locals.db, params.id, locals.user.id),
+		listTags(locals.db, params.id, locals.user.id)
 	]);
 
 	/**
@@ -45,6 +51,7 @@ export const load: PageServerLoad = async ({ locals, params, depends }) => {
 			name: membership.partnership.partnerName
 		},
 		thread,
+		tags: tags ?? [],
 		recipients: recipients ?? { mine: null, theirs: null }
 	};
 };

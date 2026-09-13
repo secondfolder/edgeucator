@@ -473,6 +473,46 @@ export const messageThreads = sqliteTable(
 	]
 );
 
+/** A reusable, partnership-scoped label for message threads. */
+export const messageTags = sqliteTable(
+	'message_tags',
+	{
+		id: text('id')
+			.primaryKey()
+			.$defaultFn(() => crypto.randomUUID()),
+		partnershipId: text('partnership_id')
+			.notNull()
+			.references(() => partnerships.id, { onDelete: 'cascade' }),
+		name: text('name').notNull(),
+		color: text('color').notNull(),
+		...timestamps
+	},
+	(table) => [
+		uniqueIndex('message_tags_partnership_name_unq').on(table.partnershipId, table.name),
+		index('message_tags_partnership_idx').on(table.partnershipId)
+	]
+);
+
+/** Many-to-many assignment so a thread can carry several reusable tags. */
+export const messageThreadTags = sqliteTable(
+	'message_thread_tags',
+	{
+		threadId: text('thread_id')
+			.notNull()
+			.references(() => messageThreads.id, { onDelete: 'cascade' }),
+		tagId: text('tag_id')
+			.notNull()
+			.references(() => messageTags.id, { onDelete: 'cascade' })
+	},
+	(table) => [
+		uniqueIndex('message_thread_tags_thread_tag_unq').on(table.threadId, table.tagId),
+		index('message_thread_tags_tag_idx').on(table.tagId)
+	]
+);
+
+export type MessageTag = typeof messageTags.$inferSelect;
+export type NewMessageTag = typeof messageTags.$inferInsert;
+
 /**
  * One message. `ciphertext` is base64 of an age-encrypted body, and the server
  * learns nothing from it — not even the plaintext's length, beyond a bound.

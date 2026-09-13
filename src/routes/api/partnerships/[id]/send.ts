@@ -102,6 +102,7 @@ export function sendFailureStatus(reason: SendFailure): number {
 			// would confirm the id is real.
 			return 404;
 		case 'bad-icon':
+		case 'no-such-tag':
 		case 'duplicate-attachment':
 			return 400;
 		default:

@@ -5,13 +5,15 @@
 	import { currentKeyring } from '$lib/crypto/session.svelte';
 	import { buildReaction, openMessage, openReaction, sendMessage } from '$lib/messaging/client';
 	import type { MessagePayload } from '$lib/crypto/messages';
-	import type { MessageView, PartnerRecipientsView, ThreadView } from '$lib/types';
+	import type { MessageView, PartnerRecipientsView, TagView, ThreadView } from '$lib/types';
 	import MessageBubble from './MessageBubble.svelte';
 	import MessageComposer from './MessageComposer.svelte';
+	import TagPicker from './TagPicker.svelte';
 
 	let {
 		thread,
 		partnershipId,
+		tags = [],
 		recipients,
 		/**
 		 * False while this device distrusts one of the two keys.
@@ -25,11 +27,16 @@
 	}: {
 		thread: ThreadView;
 		partnershipId: string;
+		tags?: TagView[];
 		recipients: PartnerRecipientsView;
 		canSend?: boolean;
 	} = $props();
 
 	const keyring = $derived(currentKeyring());
+	// Selection is the live control state; re-deriving it on every thread refresh
+	// would undo a tag click while the assignment request is in flight.
+	// svelte-ignore state_referenced_locally
+	let selectedTagIds = $state(thread.tags?.map((tag) => tag.id) ?? []);
 
 	/**
 	 * Decrypted bodies, by message id.
@@ -126,6 +133,9 @@
 </script>
 
 <div class="thread">
+	<div class="thread-tags">
+		<TagPicker {partnershipId} {tags} threadId={thread.id} bind:selectedIds={selectedTagIds} />
+	</div>
 	<ul bind:this={listElement} class="messages">
 		{#each thread.messages as message (message.id)}
 			<MessageBubble
@@ -173,6 +183,10 @@
 		flex-direction: column;
 		gap: 0.625rem;
 		flex: 1 1 auto;
+	}
+
+	.thread-tags {
+		padding: var(--wa-space-s) var(--wa-space-m) 0;
 	}
 
 	footer {

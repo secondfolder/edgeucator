@@ -83,9 +83,12 @@
 		)
 	);
 
-	async function send(message: { text: string; files: File[] }): Promise<string | null> {
+	async function send(
+		message: { text: string; files: File[] },
+		tagIds: string[] = []
+	): Promise<string | null> {
 		const outcome = await sendMessage(
-			{ kind: 'new-thread', partnershipId: data.partner.id },
+			{ kind: 'new-thread', partnershipId: data.partner.id, tagIds },
 			message,
 			targets
 		);
@@ -196,6 +199,8 @@
 			{#if data.recipients.theirs !== null && canSend && composing}
 				<NewMessageDialog
 					partnerName={data.partner.name}
+					partnershipId={data.partner.id}
+					tags={data.tags}
 					{send}
 					close={() => (composing = false)}
 				/>

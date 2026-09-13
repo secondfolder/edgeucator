@@ -41,6 +41,8 @@ full-page loading wall.
 | `messages`                 | One message. `ciphertext` and nothing else about the content.    |
 | `message_attachments`      | An encrypted file in the object store. Size and key only.        |
 | `message_reactions`        | One tapback per user per message. Encrypted.                     |
+| `message_tags`             | A reusable name and color scoped to one partnership.             |
+| `message_thread_tags`      | The many-to-many assignment between threads and tags.            |
 | `thread_reads`             | Per-user read state for one thread.                              |
 | `history_restore_requests` | A partner asking to have the history re-encrypted.               |
 
@@ -62,6 +64,16 @@ The closed list is the load-bearing part. A free-text plaintext column reachable
 from the network would be a covert channel for arbitrary prose, so `isThreadIcon`
 is checked in `server/messaging.ts` as well as in the endpoint's Zod schema —
 AGENTS.md invariant 14.
+
+**Tags are an intentional plaintext exception.** A tag is reusable metadata for
+finding and filtering threads later, so its name and color live in
+`message_tags`, not in an encrypted message body. Tags are scoped by
+`partnership_id`; the same name in two partnerships is two independent tags.
+Names may contain spaces and emoji, are limited to 80 characters, and are unique
+within their partnership. A random color is assigned when a tag is created, and
+renaming or recoloring the tag updates every thread that uses it. The join table
+keeps assignment separate from the definition so future tag filtering can query
+threads without changing message rows.
 
 **Reactions are encrypted.** The deliberate contrast with the icon, and what
 makes both calls defensible: a reaction only ever renders inside a thread that
@@ -219,6 +231,7 @@ plainly, because the framing of this feature invites the assumption that it does
 - That a partnership exchanges messages at all, and how many threads.
 - Exactly when every thread started and every message was sent.
 - Which side sent each message.
+- The names and colors of the tags used by threads.
 - How many attachments each message has, and **each one's exact byte size** — so
   approximate media sizes.
 - When each side opened each thread, and when they last read it.
@@ -237,6 +250,9 @@ reaction, and anything that would let it read or forge any of them.
 | `/home`                             | A link per partner with something waiting.                                  |
 | `api/partnerships/[id]/threads`     | `POST` multipart: a thread and its first message.                           |
 | `.../threads/[threadId]/messages`   | `POST` multipart: a reply.                                                  |
+| `api/partnerships/[id]/tags`        | `GET` / `POST`: list or create partnership-scoped tags.                     |
+| `.../tags/[tagId]`                  | `PATCH`: rename or recolor a tag.                                           |
+| `.../threads/[threadId]/tags`       | `PUT`: replace the thread's tag assignments.                                |
 | `.../messages/[messageId]/reaction` | `PUT` / `DELETE`.                                                           |
 | `.../attachments/[attachmentId]`    | `GET`, streams ciphertext.                                                  |
 | `.../ack-warning`                   | `POST`, the one-time warning acknowledgement.                               |

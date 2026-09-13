@@ -32,6 +32,19 @@ export const POST: RequestHandler = async (event) => {
 		ciphertext: form.get('ciphertext')
 	});
 	if (!parsed.success) error(400, parsed.error.issues[0]?.message ?? 'Malformed message');
+	const rawTagIds = form.get('tagIds');
+	let tagIds: string[] = [];
+	if (rawTagIds !== null) {
+		try {
+			const parsedTagIds: unknown = JSON.parse(String(rawTagIds));
+			if (!Array.isArray(parsedTagIds) || !parsedTagIds.every((id) => typeof id === 'string')) {
+				error(400, 'Malformed tag ids');
+			}
+			tagIds = parsedTagIds;
+		} catch {
+			error(400, 'Malformed tag ids');
+		}
+	}
 
 	const store = await createMediaStore({ platform });
 	const result = await startThread(locals.db, store, {
@@ -39,7 +52,8 @@ export const POST: RequestHandler = async (event) => {
 		senderId: locals.user.id,
 		icon: parsed.data.icon,
 		ciphertext: parsed.data.ciphertext,
-		attachments
+		attachments,
+		tagIds
 	});
 
 	if (!result.ok) error(sendFailureStatus(result.reason), result.reason);

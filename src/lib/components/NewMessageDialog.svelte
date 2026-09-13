@@ -1,15 +1,27 @@
 <script lang="ts">
+	import type { TagView } from '$lib/types';
 	import MessageComposer from './MessageComposer.svelte';
+	import TagPicker from './TagPicker.svelte';
 
 	let {
 		partnerName,
+		partnershipId,
 		send,
-		close
+		close,
+		tags
 	}: {
 		partnerName: string;
-		send: (message: { text: string; files: File[] }) => Promise<string | null>;
+		partnershipId: string;
+		send: (message: { text: string; files: File[] }, tagIds: string[]) => Promise<string | null>;
 		close: () => void;
+		tags: TagView[];
 	} = $props();
+
+	let selectedTagIds = $state<string[]>([]);
+
+	function sendWithTags(message: { text: string; files: File[] }) {
+		return send(message, selectedTagIds);
+	}
 </script>
 
 <wa-dialog
@@ -20,6 +32,7 @@
 	onwa-after-hide={close}
 >
 	<div class="composer">
+		<TagPicker {partnershipId} {tags} bind:selectedIds={selectedTagIds} />
 		<!--
 		No autofocus. `<wa-textarea autofocus>` reaches for its inner textarea
 		before the shadow root exists and throws "Cannot read properties of null
@@ -29,7 +42,7 @@
 		effect. The composer appears on a tap, so the user is already looking at
 		it.
 	-->
-		<MessageComposer {send} {close} placeholder={`Message to ${partnerName}`} />
+		<MessageComposer send={sendWithTags} {close} placeholder={`Message to ${partnerName}`} />
 	</div>
 </wa-dialog>
 

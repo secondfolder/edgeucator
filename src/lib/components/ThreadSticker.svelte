@@ -267,6 +267,14 @@
 				{#if opened}<span>{opened}</span>{/if}
 			</div>
 
+			{#if thread.tags?.length}
+				<div class="tags" aria-label="Tags">
+					{#each thread.tags as tag (tag.id)}
+						<span class="tag" style={`--tag-color: ${tag.color}`}>{tag.name}</span>
+					{/each}
+				</div>
+			{/if}
+
 			{#if thread.unread && thread.lastFullyReadAt !== null}
 				<span class="dot" aria-hidden="true"></span>
 			{/if}
@@ -467,6 +475,24 @@
 			font-size: 0.68rem;
 			line-height: 1.3;
 			text-align: center;
+		}
+
+		.tags {
+			display: flex;
+			flex-wrap: wrap;
+			justify-content: center;
+			gap: 0.25rem;
+		}
+
+		.tag {
+			padding: 0.15rem 0.4rem;
+			border-radius: 999px;
+			background: color-mix(in srgb, var(--tag-color) 18%, var(--wa-color-surface-default, white));
+			border: 1px solid color-mix(in srgb, var(--tag-color) 55%, transparent);
+			color: var(--wa-color-text-normal, #17202a);
+			font-size: 0.65rem;
+			line-height: 1.2;
+			overflow-wrap: anywhere;
 		}
 
 		&.unread {

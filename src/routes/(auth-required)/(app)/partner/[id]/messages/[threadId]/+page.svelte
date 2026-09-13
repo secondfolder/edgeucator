@@ -90,6 +90,7 @@
 		<ThreadView
 			thread={data.thread}
 			partnershipId={data.partner.id}
+			tags={data.tags}
 			recipients={data.recipients}
 			{canSend}
 		/>
@@ -105,6 +106,7 @@
 		<ThreadView
 			thread={data.thread}
 			partnershipId={data.partner.id}
+			tags={data.tags}
 			recipients={data.recipients}
 			{canSend}
 		/>

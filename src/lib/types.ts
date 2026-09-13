@@ -102,6 +102,7 @@ export type PartnerRecipientsView = {
 export type ThreadStickerView = {
 	id: string;
 	icon: ThreadIcon;
+	tags?: TagView[];
 	unread: boolean;
 	lastMessageAt: Date;
 	/** Null for a thread this viewer has never read up to its current latest message. */
@@ -109,6 +110,12 @@ export type ThreadStickerView = {
 	messageCount: number;
 	/** The thread's first message, used for the board preview once unlocked. */
 	previewCiphertext: string;
+};
+
+export type TagView = {
+	id: string;
+	name: string;
+	color: string;
 };
 
 /** An attachment, as much of it as the server knows: an id and a size. */
@@ -137,6 +144,7 @@ export type MessageView = {
 export type ThreadView = {
 	id: string;
 	icon: ThreadIcon;
+	tags?: TagView[];
 	messages: MessageView[];
 };
 

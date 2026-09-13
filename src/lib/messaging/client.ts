@@ -116,7 +116,7 @@ async function buildBody(message: ComposedMessage, recipients: string[]): Promis
 }
 
 export type SendTarget =
-	| { kind: 'new-thread'; partnershipId: string }
+	| { kind: 'new-thread'; partnershipId: string; tagIds?: string[] }
 	| { kind: 'reply'; partnershipId: string; threadId: string };
 
 export type SendOutcome =
@@ -140,7 +140,10 @@ export async function sendMessage(
 	}
 
 	const body = await buildBody(message, recipients);
-	if (target.kind === 'new-thread') body.set('icon', DEFAULT_THREAD_ICON);
+	if (target.kind === 'new-thread') {
+		body.set('icon', DEFAULT_THREAD_ICON);
+		body.set('tagIds', JSON.stringify(target.tagIds ?? []));
+	}
 
 	const response = await fetch(endpointFor(target), { method: 'POST', body });
 	if (!response.ok) {

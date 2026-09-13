@@ -4,6 +4,8 @@ import {
 	historyRestoreRequests,
 	messageAttachments,
 	messageReactions,
+	messageTags,
+	messageThreadTags,
 	messageThreads,
 	messages,
 	threadReads
@@ -28,7 +30,7 @@ import type {
 	UnreadPartnerView,
 	RestoreRequestView
 } from '../types';
-import type { PartnerView } from '../types';
+import type { PartnerView, TagView } from '../types';
 
 /**
  * Every database access for messaging.
@@ -205,10 +207,31 @@ export async function listBoard(
 			asc(messageThreads.id)
 		)
 		.limit(BOARD_LIMIT);
+	const threadIds = rows.map((row) => row.id);
+	const tagRows = threadIds.length
+		? await db
+				.select({
+					threadId: messageThreadTags.threadId,
+					id: messageTags.id,
+					name: messageTags.name,
+					color: messageTags.color
+				})
+				.from(messageThreadTags)
+				.innerJoin(messageTags, eq(messageTags.id, messageThreadTags.tagId))
+				.where(inArray(messageThreadTags.threadId, threadIds))
+				.orderBy(asc(messageTags.createdAt), asc(messageTags.id))
+		: [];
+	const tagsByThread = new Map<string, TagView[]>();
+	for (const tag of tagRows) {
+		const values = tagsByThread.get(tag.threadId) ?? [];
+		values.push({ id: tag.id, name: tag.name, color: tag.color });
+		tagsByThread.set(tag.threadId, values);
+	}
 
 	return rows.map((row) => ({
 		id: row.id,
 		icon: row.icon,
+		tags: tagsByThread.get(row.id) ?? [],
 		// SQLite has no boolean, so this arrives as 0/1. Normalised here so no
 		// component ever receives a number pretending to be a flag.
 		unread: Boolean(row.unread),
@@ -242,7 +265,7 @@ export async function getThread(
 		.orderBy(asc(messages.createdAt), asc(messages.id));
 
 	const ids = rows.map((row) => row.id);
-	const [attachments, reactions] = await Promise.all([
+	const [attachments, reactions, tags] = await Promise.all([
 		ids.length
 			? db
 					.select({
@@ -263,13 +286,20 @@ export async function getThread(
 					})
 					.from(messageReactions)
 					.where(inArray(messageReactions.messageId, ids))
-			: []
+			: [],
+		db
+			.select({ id: messageTags.id, name: messageTags.name, color: messageTags.color })
+			.from(messageThreadTags)
+			.innerJoin(messageTags, eq(messageTags.id, messageThreadTags.tagId))
+			.where(eq(messageThreadTags.threadId, threadId))
+			.orderBy(asc(messageTags.createdAt), asc(messageTags.id))
 	]);
 
 	const byMessage = new Map<string, MessageView>();
 	const view: ThreadView = {
 		id: threadId,
 		icon,
+		tags: tags.map((tag) => ({ id: tag.id, name: tag.name, color: tag.color })),
 		messages: rows.map((row) => {
 			const message: MessageView = {
 				id: row.id,
@@ -415,6 +445,7 @@ export type OutgoingAttachment = {
 export type SendFailure =
 	| 'not-a-member'
 	| 'no-such-thread'
+	| 'no-such-tag'
 	| 'bad-icon'
 	| 'body-too-large'
 	| 'too-many-attachments'
@@ -492,6 +523,128 @@ function markSenderRead(db: Db, threadId: string, senderId: string, now: Date) {
 		});
 }
 
+const TAG_COLORS = ['#d95f59', '#d98c3f', '#c5a33d', '#55a36b', '#3f9caa', '#5d7fc2', '#8b67b5'];
+
+function validTagName(name: string): string | null {
+	const value = name.trim();
+	return value.length > 0 && value.length <= 80 ? value : null;
+}
+
+function validTagColor(color: string): boolean {
+	return /^#[0-9a-f]{6}$/i.test(color);
+}
+
+async function tagRowsForPartnership(db: Db, partnershipId: string, tagIds: string[]) {
+	const uniqueIds = [...new Set(tagIds)];
+	if (uniqueIds.length === 0) return [];
+	const rows = await db
+		.select({ id: messageTags.id })
+		.from(messageTags)
+		.where(and(eq(messageTags.partnershipId, partnershipId), inArray(messageTags.id, uniqueIds)));
+	return rows.length === uniqueIds.length ? rows : null;
+}
+
+export async function listTags(
+	db: Db,
+	partnershipId: string,
+	userId: string
+): Promise<TagView[] | null> {
+	if (!(await requireMembership(db, partnershipId, userId))) return null;
+	return db
+		.select({ id: messageTags.id, name: messageTags.name, color: messageTags.color })
+		.from(messageTags)
+		.where(eq(messageTags.partnershipId, partnershipId))
+		.orderBy(asc(messageTags.name), asc(messageTags.id));
+}
+
+export type TagMutationResult =
+	| { ok: true; tag: TagView }
+	| {
+			ok: false;
+			reason: 'not-a-member' | 'invalid-name' | 'invalid-color' | 'duplicate-name' | 'no-such-tag';
+	  };
+
+export async function createTag(
+	db: Db,
+	partnershipId: string,
+	userId: string,
+	name: string
+): Promise<TagMutationResult> {
+	if (!(await requireMembership(db, partnershipId, userId)))
+		return { ok: false, reason: 'not-a-member' };
+	const validName = validTagName(name);
+	if (!validName) return { ok: false, reason: 'invalid-name' };
+	const existing = await db
+		.select({ id: messageTags.id })
+		.from(messageTags)
+		.where(and(eq(messageTags.partnershipId, partnershipId), eq(messageTags.name, validName)))
+		.limit(1);
+	if (existing[0]) return { ok: false, reason: 'duplicate-name' };
+	const tag = {
+		id: crypto.randomUUID(),
+		partnershipId,
+		name: validName,
+		color: TAG_COLORS[Math.floor(Math.random() * TAG_COLORS.length)] ?? TAG_COLORS[0]
+	};
+	await db.insert(messageTags).values(tag);
+	return { ok: true, tag: { id: tag.id, name: tag.name, color: tag.color } };
+}
+
+export async function updateTag(
+	db: Db,
+	partnershipId: string,
+	userId: string,
+	tagId: string,
+	input: { name?: string; color?: string }
+): Promise<TagMutationResult> {
+	if (!(await requireMembership(db, partnershipId, userId)))
+		return { ok: false, reason: 'not-a-member' };
+	const current = await db
+		.select({ id: messageTags.id, name: messageTags.name, color: messageTags.color })
+		.from(messageTags)
+		.where(and(eq(messageTags.id, tagId), eq(messageTags.partnershipId, partnershipId)))
+		.limit(1);
+	if (!current[0]) return { ok: false, reason: 'no-such-tag' };
+	const name = input.name === undefined ? current[0].name : validTagName(input.name);
+	const color = input.color ?? current[0].color;
+	if (!name) return { ok: false, reason: 'invalid-name' };
+	if (!validTagColor(color)) return { ok: false, reason: 'invalid-color' };
+	const duplicate = await db
+		.select({ id: messageTags.id })
+		.from(messageTags)
+		.where(
+			and(
+				eq(messageTags.partnershipId, partnershipId),
+				eq(messageTags.name, name),
+				ne(messageTags.id, tagId)
+			)
+		)
+		.limit(1);
+	if (duplicate[0]) return { ok: false, reason: 'duplicate-name' };
+	await db.update(messageTags).set({ name, color }).where(eq(messageTags.id, tagId));
+	return { ok: true, tag: { id: tagId, name, color } };
+}
+
+export async function setThreadTags(
+	db: Db,
+	partnershipId: string,
+	userId: string,
+	threadId: string,
+	tagIds: string[]
+): Promise<
+	{ ok: true } | { ok: false; reason: 'not-a-member' | 'no-such-thread' | 'no-such-tag' }
+> {
+	const membership = await requireThreadMembership(db, partnershipId, threadId, userId);
+	if (!membership) return { ok: false, reason: 'no-such-thread' };
+	const tags = await tagRowsForPartnership(db, partnershipId, tagIds);
+	if (!tags) return { ok: false, reason: 'no-such-tag' };
+	await db.batch([
+		db.delete(messageThreadTags).where(eq(messageThreadTags.threadId, threadId)),
+		...tags.map((tag) => db.insert(messageThreadTags).values({ threadId, tagId: tag.id }))
+	]);
+	return { ok: true };
+}
+
 /** Creates a thread and its first message in one shot. */
 export async function startThread(
 	db: Db,
@@ -502,6 +655,7 @@ export async function startThread(
 		icon: ThreadIcon;
 		ciphertext: string;
 		attachments: OutgoingAttachment[];
+		tagIds?: string[];
 	},
 	now: Date = new Date()
 ): Promise<SendResult> {
@@ -515,6 +669,8 @@ export async function startThread(
 
 	const problem = checkPayload(input.ciphertext, input.attachments);
 	if (problem) return { ok: false, reason: problem };
+	const tags = await tagRowsForPartnership(db, input.partnershipId, input.tagIds ?? []);
+	if (!tags) return { ok: false, reason: 'no-such-tag' };
 
 	const threadId = crypto.randomUUID();
 	const messageId = crypto.randomUUID();
@@ -541,6 +697,7 @@ export async function startThread(
 			createdAt: now
 		}),
 		...attachmentRows.map((row) => db.insert(messageAttachments).values(row)),
+		...tags.map((tag) => db.insert(messageThreadTags).values({ threadId, tagId: tag.id })),
 		markSenderRead(db, threadId, input.senderId, now)
 	]);
 
