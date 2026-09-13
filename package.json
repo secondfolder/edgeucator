@@ -73,6 +73,7 @@
 		"age-encryption": "^0.3.1",
 		"better-auth": "^1.7.3",
 		"drizzle-orm": "^0.45.2",
+		"html2canvas-pro": "^2.4.2",
 		"sveltekit-superforms": "^2.30.2",
 		"zod": "^4.5.4"
 	},
