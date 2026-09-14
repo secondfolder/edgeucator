@@ -1,10 +1,10 @@
 <script lang="ts">
 	import { scrollIntoViewWithin } from '$lib/scroll-parent';
-	import type { TaskView } from '$lib/types';
+	import type { EdgeTaskView } from '$lib/types';
 	import type { WaSelectEvent } from '@awesome.me/webawesome/dist/events/select.js';
 	import { tick } from 'svelte';
 
-	let { task }: { task: TaskView } = $props();
+	let { edgeTask }: { edgeTask: EdgeTaskView } = $props();
 	let count: number = $state(0);
 	const increment = () => {
 		count += 1;
@@ -18,10 +18,10 @@
 	const handleDeductSelect = (event: WaSelectEvent) => {
 		decrement(Number(event.detail.item.getAttribute('value')));
 	};
-	const remaining = $derived(Math.max(task.instructions.required - count, 0));
-	// NOTE: there was a `const action = { edge: 'edged' }[task.action] || 'edged'`
-	// here. `task.action` does not exist — the field is
-	// `task.instructions.action` — so the `|| 'edged'` fallback silently hid the
+	const remaining = $derived(Math.max(edgeTask.instructions.required - count, 0));
+	// NOTE: there was a `const action = { edge: 'edged' }[edgeTask.action] || 'edged'`
+	// here. `edgeTask.action` does not exist — the field is
+	// `edgeTask.instructions.action` — so the `|| 'edged'` fallback silently hid the
 	// bug. It was also never referenced in the template (the footer hardcodes
 	// the word), so it is removed rather than corrected.
 
@@ -32,7 +32,7 @@
 		// captured so a run superseded by a newer one bails out instead of
 		// scrolling to a paragraph that is no longer the last.
 		const countAtRun = count;
-		tick().then(() => {
+		void tick().then(() => {
 			if (countAtRun !== count) return;
 			const lastInstruction = mainElm?.querySelector(' & > p:last-child');
 			if (!lastInstruction || !mainElm) return;
@@ -45,7 +45,7 @@
 
 <div>
 	<main bind:this={mainElm}>
-		{#each task.instructions.displayText.filter((displayText) => count >= displayText.showFrom) as displayText (displayText.showFrom)}
+		{#each edgeTask.instructions.displayText.filter((displayText) => count >= displayText.showFrom) as displayText (displayText.showFrom)}
 			<p>
 				{displayText.text}
 			</p>
@@ -123,7 +123,6 @@
 		bottom: 0em;
 		--fade-height: 5em;
 		background: linear-gradient(#0000 0%, var(--wa-color-surface-default) var(--fade-height));
-		/* padding-top: calc(var(--fade-height) + 1em); */
 
 		.info {
 			text-align: center;

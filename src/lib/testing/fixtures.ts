@@ -4,10 +4,14 @@ import {
 	messageAttachments,
 	messageThreads,
 	messages,
+	partnershipTaskCompletions,
+	partnershipTasks,
 	partnershipRewardClaims,
 	partnershipRewardCredits,
 	partnershipRewards,
 	partnerships,
+	selfTaskCompletions,
+	selfTasks,
 	selfRewardClaims,
 	selfRewardCredits,
 	selfRewards,
@@ -35,6 +39,9 @@ import {
 	setSelfRewardCredits
 } from '../server/rewards';
 import type { RewardInput } from '../rewards';
+import { createPartnershipTask, createSelfTask } from '../server/tasks';
+import type { TaskInput } from '../tasks';
+import type { TaskSchedule } from '../types';
 
 /**
  * Fixtures for the partners tests.
@@ -319,6 +326,80 @@ export async function readPartnershipRewardClaimRows(db: Db, partnershipId: stri
 		.from(partnershipRewardClaims)
 		.where(eq(partnershipRewardClaims.partnershipId, partnershipId))
 		.orderBy(partnershipRewardClaims.createdAt, partnershipRewardClaims.id);
+}
+
+function defaultTaskSchedule(): TaskSchedule {
+	return { mode: 'one-off' };
+}
+
+export async function createTestSelfTask(
+	db: Db,
+	owner: TestUser,
+	input: Partial<TaskInput> = {}
+): Promise<{ id: string }> {
+	const id = await createSelfTask(db, owner.id, owner.timezone, {
+		title: input.title ?? 'Self task',
+		description: input.description ?? 'Self task description',
+		active: input.active ?? true,
+		creditsAwarded: input.creditsAwarded ?? 2,
+		completionMessages: input.completionMessages ?? ['Nice work'],
+		schedule: input.schedule ?? defaultTaskSchedule(),
+		timezoneOwnerUserId: input.timezoneOwnerUserId ?? owner.id
+	});
+	return { id };
+}
+
+export async function createTestPartnershipTask(
+	db: Db,
+	partnershipId: string,
+	viewer: TestUser,
+	input: Partial<TaskInput> = {}
+): Promise<{ id: string }> {
+	const result = await createPartnershipTask(db, partnershipId, viewer.id, viewer.timezone, {
+		title: input.title ?? 'Partner task',
+		description: input.description ?? 'Partner task description',
+		active: input.active ?? true,
+		creditsAwarded: input.creditsAwarded ?? 2,
+		completionMessages: input.completionMessages ?? ['Nicely done'],
+		schedule: input.schedule ?? defaultTaskSchedule(),
+		timezoneOwnerUserId: input.timezoneOwnerUserId ?? viewer.id
+	});
+	if (!result.ok) throw new Error(`fixture could not create partnership task: ${result.reason}`);
+	return { id: result.id };
+}
+
+export async function readSelfTaskRow(db: Db, id: string) {
+	const rows = await db.select().from(selfTasks).where(eq(selfTasks.id, id)).limit(1);
+	return rows[0];
+}
+
+export async function readSelfTaskCompletionRows(db: Db, ownerId: string) {
+	return db
+		.select()
+		.from(selfTaskCompletions)
+		.where(eq(selfTaskCompletions.ownerId, ownerId))
+		.orderBy(selfTaskCompletions.createdAt, selfTaskCompletions.id);
+}
+
+export async function readPartnershipTaskRow(db: Db, id: string) {
+	const rows = await db.select().from(partnershipTasks).where(eq(partnershipTasks.id, id)).limit(1);
+	return rows[0];
+}
+
+export async function readPartnershipTaskRows(db: Db, partnershipId: string) {
+	return db
+		.select()
+		.from(partnershipTasks)
+		.where(eq(partnershipTasks.partnershipId, partnershipId))
+		.orderBy(partnershipTasks.createdAt, partnershipTasks.id);
+}
+
+export async function readPartnershipTaskCompletionRows(db: Db, partnershipId: string) {
+	return db
+		.select()
+		.from(partnershipTaskCompletions)
+		.where(eq(partnershipTaskCompletions.partnershipId, partnershipId))
+		.orderBy(partnershipTaskCompletions.createdAt, partnershipTaskCompletions.id);
 }
 
 /**

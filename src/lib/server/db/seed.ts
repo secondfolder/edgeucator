@@ -1,7 +1,7 @@
 import { createClient } from '@libsql/client';
 import { eq } from 'drizzle-orm';
 import { drizzle } from 'drizzle-orm/libsql';
-import { guides, tasks } from './schema/app';
+import { edgeTasks, guides } from './schema/app';
 import { guideSeeds } from './seed-data';
 
 /**
@@ -12,13 +12,13 @@ import { guideSeeds } from './seed-data';
  * `./schema/app` rather than the schema barrel, to keep the Better Auth tables
  * out of this script's module graph.
  *
- * Idempotent: seed ids are fixed, guides are upserted, and each guide's tasks
- * are replaced wholesale, so running it repeatedly is a no-op.
+ * Idempotent: seed ids are fixed, guides are upserted, and each guide's edge
+ * tasks are replaced wholesale, so running it repeatedly is a no-op.
  *
  *   npm run db:migrate && npm run db:seed
  */
 const client = createClient({ url: process.env.DATABASE_URL || 'file:./local.db' });
-const db = drizzle(client, { schema: { guides, tasks } });
+const db = drizzle(client, { schema: { guides, edgeTasks } });
 
 for (const seed of guideSeeds) {
 	await db
@@ -29,19 +29,19 @@ for (const seed of guideSeeds) {
 			set: { title: seed.title, updatedAt: new Date() }
 		});
 
-	// Replace this guide's tasks rather than diffing them.
-	await db.delete(tasks).where(eq(tasks.guideId, seed.id));
+	// Replace this guide's edge tasks rather than diffing them.
+	await db.delete(edgeTasks).where(eq(edgeTasks.guideId, seed.id));
 
-	if (seed.tasks.length > 0) {
-		await db.insert(tasks).values(
-			seed.tasks.map((task, index) => ({
-				id: `${seed.id}-task-${index}`,
+	if (seed.edgeTasks.length > 0) {
+		await db.insert(edgeTasks).values(
+			seed.edgeTasks.map((edgeTask, index) => ({
+				id: `${seed.id}-edge-task-${index}`,
 				guideId: seed.id,
-				order: task.order,
-				instructions: task.instructions
+				order: edgeTask.order,
+				instructions: edgeTask.instructions
 			}))
 		);
 	}
 
-	console.log(`seeded guide ${seed.id} (${seed.tasks.length} task(s))`);
+	console.log(`seeded guide ${seed.id} (${seed.edgeTasks.length} edge task(s))`);
 }

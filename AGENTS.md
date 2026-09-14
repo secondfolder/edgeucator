@@ -10,12 +10,12 @@ will break if you guess, and what "done" means.
 ## What this is
 
 Edgeucator is a small SvelteKit 2 / Svelte 5 app on Cloudflare Workers. A
-_guide_ has ordered _tasks_; a task renders a counter and reveals prose as the
+_guide_ has ordered _edge tasks_; an edge task renders a counter and reveals prose as the
 count crosses thresholds. Accounts are email/password + passkeys via Better
 Auth. Data is Drizzle over Cloudflare D1 (production) and a local SQLite file
 (dev).
 
-Guides, tasks, and `src/lib/server/db/seed-data.ts` are explicit adult content.
+Guides, edge tasks, and `src/lib/server/db/seed-data.ts` are explicit adult content.
 That is the point of the app, not a mistake. Treat that prose as data: do not
 rewrite it, sanitise it, or reflow it (it is in `.prettierignore` precisely so
 one entry stays on one line).
@@ -84,9 +84,9 @@ noise:
     The initial-capture is deliberate: `superForm` registers its lifecycle
     once and its returned stores are the live connection, so re-deriving it on
     every `invalidate()` would reset the form. Add one to new ones.
-- `npm test`: 568 tests. Partners and the encryption keys are covered end to end
+- `npm test`: 641 tests. Partners, tasks, and the encryption keys are covered end to end
   at three levels — see **Testing** below. Outside those the net is still thin.
-- `npm run test:e2e`: 49 Playwright specs, ~55s once the browser is installed
+- `npm run test:e2e`: 51 Playwright specs, about 90 seconds once the browser is installed
   (`npx playwright install chromium` first). A run that takes ~2 minutes has
   something hanging on its 90-second timeout, not something slow.
 
@@ -137,7 +137,7 @@ site it applies to; go read that comment before deciding to break one.
 7. **`schema/auth.ts` is generated** by `npm run auth:schema`. Hand edits are
    lost on the next regeneration. App tables go in `schema/app.ts`.
 
-8. **Order tasks by `order`, then `id`.** Never by `id` alone — ids are UUIDs,
+8. **Order edge tasks by `order`, then `id`.** Never by `id` alone — ids are UUIDs,
    not a sequence. Guides order by `createdAt`, then `id`.
 
 9. **Secrets: `platform.env` in production, `.env` in dev.** `hooks.server.ts`
@@ -218,7 +218,7 @@ navigating.
 load data is serialised into the HTML of every page. Whitelist fields, as
 `src/routes/+layout.server.ts` does.
 
-**Forms are server form actions + superforms + Zod**, in that arrangement:
+**Forms are server form actions + superforms + Zod**, in that arrangement, and the preferred form library must be used for app forms unless a route has a documented reason to deviate:
 
 - Schema in `src/lib/schemas/<name>Form.ts`, exporting the schema and its type.
 - `load` returns `await superValidate(zod4(schema))` under a named key.
@@ -294,10 +294,10 @@ which is why Svelte's a11y warnings fire on them. Style with `--wa-*` custom
 properties and `::part()`. Pinned to `3.0.0-alpha.11` — an alpha, so treat a
 version bump as a change that needs the app actually opened.
 
-**Save buttons start outlined and become solid only when there is something to save.**
-An idle save action is secondary, not a call to act. When a form becomes dirty,
+**Save buttons start outlined and become solid only when there is something valid to save.**
+An idle save action is secondary, not a call to act. When a form becomes dirty, if the contents is valid then
 promote its save button to a solid brand style. On `superForm(...)` screens,
-key that off the form's tainted state rather than hand-rolled comparisons so
+key that off the form's tainted and valid state rather than hand-rolled comparisons so
 the button follows the same definition of "unsaved changes" as the form logic.
 
 **Two shells, one per group.** `(public)` renders `SiteHeader` above a centred
@@ -367,7 +367,7 @@ Two consequences bite anything moved into the shell, and both already cost a
 debugging round on the guides:
 
 - **The window no longer scrolls.** `window.scrollY` / `window.scrollTo` move
-  nothing; find the scrolling ancestor instead, as `Task.svelte` does.
+  nothing; find the scrolling ancestor instead, as `EdgeTask.svelte` does.
 - **`position: fixed`/`sticky` against the viewport, and teleporting to
   `<body>`, both stop working**, because `<body>` does not scroll. A sticky
   element left inside `<main>` pins to the bottom of the scrollport — directly
@@ -379,7 +379,7 @@ Stretch with `flex: 1 1 auto` instead.
 
 **Adding a component that needs DB-shaped data**
 
-Add a narrow view type to `src/lib/types.ts` (`GuideView`, `TaskView` are the
+Add a narrow view type to `src/lib/types.ts` (`GuideView`, `EdgeTaskView` are the
 pattern) rather than importing the Drizzle row type. Components must never
 import from `$lib/server/**`.
 
@@ -500,14 +500,16 @@ Four places, split on scope:
 
 ### Feature docs
 
-| Doc                                      | Feature                                                                |
-| ---------------------------------------- | ---------------------------------------------------------------------- |
-| [docs/partners.md](docs/partners.md)     | Linking two accounts: invites, the control permission, the nav tabs    |
-| [docs/privacy.md](docs/privacy.md)       | General privacy boundaries: who may see which user data, and why       |
-| [docs/rewards.md](docs/rewards.md)       | Self rewards and partnership rewards: credits, claims, control         |
-| [docs/encryption.md](docs/encryption.md) | Message keys: the client-side KDF, the wraps, what the guarantee is    |
-| [docs/messaging.md](docs/messaging.md)   | Encrypted partner messages: threads, the board, unread, restore        |
-| [docs/timezone.md](docs/timezone.md)     | Account timezone storage, mismatch prompts, and device-local dismissal |
+| Doc                                              | Feature                                                                   |
+| ------------------------------------------------ | ------------------------------------------------------------------------- |
+| [docs/partners.md](docs/partners.md)             | Linking two accounts: invites, the control permission, the nav tabs       |
+| [docs/privacy.md](docs/privacy.md)               | General privacy boundaries: who may see which user data, and why          |
+| [docs/rewards.md](docs/rewards.md)               | Self rewards and partnership rewards: credits, claims, control            |
+| [docs/tasks.md](docs/tasks.md)                   | Self tasks and partnership tasks: scheduling, credits, timezone ownership |
+| [docs/encryption.md](docs/encryption.md)         | Message keys: the client-side KDF, the wraps, what the guarantee is       |
+| [docs/messaging.md](docs/messaging.md)           | Encrypted partner messages: threads, the board, unread, restore           |
+| [docs/timezone.md](docs/timezone.md)             | Account timezone storage, mismatch prompts, and device-local dismissal    |
+| [docs/temporary-code.md](docs/temporary-code.md) | Temporary-code cleanup notes, including the Temporal API polyfill         |
 
 **Keeping these current is part of the change, not a follow-up to it.**
 
@@ -566,6 +568,8 @@ Unless the user explicilty indicates otherwise the plan or major change should i
       or if there is already an existing relevent doc it should be updated. If adding new feature that is a superset of an
       existing feature with an existing doc file consider renaming the existing file under the new superset feature name and
       placing it's existing contents into a new section dedicated to that subfeature.
+- [ ] DB migration files should always be created with `drizzle-kit` rather than manually written and they should be
+      given a meaningful name. E.g. `drizzle-kit generate --name add_rewards`.
 
 ## Traps
 

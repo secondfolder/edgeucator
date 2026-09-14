@@ -1,4 +1,4 @@
-import type { TaskInstructions } from '../../types';
+import type { EdgeTaskInstructions } from '../../types';
 
 /**
  * Dev seed content, recovered verbatim from
@@ -14,10 +14,10 @@ import type { TaskInstructions } from '../../types';
 export type GuideSeed = {
 	id: string;
 	title: string;
-	tasks: { order: number; instructions: TaskInstructions }[];
+	edgeTasks: { order: number; instructions: EdgeTaskInstructions }[];
 };
 
-const displayText: TaskInstructions['displayText'] = [
+const displayText: EdgeTaskInstructions['displayText'] = [
 	{ showFrom: 1, text: "Good start" },
 	{ showFrom: 2, text: "Keep going" },
 	{ showFrom: 5, text: "Keep denying yourself" },
@@ -48,7 +48,7 @@ export const guideSeeds: GuideSeed[] = [
 	{
 		id: 'seed-guide-your-new-life',
 		title: 'Your New Life',
-		tasks: [
+		edgeTasks: [
 			{
 				order: 0,
 				instructions: {

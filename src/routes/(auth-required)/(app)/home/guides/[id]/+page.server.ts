@@ -6,11 +6,11 @@ export const load: PageServerLoad = async ({ params, locals: { db } }) => {
 		where: (guides, { eq }) => eq(guides.id, params.id),
 		columns: { id: true, title: true },
 		with: {
-			tasks: {
+			edgeTasks: {
 				columns: { id: true, order: true, instructions: true },
 				// Order by `order`, not `id`. The old code ordered by id, which only
 				// happened to work while ids were autoincrement integers.
-				orderBy: (tasks, { asc }) => [asc(tasks.order), asc(tasks.id)]
+				orderBy: (edgeTasks, { asc }) => [asc(edgeTasks.order), asc(edgeTasks.id)]
 			}
 		}
 	});
@@ -24,5 +24,5 @@ export const load: PageServerLoad = async ({ params, locals: { db } }) => {
 		error(404, 'Guide not found');
 	}
 
-	return { guide, tasks: guide.tasks };
+	return { guide, edgeTasks: guide.edgeTasks };
 };

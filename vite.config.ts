@@ -70,7 +70,7 @@ export default defineConfig({
 		 * failing about one run in three, always on whichever test followed the
 		 * first dynamic import. Listing them here moves the work to server start.
 		 */
-		include: ['age-encryption', '@scure/base', 'html2canvas-pro']
+		include: ['age-encryption', '@js-temporal/polyfill', '@scure/base', 'html2canvas-pro']
 	},
 
 	server: {

@@ -90,12 +90,14 @@ The Zod schema accepts only `me` / `them` / `mix` — posting the _stored_ value
 
 ### What control gates
 
-| Action                                            | Who may do it                                |
-| ------------------------------------------------- | -------------------------------------------- |
-| Change the names, the label, the control setting  | Whoever `control` names, or both             |
-| Manage partnership rewards and set reward credits | Whoever `control` names, or both             |
-| Rewrite the names while accepting an invite       | The accepter, if control is theirs or shared |
-| Disconnect, or cancel a pending invite            | **Either member, always**                    |
+| Action                                            | Who may do it                                    |
+| ------------------------------------------------- | ------------------------------------------------ |
+| Change the names, the label, the control setting  | Whoever `control` names, or both                 |
+| Manage partnership rewards and set reward credits | Whoever `control` names, or both                 |
+| Manage partnership tasks                          | Whoever `control` names, or both                 |
+| Complete partnership tasks                        | The non-controller, or both under shared control |
+| Rewrite the names while accepting an invite       | The accepter, if control is theirs or shared     |
+| Disconnect, or cancel a pending invite            | **Either member, always**                        |
 
 Disconnecting is deliberately not gated: a user who handed control to their
 partner must still be able to get out. `deletePartnership` checks membership and
@@ -159,6 +161,9 @@ token (`not-found`), an expired one (`expired`), the inviter's own link
 | `/settings/partners/[id]`          | `(auth-required)` | Pending: the link, share, renew, cancel. Accepted: edit, disconnect.                                      |
 | `/invite/[token]`                  | **`(public)`**    | The landing page for the person being invited.                                                            |
 | `/partner/[id]`                    | `(auth-required)` | The partner's own page. Accepted links only. Shows their local time, and date too when their day differs. |
+| `/partner/[id]/tasks`              | `(auth-required)` | Shared tasks and recent completion history for that link.                                                 |
+| `/partner/[id]/tasks/add`          | `(auth-required)` | The add-task form for the controlling side of that link.                                                  |
+| `/partner/[id]/tasks/[taskId]`     | `(auth-required)` | The edit screen for one partnership task, reusing the same form layout as add.                            |
 | `/partner/[id]/rewards`            | `(auth-required)` | Shared rewards and reward credits for that link, with buttons to add rewards or open claim history.       |
 | `/partner/[id]/rewards/add`        | `(auth-required)` | The add-reward form for the controlling side of that link.                                                |
 | `/partner/[id]/rewards/[rewardId]` | `(auth-required)` | The edit screen for one reward on that link, using the same form layout as add.                           |
@@ -185,6 +190,32 @@ form layout as the add screen, prefilled with the reward's current values.
 
 The full behaviour, including the dedicated home rewards hub at `/home/rewards`, is documented in
 [`docs/rewards.md`](rewards.md).
+
+## Partnership tasks
+
+Accepted partner pages now also have a tasks screen.
+
+The feature deliberately reuses the same `control` field as the rest of the
+partnership, but its split is different from rewards:
+
+- Whoever `control` names may create tasks, edit any partnership task, and pick
+  which partner's timezone a scheduled task is relative to.
+- The completion side may complete eligible tasks and receive the resulting
+  reward credits.
+- Shared control means both members may manage tasks and both may complete
+  tasks the other member created.
+- A user may never complete a partnership task they created themselves.
+
+Partnership task scheduling is also partner-relative.
+
+- A task stores `timezone_owner_user_id`, not a raw timezone string.
+- Date and datetime fields default to the other partner's timezone on create.
+- When the two partners currently share the same timezone, that extra UI is
+  hidden.
+- When they differ, task dates show the same compact timezone-note style used
+  on the partner page.
+
+The full task behavior is documented in [`docs/tasks.md`](tasks.md).
 
 ### Why `/invite/[token]` is public
 

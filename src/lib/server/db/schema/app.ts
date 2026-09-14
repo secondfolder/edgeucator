@@ -1,6 +1,6 @@
 import { relations, sql } from 'drizzle-orm';
 import { index, integer, sqliteTable, text, uniqueIndex } from 'drizzle-orm/sqlite-core';
-import type { TaskInstructions } from '../../../types';
+import type { EdgeTaskInstructions, TaskSchedule } from '../../../types';
 import type { PartnershipControl, PartnershipStatus } from '../../../partnership';
 import type { KeyWrapParams, KeyWrapType } from '../../../encryption';
 import type { RestoreRequestStatus, ThreadIcon } from '../../../messaging';
@@ -41,8 +41,8 @@ export const guides = sqliteTable('guides', {
 	...timestamps
 });
 
-export const tasks = sqliteTable(
-	'tasks',
+export const edgeTasks = sqliteTable(
+	'edge_tasks',
 	{
 		id: text('id')
 			.primaryKey()
@@ -54,30 +54,30 @@ export const tasks = sqliteTable(
 		order: integer('order').notNull().default(0),
 		// SQLite has no JSON type. `mode: 'json'` handles parse/stringify and
 		// `$type` gives the shape real end-to-end typing.
-		instructions: text('instructions', { mode: 'json' }).$type<TaskInstructions>().notNull(),
+		instructions: text('instructions', { mode: 'json' }).$type<EdgeTaskInstructions>().notNull(),
 		...timestamps
 	},
 	(table) => [
 		// The /home/guides/[id] load's hot path: where guide_id = ? order by "order".
-		index('tasks_guide_id_order_idx').on(table.guideId, table.order)
+		index('edge_tasks_guide_id_order_idx').on(table.guideId, table.order)
 	]
 );
 
 export const guidesRelations = relations(guides, ({ many }) => ({
-	tasks: many(tasks)
+	edgeTasks: many(edgeTasks)
 }));
 
-export const tasksRelations = relations(tasks, ({ one }) => ({
+export const edgeTasksRelations = relations(edgeTasks, ({ one }) => ({
 	guide: one(guides, {
-		fields: [tasks.guideId],
+		fields: [edgeTasks.guideId],
 		references: [guides.id]
 	})
 }));
 
 export type Guide = typeof guides.$inferSelect;
 export type NewGuide = typeof guides.$inferInsert;
-export type Task = typeof tasks.$inferSelect;
-export type NewTask = typeof tasks.$inferInsert;
+export type EdgeTask = typeof edgeTasks.$inferSelect;
+export type NewEdgeTask = typeof edgeTasks.$inferInsert;
 
 /**
  * A link between two accounts.
@@ -319,6 +319,160 @@ export const partnershipRewardClaims = sqliteTable(
 );
 
 /**
+ * A user-managed task in the self scope.
+ *
+ * `timezoneOwnerUserId` is still stored even though it always points at the
+ * owner in this first pass. Keeping the same column shape as partnership tasks
+ * means the scheduling layer can treat both scopes uniformly, while the UI
+ * still omits the toggle for self tasks.
+ */
+export const selfTasks = sqliteTable(
+	'self_tasks',
+	{
+		id: text('id')
+			.primaryKey()
+			.$defaultFn(() => crypto.randomUUID()),
+		ownerId: text('owner_id')
+			.notNull()
+			.references(() => user.id, { onDelete: 'cascade' }),
+		title: text('title').notNull(),
+		description: text('description'),
+		active: integer('active', { mode: 'boolean' }).notNull().default(true),
+		creditsAwarded: integer('credits_awarded').notNull().default(0),
+		completionMessages: text('completion_messages', { mode: 'json' }).$type<string[]>().notNull(),
+		schedule: text('schedule', { mode: 'json' }).$type<TaskSchedule>().notNull(),
+		timezoneOwnerUserId: text('timezone_owner_user_id')
+			.notNull()
+			.references(() => user.id, { onDelete: 'cascade' }),
+		lastCompletedAt: integer('last_completed_at', { mode: 'timestamp_ms' }),
+		completedCount: integer('completed_count').notNull().default(0),
+		nextEligibleAt: integer('next_eligible_at', { mode: 'timestamp_ms' }),
+		...timestamps
+	},
+	(table) => [
+		index('self_tasks_owner_active_idx').on(table.ownerId, table.active),
+		index('self_tasks_owner_next_eligible_idx').on(table.ownerId, table.nextEligibleAt),
+		index('self_tasks_timezone_owner_idx').on(table.timezoneOwnerUserId)
+	]
+);
+
+/**
+ * One completion of a self task.
+ *
+ * The title, description, reward amount and chosen completion message are
+ * snapshotted so visible history stays truthful if the task changes later.
+ */
+export const selfTaskCompletions = sqliteTable(
+	'self_task_completions',
+	{
+		id: text('id')
+			.primaryKey()
+			.$defaultFn(() => crypto.randomUUID()),
+		ownerId: text('owner_id')
+			.notNull()
+			.references(() => user.id, { onDelete: 'cascade' }),
+		taskId: text('task_id')
+			.notNull()
+			.references(() => selfTasks.id, { onDelete: 'cascade' }),
+		taskTitle: text('task_title').notNull(),
+		taskDescription: text('task_description'),
+		creditsAwarded: integer('credits_awarded').notNull(),
+		completionMessage: text('completion_message'),
+		...timestamps
+	},
+	(table) => [
+		index('self_task_completions_owner_created_idx').on(table.ownerId, table.createdAt),
+		index('self_task_completions_task_idx').on(table.taskId)
+	]
+);
+
+/**
+ * A task managed inside one partnership.
+ *
+ * `createdByUserId` is load-bearing for shared control, where both people may
+ * create tasks but nobody may complete one they authored themselves.
+ * `timezoneOwnerUserId` points at whose local timezone the task's scheduled
+ * dates are relative to, so later timezone changes preserve that relationship.
+ */
+export const partnershipTasks = sqliteTable(
+	'partnership_tasks',
+	{
+		id: text('id')
+			.primaryKey()
+			.$defaultFn(() => crypto.randomUUID()),
+		partnershipId: text('partnership_id')
+			.notNull()
+			.references(() => partnerships.id, { onDelete: 'cascade' }),
+		createdByUserId: text('created_by_user_id')
+			.notNull()
+			.references(() => user.id, { onDelete: 'cascade' }),
+		timezoneOwnerUserId: text('timezone_owner_user_id')
+			.notNull()
+			.references(() => user.id, { onDelete: 'cascade' }),
+		title: text('title').notNull(),
+		description: text('description'),
+		active: integer('active', { mode: 'boolean' }).notNull().default(true),
+		creditsAwarded: integer('credits_awarded').notNull().default(0),
+		completionMessages: text('completion_messages', { mode: 'json' }).$type<string[]>().notNull(),
+		schedule: text('schedule', { mode: 'json' }).$type<TaskSchedule>().notNull(),
+		lastCompletedAt: integer('last_completed_at', { mode: 'timestamp_ms' }),
+		completedCount: integer('completed_count').notNull().default(0),
+		nextEligibleAt: integer('next_eligible_at', { mode: 'timestamp_ms' }),
+		...timestamps
+	},
+	(table) => [
+		index('partnership_tasks_partnership_active_idx').on(table.partnershipId, table.active),
+		index('partnership_tasks_partnership_next_eligible_idx').on(
+			table.partnershipId,
+			table.nextEligibleAt
+		),
+		index('partnership_tasks_creator_idx').on(table.createdByUserId),
+		index('partnership_tasks_timezone_owner_idx').on(table.timezoneOwnerUserId)
+	]
+);
+
+/**
+ * One completion of a partnership task.
+ *
+ * `createdByUserId` and the task details are copied so history can be rendered
+ * without consulting the live task row, and so the original authorship rule is
+ * still visible after later task edits.
+ */
+export const partnershipTaskCompletions = sqliteTable(
+	'partnership_task_completions',
+	{
+		id: text('id')
+			.primaryKey()
+			.$defaultFn(() => crypto.randomUUID()),
+		partnershipId: text('partnership_id')
+			.notNull()
+			.references(() => partnerships.id, { onDelete: 'cascade' }),
+		taskId: text('task_id')
+			.notNull()
+			.references(() => partnershipTasks.id, { onDelete: 'cascade' }),
+		completedByUserId: text('completed_by_user_id')
+			.notNull()
+			.references(() => user.id, { onDelete: 'cascade' }),
+		createdByUserId: text('created_by_user_id')
+			.notNull()
+			.references(() => user.id, { onDelete: 'cascade' }),
+		taskTitle: text('task_title').notNull(),
+		taskDescription: text('task_description'),
+		creditsAwarded: integer('credits_awarded').notNull(),
+		completionMessage: text('completion_message'),
+		...timestamps
+	},
+	(table) => [
+		index('partnership_task_completions_partnership_completed_idx').on(
+			table.partnershipId,
+			table.completedByUserId,
+			table.createdAt
+		),
+		index('partnership_task_completions_task_idx').on(table.taskId)
+	]
+);
+
+/**
  * A user's long-term age recipient — their public key.
  *
  * Stored in the clear because it is public by construction: everything a
@@ -368,7 +522,8 @@ export const userKeys = sqliteTable('user_keys', {
  * ciphertext. That is the whole extension point: another unlock method is a new
  * `type` and new client code, not a migration.
  *
- * `params` is JSON for the same reason `tasks.instructions` is: SQLite has no
+ * `params` is JSON for the same reason the `edge_tasks.instructions` column is:
+ * SQLite has no
  * JSON type, `mode: 'json'` handles the round trip, and `$type` gives it
  * end-to-end typing without the server needing to understand the contents.
  *

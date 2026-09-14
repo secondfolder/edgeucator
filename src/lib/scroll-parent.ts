@@ -1,7 +1,7 @@
 /**
  * Finds the ancestor that actually scrolls.
  *
- * Extracted from `Task.svelte`, which needed it first and explains why: the app
+ * Extracted from `EdgeTask.svelte`, which needed it first and explains why: the app
  * shell gives `<main>` `overflow-y: auto` and takes the scroll off `<body>`, so
  * `window.scrollY` and `window.scrollTo` move nothing at all. Anything that
  * wants to keep something in view has to find the real scrollport.

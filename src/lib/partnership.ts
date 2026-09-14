@@ -82,7 +82,10 @@ export function roleOf(
  * Note this is NOT the rule for disconnecting: leaving a link is never gated,
  * or a user handed control away could not get out. See `canDisconnect`.
  */
-export function canEditPartnership(record: PartnershipRecord, userId: string): boolean {
+export function canEditPartnership(
+	record: Pick<PartnershipRecord, 'control' | 'inviterId' | 'inviteeId'>,
+	userId: string
+): boolean {
 	const role = roleOf(record, userId);
 	if (!role) return false;
 	return record.control === 'both' || record.control === role;

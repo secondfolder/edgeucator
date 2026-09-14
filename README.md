@@ -3,6 +3,15 @@
 SvelteKit 2 + Svelte 5 on Cloudflare Workers, with Drizzle ORM over Cloudflare D1
 and Better Auth (email/password + passkeys).
 
+## Features
+
+- Guides made of ordered edge tasks.
+- Self rewards and partnership rewards with shared-control permissions.
+- Self tasks and partnership tasks that award reward credits on completion.
+- Encrypted partner messaging with per-device key handling.
+- Partner-aware timezone handling, including tasks whose dates stay relative to
+  one partner's timezone even if that person later changes their timezone.
+
 > **Breaking change — accounts created before the end-to-end encryption work
 > must be recreated.** Passwords are now turned into a key in the browser and
 > only a derived value is sent to the server, so a credential stored under the
@@ -24,7 +33,7 @@ npm install
 cp .env.example .env
 npm run auth:secret          # paste the value into BETTER_AUTH_SECRET in .env
 npm run db:migrate           # create the tables in ./local.db
-npm run db:seed              # insert the dev guide + task
+npm run db:seed              # insert the dev guide + edge task
 npm run dev
 ```
 
@@ -111,6 +120,10 @@ Never run `drizzle-kit push` — see the comment in `drizzle.config.ts`.
   parameter locks every existing account out of its own message history, and
   there is a frozen test vector in `src/lib/crypto/kdf.test.ts` whose job is to
   fail loudly if you do. See [docs/encryption.md](docs/encryption.md).
+- **Partner task dates are timezone-relative, not fixed to one stored offset.**
+  The tasks feature stores local wall-clock values plus which partner they are
+  relative to, so changing an account timezone later changes how that task is
+  interpreted. See [docs/tasks.md](docs/tasks.md) and [docs/timezone.md](docs/timezone.md).
 - `npm run db:reset` uses `rm -f` and is not Windows-portable.
 
 ## Tests

@@ -15,6 +15,9 @@
 		<wa-button variant="brand" size="l" href={resolve('/(auth-required)/(app)/home/guides')}
 			>Guides</wa-button
 		>
+		<wa-button variant="brand" size="l" href={resolve('/(auth-required)/(app)/home/tasks')}
+			><wa-icon slot="start" name="list-check" variant="solid"></wa-icon>Tasks</wa-button
+		>
 		<wa-button variant="brand" size="l" href={resolve('/(auth-required)/(app)/home/rewards')}
 			><wa-icon slot="start" name="gift" variant="solid"></wa-icon>Rewards</wa-button
 		>

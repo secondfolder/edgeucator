@@ -54,7 +54,7 @@
 		if (!unlocked) return;
 
 		// Captured so a run superseded by a newer one bails out rather than
-		// writing stale plaintext over fresh — the same guard Task.svelte uses.
+		// writing stale plaintext over fresh — the same guard EdgeTask.svelte uses.
 		const messages = thread.messages;
 		let cancelled = false;
 
@@ -154,7 +154,7 @@
 		`position: sticky; bottom: 0` INSIDE the scrolling <main> pins this to the
 		bottom of the scrollport, directly above AppNav. Sticky against the
 		viewport does not work in this shell and teleporting to <body> does not
-		either, because <body> does not scroll — Task.svelte's footer is the
+		either, because <body> does not scroll — EdgeTask.svelte's footer is the
 		working precedent, gradient fade included.
 	-->
 	{#if canSend}

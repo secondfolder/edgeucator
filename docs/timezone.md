@@ -1,8 +1,8 @@
 # Timezone settings
 
 Every account stores one timezone on the Better Auth `user` row. The value is
-used for account-level preferences only; it is not a security boundary and it
-is not trusted for anything sensitive.
+used for account-level preferences and for timezone-relative task scheduling; it
+is not a security boundary and it is not trusted for anything sensitive.
 
 ## Stored value
 
@@ -39,6 +39,16 @@ passes that value straight into `signUpEmail`, so the account is born with a
 timezone instead of needing a follow-up update.
 
 If the browser cannot report a timezone, the client falls back to `UTC`.
+
+## Partner-visible timezone use
+
+Accepted partner pages may show the other person's current local time when their
+timezone differs from the viewer's. That display is informational only, but it
+also sets the visual language for task timezone notes elsewhere in the app.
+
+The key privacy boundary is that the app does not expose arbitrary account
+timezone data: a counterpart timezone is only returned through a
+membership-checked partnership read.
 
 ## Account settings
 
@@ -81,3 +91,46 @@ The banner stores one value per signed-in user in `localStorage`:
 That means the dismissal is valid only while the device reports the same
 timezone. If the device timezone changes later, the stored value no longer
 matches and the banner becomes eligible again without any server cleanup.
+
+## Task date ownership
+
+The tasks feature adds a second job for account timezones.
+
+Task dates and datetimes are stored as:
+
+- a **local wall-clock value** like `2026-09-20T10:00`
+- plus a stable `timezone_owner_user_id`
+
+That owner reference means "interpret this local wall-clock time in this
+person's current account timezone".
+
+This is deliberately different from storing a raw timezone string on the task.
+If a user changes their account timezone later, the task remains relative to
+that user's timezone instead of being frozen to the old offset.
+
+### What the UI does with that
+
+- Self tasks always use the owner's timezone.
+- Partnership task date fields default to the other partner's timezone.
+- If the two partners currently share the same timezone, the timezone-owner
+  toggle is hidden.
+- If they differ, the form shows a toggle between "Your time" and
+  "<partner>'s time", including the current relative offset.
+- When the app renders a task date belonging to a different timezone than the
+  viewer's current timezone, it shows a small note in the same style as the
+  partner page's timezone line.
+
+### Schedule math
+
+Task scheduling is implemented in `src/lib/task-schedule.ts` using Temporal via
+`@js-temporal/polyfill`.
+
+The important property is not the library but the model:
+
+- parse the local wall-clock task value
+- interpret it in the owner's current timezone
+- derive an instant for comparisons and storage fields like `next_eligible_at`
+
+See [docs/temporary-code.md](temporary-code.md#temporal-polyfill) for the
+cleanup note on removing the polyfill later while keeping the Temporal-based
+model.
