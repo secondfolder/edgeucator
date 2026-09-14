@@ -24,8 +24,8 @@ export default ts.config(
 		}
 	},
 	{
-		files: ['**/*.svelte', '**/*.svelte.ts', '**/*.svelte.js'],
-		ignores: ['eslint.config.js', 'svelte.config.js'],
+		files: ['**/*.svelte', '**/*.svelte.ts', '**/*.svelte.js', '**/*.ts'],
+		ignores: ['eslint.config.js', 'svelte.config.js', 'worker.ts'],
 
 		languageOptions: {
 			parserOptions: {

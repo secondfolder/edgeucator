@@ -22,7 +22,7 @@ test('the halftone overlay paints over the landing page', async ({ page }) => {
 	// The canvas is only sized once html2canvas-pro has captured the page and
 	// the shader has drawn — width 0 means the effect never ran.
 	await expect
-		.poll(() => canvas.evaluate((el) => el.width), { timeout: 20_000 })
+		.poll(() => canvas.evaluate((el) => (el as HTMLCanvasElement).width), { timeout: 20_000 })
 		.toBeGreaterThan(0);
 
 	// Read the WebGL canvas back through a 2D canvas (a WebGL context cannot
@@ -30,11 +30,12 @@ test('the halftone overlay paints over the landing page', async ({ page }) => {
 	// is created with preserveDrawingBuffer for exactly this readback; without
 	// it the buffer is cleared after compositing and this reads blank.
 	const paintedFraction = await canvas.evaluate((el) => {
+		const canvasEl = el as HTMLCanvasElement;
 		const scratch = document.createElement('canvas');
-		scratch.width = el.width;
-		scratch.height = el.height;
+		scratch.width = canvasEl.width;
+		scratch.height = canvasEl.height;
 		const ctx = scratch.getContext('2d')!;
-		ctx.drawImage(el, 0, 0);
+		ctx.drawImage(canvasEl, 0, 0);
 		const { data } = ctx.getImageData(0, 0, scratch.width, scratch.height);
 		let painted = 0;
 		for (let i = 3; i < data.length; i += 4) {
@@ -59,11 +60,12 @@ test('the halftone overlay paints over the landing page', async ({ page }) => {
 	// histogram shape, which changes as the landing's spacing/maxInk tuning
 	// changes.
 	const { dominantAlpha, pairs, meanNeighborDiff } = await canvas.evaluate((el) => {
+		const canvasEl = el as HTMLCanvasElement;
 		const scratch = document.createElement('canvas');
-		scratch.width = el.width;
-		scratch.height = el.height;
+		scratch.width = canvasEl.width;
+		scratch.height = canvasEl.height;
 		const ctx = scratch.getContext('2d')!;
-		ctx.drawImage(el, 0, 0);
+		ctx.drawImage(canvasEl, 0, 0);
 		const { data } = ctx.getImageData(0, 0, scratch.width, scratch.height);
 		const alphas = new Array(256).fill(0) as number[];
 		for (let i = 3; i < data.length; i += 4) {

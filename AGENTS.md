@@ -68,8 +68,8 @@ noise:
   first two because `skills-lock.json` pins them, the last because formatting
   would silently rewrite frozen records (it reflows their tables and changes
   emphasis markers). Keep new files formatted; keep those ignored.
-- `npm run check`: **0 errors, 0 warnings.** Two `svelte-ignore` conventions
-  keep it that way, both because svelte-check ignores `onwarn` in
+- `npm run check`: **0 errors, 0 warnings.** All TypeScript files across the workspace (root configs, `vitest-setup-client.ts`, `e2e/**/*.ts`) are included in `tsconfig.json` and type-aware ESLint (`eslint.config.js`) so command-line checks catch all errors visible in VS Code. Two `svelte-ignore` conventions
+  keep it clean, both because svelte-check ignores `onwarn` in
   `svelte.config.js` — a comment is the only suppression both it and the vite
   dev server respect:
   - Every `<wa-button>` with an `onclick` carries

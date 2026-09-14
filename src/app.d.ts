@@ -8,6 +8,8 @@ import type { MediaBucket } from '$lib/server/media';
 import type { RealtimeNamespace } from '$lib/server/realtime/binding';
 
 declare global {
+	var litIssuedWarnings: Set<string> | undefined;
+
 	namespace App {
 		// interface Error {}
 		interface Locals {
