@@ -47,9 +47,9 @@
 			{/if}
 		</p>
 
-		<PartnerAcceptForm data={data.partnerAcceptForm} editable={data.editable} />
-
-		<a class="decline" href={resolve('/')}>Not now</a>
+		<PartnerAcceptForm data={data.partnerAcceptForm} editable={data.editable}>
+			<a class="decline" href={resolve('/')}>Not now</a>
+		</PartnerAcceptForm>
 	{/if}
 </section>
 

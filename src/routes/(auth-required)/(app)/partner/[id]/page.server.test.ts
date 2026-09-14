@@ -32,7 +32,8 @@ test('shows each side their own view of the same link', async () => {
 	const { id } = await createTestPartnership(db, ada, jun, {
 		yourName: 'Ada',
 		partnerName: 'Jun',
-		relationshipLabel: 'partner',
+		partnerRole: 'sub',
+		yourRole: 'dom',
 		control: 'me'
 	});
 
@@ -42,7 +43,8 @@ test('shows each side their own view of the same link', async () => {
 		yourName: 'Ada',
 		image: null,
 		timezone: 'America/New_York',
-		relationshipLabel: 'partner',
+		partnerRole: 'sub',
+		yourRole: 'dom',
 		canEdit: true
 	});
 
@@ -52,7 +54,8 @@ test('shows each side their own view of the same link', async () => {
 		yourName: 'Jun',
 		image: '/ada.png',
 		timezone: 'Europe/London',
-		relationshipLabel: 'partner',
+		partnerRole: 'dom',
+		yourRole: 'sub',
 		canEdit: false
 	});
 });

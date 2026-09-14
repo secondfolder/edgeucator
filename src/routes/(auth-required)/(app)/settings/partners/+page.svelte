@@ -54,8 +54,8 @@
 							></wa-avatar>
 							<span class="who">
 								{partnership.partnerName}
-								{#if partnership.relationshipLabel}
-									<small>{partnership.relationshipLabel}</small>
+								{#if partnership.partnerRole}
+									<small>{partnership.partnerRole}</small>
 								{/if}
 							</span>
 							<wa-icon name="chevron-right" variant="solid"></wa-icon>

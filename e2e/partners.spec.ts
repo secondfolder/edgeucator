@@ -34,7 +34,8 @@ test.describe('linking two accounts', () => {
 			const link = await createInvite(ada.page, {
 				partnerName: 'Jun',
 				yourName: 'Ada',
-				label: 'partner',
+				partnerRole: 'sub',
+				yourRole: 'dom',
 				control: 'mix'
 			});
 

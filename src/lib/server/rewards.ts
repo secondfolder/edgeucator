@@ -586,7 +586,8 @@ export async function listHomePartnerRewardSections(
 				inviteeId: partnerships.inviteeId,
 				inviterName: partnerships.inviterName,
 				inviteeName: partnerships.inviteeName,
-				relationshipLabel: partnerships.relationshipLabel
+				inviterRole: partnerships.inviterRole,
+				inviteeRole: partnerships.inviteeRole
 			})
 			.from(partnerships)
 			.where(inArray(partnerships.id, partnershipIds)),

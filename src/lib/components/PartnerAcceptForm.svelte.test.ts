@@ -24,7 +24,8 @@ async function formData(
 		{
 			partnerName: 'Ada',
 			yourName: 'Jun',
-			relationshipLabel: 'partner',
+			partnerRole: 'dom',
+			yourRole: 'sub',
 			control: 'mix' as const,
 			...overrides
 		},
@@ -46,20 +47,28 @@ const waInputNames = (container: HTMLElement) =>
 	[...container.querySelectorAll('wa-input')].map((el) => el.getAttribute('name'));
 
 describe('when the accepter is allowed to edit', () => {
-	test('renders the names and label as inputs', async () => {
+	test('renders the names and roles as inputs', async () => {
 		const { container } = render(PartnerAcceptForm, { data: await formData(), editable: true });
 		// wa-input is a custom element the CDN upgrades at runtime; in jsdom it
 		// is inert, so the assertion is on what the component emits.
-		expect(waInputNames(container)).toEqual(['partnerName', 'yourName', 'relationshipLabel']);
+		expect(waInputNames(container)).toEqual(['partnerName', 'yourName', 'partnerRole', 'yourRole']);
 	});
 
-	test('labels the name questions from the accepter’s side', async () => {
+	test('groups the fields under their section titles', async () => {
+		const { container } = render(PartnerAcceptForm, { data: await formData(), editable: true });
+		const legends = [...container.querySelectorAll('legend')].map((el) => el.textContent?.trim());
+		expect(legends).toEqual(['Name/Title', 'Roles', 'Who calls the shots?']);
+		expect(container.textContent).toContain('How should you both refer to each other?');
+		expect(container.querySelectorAll('.inline-fields')).toHaveLength(1);
+		expect(container.querySelectorAll('.stacked-fields')).toHaveLength(1);
+	});
+
+	test('labels each field theirs or yours', async () => {
 		const { container } = render(PartnerAcceptForm, { data: await formData(), editable: true });
 		const labels = [...container.querySelectorAll('wa-input')].map((el) =>
 			el.getAttribute('label')
 		);
-		expect(labels).toContain('What you call them');
-		expect(labels).toContain('What they call you');
+		expect(labels).toEqual(['Theirs', 'Yours', 'Theirs', 'Yours']);
 	});
 
 	test('offers exactly the three control answers, in that order', async () => {
@@ -93,18 +102,25 @@ describe('when the accepter is allowed to edit', () => {
 		expect(values).toEqual({
 			partnerName: 'Ada',
 			yourName: 'Jun',
-			relationshipLabel: 'partner'
+			partnerRole: 'dom',
+			yourRole: 'sub'
 		});
 	});
 
-	test('renders an absent label as an empty field, not the string "null"', async () => {
+	test('shows each role input with a dimmed name prefix from its matching name field', async () => {
+		const { container } = render(PartnerAcceptForm, { data: await formData(), editable: true });
+		const partnerRole = container.querySelector('wa-input[name="partnerRole"]');
+		const yourRole = container.querySelector('wa-input[name="yourRole"]');
+		expect(partnerRole?.textContent).toContain("Jun's");
+		expect(yourRole?.textContent).toContain("Ada's");
+	});
+
+	test('renders an absent role as an empty field, not the string "null"', async () => {
 		const { container } = render(PartnerAcceptForm, {
-			data: await formData({ relationshipLabel: null }),
+			data: await formData({ partnerRole: null }),
 			editable: true
 		});
-		expect(
-			container.querySelector('wa-input[name="relationshipLabel"]')?.getAttribute('value')
-		).toBe('');
+		expect(container.querySelector('wa-input[name="partnerRole"]')?.getAttribute('value')).toBe('');
 	});
 
 	test('emits no hidden duplicates of the visible fields', async () => {
@@ -120,7 +136,8 @@ describe('when the inviter keeps control', () => {
 		expect(waInputNames(container)).toEqual([]);
 		expect(screen.getByText('Ada')).toBeInTheDocument();
 		expect(screen.getByText('Jun')).toBeInTheDocument();
-		expect(screen.getByText('partner')).toBeInTheDocument();
+		expect(screen.getByText("Jun's dom")).toBeInTheDocument();
+		expect(screen.getByText("Ada's sub")).toBeInTheDocument();
 	});
 
 	test('still submits every value, so the payload matches the same schema', async () => {
@@ -138,7 +155,8 @@ describe('when the inviter keeps control', () => {
 		expect(hidden).toEqual({
 			partnerName: 'Ada',
 			yourName: 'Jun',
-			relationshipLabel: 'partner',
+			partnerRole: 'dom',
+			yourRole: 'sub',
 			control: 'them'
 		});
 	});
@@ -150,23 +168,24 @@ describe('when the inviter keeps control', () => {
 		}
 	});
 
-	test('leaves the label row out when there is no label', async () => {
+	test('leaves the roles section values out when there are none', async () => {
 		render(PartnerAcceptForm, {
-			data: await formData({ relationshipLabel: null }),
+			data: await formData({ partnerRole: null, yourRole: null }),
 			editable: false
 		});
-		expect(screen.queryByText('What this connection is called')).not.toBeInTheDocument();
+		expect(screen.queryByText('dom')).not.toBeInTheDocument();
+		expect(screen.queryByText('sub')).not.toBeInTheDocument();
 	});
 
-	test('sends an empty string rather than "null" for a missing label', async () => {
+	test('sends an empty string rather than "null" for a missing role', async () => {
 		// `value={null}` would serialise as the literal string "null" and be
-		// stored as a label reading null.
+		// stored as a role reading null.
 		const { container } = render(PartnerAcceptForm, {
-			data: await formData({ relationshipLabel: null }),
+			data: await formData({ partnerRole: null, yourRole: null }),
 			editable: false
 		});
-		const label = container.querySelector<HTMLInputElement>('input[name="relationshipLabel"]');
-		expect(label?.value).toBe('');
+		expect(container.querySelector<HTMLInputElement>('input[name="partnerRole"]')?.value).toBe('');
+		expect(container.querySelector<HTMLInputElement>('input[name="yourRole"]')?.value).toBe('');
 	});
 });
 

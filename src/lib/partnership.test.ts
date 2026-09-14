@@ -27,7 +27,8 @@ function record(overrides: Partial<PartnershipRecord> = {}): PartnershipRecord {
 		// Named so a swapped assertion is obvious rather than a coin flip.
 		inviterName: 'Name-For-Inviter',
 		inviteeName: 'Name-For-Invitee',
-		relationshipLabel: null,
+		inviterRole: null,
+		inviteeRole: null,
 		control: 'both',
 		...overrides
 	};
@@ -103,6 +104,16 @@ describe('viewPartnership', () => {
 		expect(view.partnerName).toBe('Name-For-Inviter');
 		expect(view.yourName).toBe('Name-For-Invitee');
 		expect(view.role).toBe('invitee');
+	});
+
+	test('the roles flip with the viewer, like the names', () => {
+		const r = record({ inviterRole: 'Role-For-Inviter', inviteeRole: 'Role-For-Invitee' });
+		const inviterView = viewPartnership(r, INVITER);
+		expect(inviterView.partnerRole).toBe('Role-For-Invitee');
+		expect(inviterView.yourRole).toBe('Role-For-Inviter');
+		const inviteeView = viewPartnership(r, INVITEE);
+		expect(inviteeView.partnerRole).toBe('Role-For-Inviter');
+		expect(inviteeView.yourRole).toBe('Role-For-Invitee');
 	});
 
 	test('canEdit is carried onto the view', () => {

@@ -112,7 +112,8 @@ export async function createTestInvite(
 	options: {
 		partnerName?: string;
 		yourName?: string;
-		relationshipLabel?: string | null;
+		partnerRole?: string | null;
+		yourRole?: string | null;
 		/** Answered from the inviter's side, exactly as the form asks it. */
 		control?: ControlAnswer;
 		now?: Date;
@@ -124,7 +125,8 @@ export async function createTestInvite(
 			inviterId: inviter.id,
 			inviteeName: options.partnerName ?? 'Them',
 			inviterName: options.yourName ?? 'You',
-			relationshipLabel: options.relationshipLabel ?? null,
+			inviteeRole: options.partnerRole ?? null,
+			inviterRole: options.yourRole ?? null,
 			control: controlFromAnswer(options.control ?? 'mix', 'inviter')
 		},
 		options.now ?? new Date()

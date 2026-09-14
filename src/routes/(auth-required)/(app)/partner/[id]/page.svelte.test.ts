@@ -36,7 +36,8 @@ function data(timezone: string | null): PageData {
 			yourName: 'Ada',
 			image: null,
 			timezone,
-			relationshipLabel: 'partner',
+			partnerRole: 'sub',
+			yourRole: 'dom',
 			canEdit: true
 		}
 	} as PageData;
@@ -50,6 +51,12 @@ describe('/partner/[id]/+page.svelte', () => {
 
 	afterEach(() => {
 		vi.useRealTimers();
+	});
+
+	test("shows the partner role as the current user's name plus role", () => {
+		render(Page, { data: data('America/New_York') });
+		expect(screen.getByText("Ada's sub")).toBeInTheDocument();
+		expect(screen.queryByText(/dom \/ sub|sub \/ dom/)).not.toBeInTheDocument();
 	});
 
 	test('shows partner local time when their timezone differs from the viewer', () => {

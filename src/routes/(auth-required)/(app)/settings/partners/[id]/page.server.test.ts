@@ -105,18 +105,21 @@ describe('the update action', () => {
 	const edit = {
 		partnerName: 'Jun II',
 		yourName: 'Ada II',
-		relationshipLabel: 'trainer',
+		partnerRole: 'sub',
+		yourRole: 'dom',
 		control: 'mix'
 	};
 
 	test('saves an edit made by the controlling side', async () => {
 		const { id } = await createTestPartnership(db, ada, jun, { control: 'me' });
-		await run('update', at(id, ada, edit));
+		const result = await runAndCatch(() => run('update', at(id, ada, edit)));
+		expect(result).toMatchObject({ type: 'redirect', status: 303, location: '/settings/partners' });
 
 		const row = await readPartnershipRow(db, id);
 		expect(row.inviterName).toBe('Ada II');
 		expect(row.inviteeName).toBe('Jun II');
-		expect(row.relationshipLabel).toBe('trainer');
+		expect(row.inviterRole).toBe('dom');
+		expect(row.inviteeRole).toBe('sub');
 		expect(row.control).toBe('both');
 	});
 
@@ -124,7 +127,8 @@ describe('the update action', () => {
 		// The submitted names are in the viewer's terms; storage is in the
 		// inviter/invitee terms, so they swap for the invitee.
 		const { id } = await createTestPartnership(db, ada, jun, { control: 'them' });
-		await run('update', at(id, jun, { ...edit, control: 'me' }));
+		const result = await runAndCatch(() => run('update', at(id, jun, { ...edit, control: 'me' })));
+		expect(result).toMatchObject({ type: 'redirect', status: 303, location: '/settings/partners' });
 
 		const row = await readPartnershipRow(db, id);
 		// Jun's "partnerName" is Ada, who is the inviter.

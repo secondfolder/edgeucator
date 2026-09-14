@@ -29,7 +29,8 @@ export const load: PageServerLoad = async ({ locals, params, url }) => {
 			role: partnership.role,
 			partnerName: partnership.partnerName,
 			yourName: partnership.yourName,
-			relationshipLabel: partnership.relationshipLabel,
+			partnerRole: partnership.partnerRole,
+			yourRole: partnership.yourRole,
 			canEdit: partnership.canEdit,
 			counterpartImage: partnership.counterpart?.image ?? null,
 			inviteExpiresAt: partnership.inviteExpiresAt
@@ -46,7 +47,8 @@ export const load: PageServerLoad = async ({ locals, params, url }) => {
 			{
 				partnerName: partnership.partnerName,
 				yourName: partnership.yourName,
-				relationshipLabel: partnership.relationshipLabel,
+				partnerRole: partnership.partnerRole,
+				yourRole: partnership.yourRole,
 				control: answerFromControl(partnership.control, partnership.role)
 			},
 			zod4(partnerEditFormSchema),
@@ -67,14 +69,15 @@ export const actions: Actions = {
 		const current = await getPartnershipForUser(locals.db, params.id, locals.user.id);
 		if (!current) error(404, 'Partner not found');
 
-		const { partnerName, yourName, relationshipLabel, control } = partnerEditForm.data;
+		const { partnerName, yourName, partnerRole, yourRole, control } = partnerEditForm.data;
 		// The submitted names are in the *viewer's* terms; storage is in the
 		// inviter/invitee terms. Which way round they go flips with the role.
 		const viewerIsInviter = current.role === 'inviter';
 		const ok = await updatePartnership(locals.db, params.id, locals.user.id, {
 			inviterName: viewerIsInviter ? yourName : partnerName,
 			inviteeName: viewerIsInviter ? partnerName : yourName,
-			relationshipLabel,
+			inviterRole: viewerIsInviter ? yourRole : partnerRole,
+			inviteeRole: viewerIsInviter ? partnerRole : yourRole,
 			control: controlFromAnswer(control, current.role)
 		});
 
@@ -82,7 +85,7 @@ export const actions: Actions = {
 		// hidden the form: control can have changed since it was rendered.
 		if (!ok) return kitFail(403, { partnerEditForm, denied: true });
 
-		return { partnerEditForm };
+		redirect(303, '/settings/partners');
 	},
 
 	/**

@@ -144,7 +144,13 @@ export async function logOut(page: Page) {
 /** Walks the add-a-partner flow and returns the invite URL it produced. */
 export async function createInvite(
 	page: Page,
-	answers: { partnerName: string; yourName: string; label?: string; control: 'me' | 'them' | 'mix' }
+	answers: {
+		partnerName: string;
+		yourName: string;
+		partnerRole?: string;
+		yourRole?: string;
+		control: 'me' | 'them' | 'mix';
+	}
 ): Promise<string> {
 	await page.goto('/settings/partners');
 	await page.getByRole('link', { name: 'Add' }).click();
@@ -152,7 +158,8 @@ export async function createInvite(
 
 	await fillWaInput(page, 'partnerName', answers.partnerName);
 	await fillWaInput(page, 'yourName', answers.yourName);
-	if (answers.label) await fillWaInput(page, 'relationshipLabel', answers.label);
+	if (answers.partnerRole) await fillWaInput(page, 'partnerRole', answers.partnerRole);
+	if (answers.yourRole) await fillWaInput(page, 'yourRole', answers.yourRole);
 	await page.locator(`input[name="control"][value="${answers.control}"]`).check();
 
 	await clickWaButton(page, 'Create invite link');

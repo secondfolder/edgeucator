@@ -1,7 +1,7 @@
 import { z } from 'zod';
 
 /**
- * The three questions asked when adding a partner, plus the optional label.
+ * The questions asked when adding a partner, plus the optional roles.
  *
  * Shared by `/settings/partners/new`, the accept screen at `/invite/[token]`
  * and the edit screen, so the wording of a validation error is identical
@@ -19,12 +19,12 @@ const nameSchema = z
 	// long before it broke the database.
 	.max(60, 'Please keep this to 60 characters or fewer');
 
-const relationshipLabelSchema = z
+const roleSchema = z
 	.string()
 	.trim()
 	.max(40, 'Please keep this to 40 characters or fewer')
-	// An empty box means "no label", not an empty string — normalising here
-	// keeps `relationship_label` NULL rather than '' for the same intent.
+	// An empty box means "no role", not an empty string — normalising here
+	// keeps the column NULL rather than '' for the same intent.
 	.transform((value) => (value === '' ? null : value))
 	.nullable()
 	.default(null);
@@ -34,7 +34,10 @@ export const partnerInviteFormSchema = z.object({
 	partnerName: nameSchema,
 	/** "What do they call you?" */
 	yourName: nameSchema,
-	relationshipLabel: relationshipLabelSchema,
+	/** Their half of the "Roles" section. */
+	partnerRole: roleSchema,
+	/** Your half of the "Roles" section. */
+	yourRole: roleSchema,
 	control: controlAnswerSchema
 });
 

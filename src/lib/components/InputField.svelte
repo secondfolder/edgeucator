@@ -9,12 +9,14 @@
 		superform,
 		field,
 		title,
+		startText = null,
 		type,
 		...otherProps
 	}: {
 		superform: SuperForm<T>;
 		field: FormPathLeaves<T>;
 		title?: string;
+		startText?: string | null;
 		type: string;
 		// Any further attributes are spread onto the underlying <wa-input>, which
 		// is how callers pass things like `autocomplete`.
@@ -82,7 +84,9 @@
 			aria-invalid={$errors ? 'true' : undefined}
 			{...attributes}
 			{...otherProps}
-		></wa-input>
+		>
+			{#if startText}<span slot="start" class="start-text">{startText}</span>{/if}
+		</wa-input>
 	{:else if type === 'email' || type === 'text'}
 		<wa-input
 			label={title || field}
@@ -93,7 +97,9 @@
 			aria-invalid={$errors ? 'true' : undefined}
 			{...attributes}
 			{...otherProps}
-		></wa-input>
+		>
+			{#if startText}<span slot="start" class="start-text">{startText}</span>{/if}
+		</wa-input>
 	{:else}
 		{`Unsupported type: ${type}`}
 	{/if}
@@ -102,6 +108,12 @@
 
 <style>
 	.field {
+		.start-text {
+			color: var(--wa-color-text-quiet);
+			white-space: nowrap;
+			margin-inline-end: 0.35rem;
+		}
+
 		.invalid {
 			color: var(--wa-color-text-danger);
 		}

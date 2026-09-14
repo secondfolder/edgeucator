@@ -37,7 +37,8 @@ const partnershipColumns = {
 	inviteeId: partnerships.inviteeId,
 	inviterName: partnerships.inviterName,
 	inviteeName: partnerships.inviteeName,
-	relationshipLabel: partnerships.relationshipLabel,
+	inviterRole: partnerships.inviterRole,
+	inviteeRole: partnerships.inviteeRole,
 	control: partnerships.control,
 	inviteToken: partnerships.inviteToken,
 	inviteExpiresAt: partnerships.inviteExpiresAt,
@@ -176,7 +177,10 @@ export type CreateInviteInput = {
 	inviteeName: string;
 	/** "What do they call you?" */
 	inviterName: string;
-	relationshipLabel: string | null;
+	/** Their half of the "Roles" section. Stored against the invitee. */
+	inviteeRole: string | null;
+	/** Your half of the "Roles" section. Stored against the inviter. */
+	inviterRole: string | null;
 	control: PartnershipControl;
 };
 
@@ -195,7 +199,8 @@ export async function createInvite(
 			status: 'pending',
 			inviterName: input.inviterName,
 			inviteeName: input.inviteeName,
-			relationshipLabel: input.relationshipLabel,
+			inviterRole: input.inviterRole,
+			inviteeRole: input.inviteeRole,
 			control: input.control,
 			inviteToken,
 			inviteExpiresAt
@@ -240,7 +245,8 @@ export type AcceptInviteInput = {
 	/** Only honoured when the accepter is allowed to edit; see the action. */
 	inviterName?: string;
 	inviteeName?: string;
-	relationshipLabel?: string | null;
+	inviterRole?: string | null;
+	inviteeRole?: string | null;
 	control?: PartnershipControl;
 };
 
@@ -293,10 +299,8 @@ export async function acceptInvite(
 				? {
 						inviterName: input.inviterName ?? existing.inviterName,
 						inviteeName: input.inviteeName ?? existing.inviteeName,
-						relationshipLabel:
-							input.relationshipLabel === undefined
-								? existing.relationshipLabel
-								: input.relationshipLabel,
+						inviterRole: input.inviterRole === undefined ? existing.inviterRole : input.inviterRole,
+						inviteeRole: input.inviteeRole === undefined ? existing.inviteeRole : input.inviteeRole,
 						control: input.control ?? existing.control
 					}
 				: {})
@@ -330,7 +334,8 @@ export async function partnershipExistsBetween(db: Db, a: string, b: string): Pr
 export type UpdatePartnershipInput = {
 	inviterName: string;
 	inviteeName: string;
-	relationshipLabel: string | null;
+	inviterRole: string | null;
+	inviteeRole: string | null;
 	control: PartnershipControl;
 };
 

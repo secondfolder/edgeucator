@@ -38,7 +38,8 @@
 		backLabel="Back to partners"
 		backText="Partners"
 		title={partnership.partnerName}
-		description={partnership.relationshipLabel ?? null}
+		description={[partnership.partnerRole, partnership.yourRole].filter(Boolean).join(' / ') ||
+			null}
 	/>
 
 	<div class="content">
@@ -105,14 +106,11 @@
 		{#if partnership.status === 'accepted' || partnership.canEdit}
 			<h2>Settings</h2>
 			{#if partnership.canEdit}
-				<form method="POST" action="?/update" use:superform.enhance>
+				<!-- The Save button lives outside this form, on a shared row with
+				     Disconnect — `form="partner-edit"` re-associates it, so it still
+				     submits through superforms' enhance. -->
+				<form id="partner-edit" method="POST" action="?/update" use:superform.enhance>
 					<PartnerFields {superform} />
-					<!-- `disabled={x}`, never `disabled={x || undefined}`. Once Web Awesome
-				     upgrades the element Svelte assigns to the `disabled` *property*, and
-				     this alpha coerces `undefined` to true — leaving the button permanently
-				     disabled. A plain boolean assigns false and behaves. -->
-					<wa-button type="submit" disabled={$submitting}>Save</wa-button>
-					{#if $errors._errors}<span class="invalid">{$errors._errors}</span>{/if}
 				</form>
 			{:else}
 				<dl class="readonly">
@@ -125,20 +123,31 @@
 			{/if}
 		{/if}
 
-		<!-- Always available, whoever holds control: see the disconnect action. -->
-		<form
-			method="POST"
-			action="?/disconnect"
-			use:enhance={({ cancel }) => {
-				if (!confirm(`Disconnect from ${partnership.partnerName}? This cannot be undone.`))
-					cancel();
-				return async ({ update }) => update();
-			}}
-		>
-			<wa-button type="submit" appearance="outlined" variant="danger">
-				{partnership.status === 'pending' ? 'Cancel invite' : 'Disconnect'}
-			</wa-button>
-		</form>
+		<div class="actions">
+			{#if partnership.canEdit}
+				<!-- `disabled={x}`, never `disabled={x || undefined}`. Once Web Awesome
+				     upgrades the element Svelte assigns to the `disabled` *property*, and
+				     this alpha coerces `undefined` to true — leaving the button permanently
+				     disabled. A plain boolean assigns false and behaves. -->
+				<wa-button type="submit" form="partner-edit" disabled={$submitting}>Save</wa-button>
+			{/if}
+
+			<!-- Always available, whoever holds control: see the disconnect action. -->
+			<form
+				method="POST"
+				action="?/disconnect"
+				use:enhance={({ cancel }) => {
+					if (!confirm(`Disconnect from ${partnership.partnerName}? This cannot be undone.`))
+						cancel();
+					return async ({ update }) => update();
+				}}
+			>
+				<wa-button type="submit" appearance="outlined" variant="danger">
+					{partnership.status === 'pending' ? 'Cancel invite' : 'Disconnect'}
+				</wa-button>
+			</form>
+		</div>
+		{#if $errors._errors}<span class="invalid">{$errors._errors}</span>{/if}
 	</div>
 </section>
 
@@ -199,6 +208,19 @@
 			display: flex;
 			flex-direction: column;
 			gap: 1rem;
+		}
+
+		/* The disconnect form contributes only its button, so let the .actions
+		   row lay the two buttons out as siblings. */
+		.actions {
+			display: flex;
+			flex-wrap: wrap;
+			align-items: center;
+			gap: 0.75rem;
+
+			form {
+				display: contents;
+			}
 		}
 
 		.readonly {

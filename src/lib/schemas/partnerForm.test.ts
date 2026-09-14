@@ -1,7 +1,13 @@
 import { describe, expect, test } from 'vitest';
 import { partnerInviteFormSchema } from './partnerForm';
 
-const valid = { partnerName: 'Ada', yourName: 'Jun', relationshipLabel: 'partner', control: 'mix' };
+const valid = {
+	partnerName: 'Ada',
+	yourName: 'Jun',
+	partnerRole: 'trainer',
+	yourRole: 'trainee',
+	control: 'mix'
+};
 
 describe('partnerInviteFormSchema', () => {
 	test('accepts the happy path', () => {
@@ -26,25 +32,27 @@ describe('partnerInviteFormSchema', () => {
 		).toBe(true);
 	});
 
-	test('normalises an empty label to null rather than an empty string', () => {
-		expect(
-			partnerInviteFormSchema.parse({ ...valid, relationshipLabel: '' }).relationshipLabel
-		).toBeNull();
-		expect(
-			partnerInviteFormSchema.parse({ ...valid, relationshipLabel: '  ' }).relationshipLabel
-		).toBeNull();
+	test('normalises an empty role to null rather than an empty string', () => {
+		expect(partnerInviteFormSchema.parse({ ...valid, partnerRole: '' }).partnerRole).toBeNull();
+		expect(partnerInviteFormSchema.parse({ ...valid, yourRole: '  ' }).yourRole).toBeNull();
 	});
 
-	test('allows the label to be omitted entirely', () => {
-		const withoutLabel = { ...valid };
-		delete (withoutLabel as Partial<typeof valid>).relationshipLabel;
-		expect(partnerInviteFormSchema.parse(withoutLabel).relationshipLabel).toBeNull();
+	test('allows each role to be omitted entirely', () => {
+		const withoutRoles = { ...valid };
+		delete (withoutRoles as Partial<typeof valid>).partnerRole;
+		delete (withoutRoles as Partial<typeof valid>).yourRole;
+		const parsed = partnerInviteFormSchema.parse(withoutRoles);
+		expect(parsed.partnerRole).toBeNull();
+		expect(parsed.yourRole).toBeNull();
 	});
 
-	test('rejects an over-long label', () => {
+	test('rejects an over-long role', () => {
 		expect(
-			partnerInviteFormSchema.safeParse({ ...valid, relationshipLabel: 'a'.repeat(41) }).success
+			partnerInviteFormSchema.safeParse({ ...valid, partnerRole: 'a'.repeat(41) }).success
 		).toBe(false);
+		expect(partnerInviteFormSchema.safeParse({ ...valid, yourRole: 'a'.repeat(41) }).success).toBe(
+			false
+		);
 	});
 
 	test('only accepts the three control answers', () => {

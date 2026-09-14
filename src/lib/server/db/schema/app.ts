@@ -110,8 +110,10 @@ export const partnerships = sqliteTable(
 		inviterName: text('inviter_name').notNull(),
 		/** The name shown FOR the invitee — i.e. "What's their name/title?". */
 		inviteeName: text('invitee_name').notNull(),
-		/** A shared word for the connection ("partner", "trainer"). Optional. */
-		relationshipLabel: text('relationship_label'),
+		/** The inviter's role in the connection ("dom", "coach"). Optional. */
+		inviterRole: text('inviter_role'),
+		/** The invitee's role in the connection ("sub", "trainee"). Optional. */
+		inviteeRole: text('invitee_role'),
 		control: text('control').$type<PartnershipControl>().notNull(),
 		/**
 		 * The secret in the invite URL, stored in the clear rather than hashed.

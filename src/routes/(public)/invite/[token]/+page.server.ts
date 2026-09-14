@@ -67,13 +67,13 @@ export const load: PageServerLoad = async ({ locals, params, url }) => {
 		state: 'confirm' as const,
 		inviterName,
 		editable,
-		relationshipLabel: invite.relationshipLabel,
 		partnerAcceptForm: await superValidate(
 			{
 				// From the accepter's side: "them" is the inviter.
 				partnerName: invite.inviterName,
 				yourName: invite.inviteeName,
-				relationshipLabel: invite.relationshipLabel,
+				partnerRole: invite.inviterRole,
+				yourRole: invite.inviteeRole,
 				control: answerFromControl(invite.control, 'invitee')
 			},
 			zod4(partnerAcceptFormSchema),
@@ -91,7 +91,7 @@ export const actions: Actions = {
 		const partnerAcceptForm = await superValidate(request, zod4(partnerAcceptFormSchema));
 		if (!partnerAcceptForm.valid) return fail(400, { partnerAcceptForm });
 
-		const { partnerName, yourName, relationshipLabel, control } = partnerAcceptForm.data;
+		const { partnerName, yourName, partnerRole, yourRole, control } = partnerAcceptForm.data;
 		const result = await acceptInvite(locals.db, {
 			token: params.token,
 			inviteeId: locals.user.id,
@@ -99,7 +99,8 @@ export const actions: Actions = {
 			// what they call their partner is the *inviter's* name.
 			inviterName: partnerName,
 			inviteeName: yourName,
-			relationshipLabel,
+			inviterRole: partnerRole,
+			inviteeRole: yourRole,
 			control: controlFromAnswer(control, 'invitee')
 		});
 

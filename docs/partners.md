@@ -11,21 +11,22 @@ a frozen record, not a description of the code as it stands.
 
 ## The shape of a link
 
-A link is **one row** in `partnerships`, not one per direction. The two names
-and the single control setting belong to the relationship, so storing them twice
-would let the two halves disagree.
+A link is **one row** in `partnerships`, not one per direction. The two names,
+the two optional roles, and the single control setting belong to the
+relationship, so storing them twice would let the two halves disagree.
 
-| Column                               | Meaning                                                                               |
-| ------------------------------------ | ------------------------------------------------------------------------------------- |
-| `inviter_id`                         | Who created the invite. Never changes, not even after acceptance.                     |
-| `invitee_id`                         | Who accepted it. `NULL` exactly while `status` is `'pending'`.                        |
-| `status`                             | `'pending'` or `'accepted'`. There is no declined or ended state — see below.         |
-| `inviter_name`                       | The name shown **for the inviter**, i.e. the answer to "what do they call you?".      |
-| `invitee_name`                       | The name shown **for the invitee**, i.e. the answer to "what do you call them?".      |
-| `relationship_label`                 | An optional shared word for the connection ("partner", "trainer"). `NULL` when unset. |
-| `control`                            | `'inviter'`, `'invitee'` or `'both'`. Who may change the three fields above.          |
-| `invite_token` / `invite_expires_at` | The secret in the URL and its deadline. Both cleared on acceptance.                   |
-| `accepted_at`                        | When the link was made.                                                               |
+| Column                               | Meaning                                                                          |
+| ------------------------------------ | -------------------------------------------------------------------------------- |
+| `inviter_id`                         | Who created the invite. Never changes, not even after acceptance.                |
+| `invitee_id`                         | Who accepted it. `NULL` exactly while `status` is `'pending'`.                   |
+| `status`                             | `'pending'` or `'accepted'`. There is no declined or ended state — see below.    |
+| `inviter_name`                       | The name shown **for the inviter**, i.e. the answer to "what do they call you?". |
+| `invitee_name`                       | The name shown **for the invitee**, i.e. the answer to "what do you call them?". |
+| `inviter_role`                       | The inviter's optional role/title in the connection ("dom", "coach").            |
+| `invitee_role`                       | The invitee's optional role/title in the connection ("sub", "trainee").          |
+| `control`                            | `'inviter'`, `'invitee'` or `'both'`. Who may change the four fields above.      |
+| `invite_token` / `invite_expires_at` | The secret in the URL and its deadline. Both cleared on acceptance.              |
+| `accepted_at`                        | When the link was made.                                                          |
 
 Both foreign keys cascade on delete, so deleting a user removes every link they
 were in — otherwise the other person would keep a nav tab pointing at nothing.
@@ -53,6 +54,8 @@ import { viewPartnership } from '$lib/partnership';
 const view = viewPartnership(row, viewerId, counterpart);
 view.partnerName; // what the viewer calls the other person
 view.yourName; // what the other person calls the viewer
+view.partnerRole; // the other person's optional role/title
+view.yourRole; // the viewer's optional role/title
 view.role; // 'inviter' | 'invitee'
 view.canEdit; // may this viewer change the settings?
 ```
@@ -70,9 +73,11 @@ no user id ever appears in a URL.
 
 ## The control question
 
-The form asks **"Who's in control?"** with three answers: **Me**, **Them**,
+The form asks **"Who calls the shots?"** with three answers: **Me**, **Them**,
 **A mix**. It is always asked from the answerer's own side, and always stored
-against the permanent roles. Two pure functions are the only translation:
+against the permanent roles. The page also states explicitly that this decides
+who can set tasks, punishments, rewards, and the other editable settings on the
+link. Two pure functions are the only translation:
 
 ```ts
 controlFromAnswer('me', 'inviter'); // → 'inviter'
@@ -90,14 +95,14 @@ The Zod schema accepts only `me` / `them` / `mix` — posting the _stored_ value
 
 ### What control gates
 
-| Action                                            | Who may do it                                    |
-| ------------------------------------------------- | ------------------------------------------------ |
-| Change the names, the label, the control setting  | Whoever `control` names, or both                 |
-| Manage partnership rewards and set reward credits | Whoever `control` names, or both                 |
-| Manage partnership tasks                          | Whoever `control` names, or both                 |
-| Complete partnership tasks                        | The non-controller, or both under shared control |
-| Rewrite the names while accepting an invite       | The accepter, if control is theirs or shared     |
-| Disconnect, or cancel a pending invite            | **Either member, always**                        |
+| Action                                                | Who may do it                                    |
+| ----------------------------------------------------- | ------------------------------------------------ |
+| Change the names, the roles, the control setting      | Whoever `control` names, or both                 |
+| Manage partnership rewards and set reward credits     | Whoever `control` names, or both                 |
+| Manage partnership tasks                              | Whoever `control` names, or both                 |
+| Complete partnership tasks                            | The non-controller, or both under shared control |
+| Rewrite the names and roles while accepting an invite | The accepter, if control is theirs or shared     |
+| Disconnect, or cancel a pending invite                | **Either member, always**                        |
 
 Disconnecting is deliberately not gated: a user who handed control to their
 partner must still be able to get out. `deletePartnership` checks membership and
@@ -157,7 +162,7 @@ token (`not-found`), an expired one (`expired`), the inviter's own link
 | Route                              | Group             | What it does                                                                                              |
 | ---------------------------------- | ----------------- | --------------------------------------------------------------------------------------------------------- |
 | `/settings/partners`               | `(auth-required)` | Linked partners and outstanding invites. "Add" starts a new one.                                          |
-| `/settings/partners/new`           | `(auth-required)` | The four questions. Creates the pending row and the link.                                                 |
+| `/settings/partners/new`           | `(auth-required)` | Name/Title, Roles, and the control question. Creates the pending row and the link.                        |
 | `/settings/partners/[id]`          | `(auth-required)` | Pending: the link, share, renew, cancel. Accepted: edit, disconnect.                                      |
 | `/invite/[token]`                  | **`(public)`**    | The landing page for the person being invited.                                                            |
 | `/partner/[id]`                    | `(auth-required)` | The partner's own page. Accepted links only. Shows their local time, and date too when their day differs. |
@@ -289,16 +294,16 @@ navigation does not dismiss a browser-level sheet.
 
 ## Files
 
-| Path                                          | What it holds                                         |
-| --------------------------------------------- | ----------------------------------------------------- |
-| `src/lib/partnership.ts`                      | The domain rules. Pure, alias-free, no database.      |
-| `src/lib/server/partnerships.ts`              | Every query and mutation, including the aliased join. |
-| `src/lib/schemas/partnerForm.ts`              | The Zod schema shared by add, accept and edit.        |
-| `src/lib/components/PartnerFields.svelte`     | The four questions, editable or read-only.            |
-| `src/lib/components/PartnerAcceptForm.svelte` | The accept form. Owns its `superForm`.                |
-| `src/lib/invite-url.ts`, `src/lib/share.ts`   | Building the URL, and handing it to the platform.     |
-| `src/lib/safe-redirect.ts`                    | The `redirectTo` allowlist.                           |
-| `src/lib/server/db/schema/app.ts`             | The `partnerships` table.                             |
+| Path                                          | What it holds                                                       |
+| --------------------------------------------- | ------------------------------------------------------------------- |
+| `src/lib/partnership.ts`                      | The domain rules. Pure, alias-free, no database.                    |
+| `src/lib/server/partnerships.ts`              | Every query and mutation, including the aliased join.               |
+| `src/lib/schemas/partnerForm.ts`              | The Zod schema shared by add, accept and edit.                      |
+| `src/lib/components/PartnerFields.svelte`     | Name/Title, Roles, and the control question, editable or read-only. |
+| `src/lib/components/PartnerAcceptForm.svelte` | The accept form. Owns its `superForm`.                              |
+| `src/lib/invite-url.ts`, `src/lib/share.ts`   | Building the URL, and handing it to the platform.                   |
+| `src/lib/safe-redirect.ts`                    | The `redirectTo` allowlist.                                         |
+| `src/lib/server/db/schema/app.ts`             | The `partnerships` table.                                           |
 
 `partnership.ts` is **alias-free** (relative imports only), like
 `src/lib/types.ts`: the Drizzle schema imports its two union types, and
@@ -328,5 +333,5 @@ a `RequestEvent`, and the Playwright gotchas.
 - No notification to the inviter when an invite is accepted.
 - `/partner/[id]` has no shared content; it names the link and points at its
   settings.
-- Permissions cover the names, the label and the control setting. They do not
+- Permissions cover the names, the roles, and the control setting. They do not
   gate anything about guides or progress.

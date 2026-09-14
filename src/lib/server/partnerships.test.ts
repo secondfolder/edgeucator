@@ -63,7 +63,8 @@ describe('createInvite', () => {
 		const invite = await createTestInvite(db, ada, {
 			partnerName: 'Jun',
 			yourName: 'Ada',
-			relationshipLabel: 'partner',
+			partnerRole: 'sub',
+			yourRole: 'dom',
 			control: 'me',
 			now
 		});
@@ -74,7 +75,8 @@ describe('createInvite', () => {
 		expect(row.inviterId).toBe(ada.id);
 		expect(row.inviterName).toBe('Ada');
 		expect(row.inviteeName).toBe('Jun');
-		expect(row.relationshipLabel).toBe('partner');
+		expect(row.inviteeRole).toBe('sub');
+		expect(row.inviterRole).toBe('dom');
 		// "me", answered by the inviter, is stored as 'inviter'.
 		expect(row.control).toBe('inviter');
 		expect(row.inviteToken).toBe(invite.inviteToken);
@@ -191,13 +193,15 @@ describe('acceptInvite', () => {
 				inviteeId: jun.id,
 				inviterName: 'Renamed Ada',
 				inviteeName: 'Renamed Jun',
-				relationshipLabel: 'trainer'
+				inviterRole: 'trainer',
+				inviteeRole: 'trainee'
 			});
 
 			const row = await readPartnershipRow(db, invite.id);
 			expect(row.inviterName).toBe('Renamed Ada');
 			expect(row.inviteeName).toBe('Renamed Jun');
-			expect(row.relationshipLabel).toBe('trainer');
+			expect(row.inviterRole).toBe('trainer');
+			expect(row.inviteeRole).toBe('trainee');
 		});
 
 		test('are honoured when the accepter holds control', async () => {
@@ -223,14 +227,16 @@ describe('acceptInvite', () => {
 				inviteeId: jun.id,
 				inviterName: 'Hijacked',
 				inviteeName: 'Hijacked',
-				relationshipLabel: 'hijacked',
+				inviterRole: 'hijacked',
+				inviteeRole: 'hijacked',
 				control: 'invitee'
 			});
 
 			const row = await readPartnershipRow(db, invite.id);
 			expect(row.inviterName).toBe('Ada');
 			expect(row.inviteeName).toBe('Jun');
-			expect(row.relationshipLabel).toBeNull();
+			expect(row.inviterRole).toBeNull();
+			expect(row.inviteeRole).toBeNull();
 			// The control setting itself is the most important thing not to hand
 			// over: accepting must not be a way to seize it.
 			expect(row.control).toBe('inviter');
@@ -364,13 +370,15 @@ describe('updatePartnership', () => {
 		const ok = await updatePartnership(db, id, ada.id, {
 			inviterName: 'Ada II',
 			inviteeName: 'Jun II',
-			relationshipLabel: 'trainer',
+			inviterRole: 'dom',
+			inviteeRole: 'sub',
 			control: 'both'
 		});
 
 		expect(ok).toBe(true);
 		const row = await readPartnershipRow(db, id);
 		expect(row.inviterName).toBe('Ada II');
+		expect(row.inviterRole).toBe('dom');
 		expect(row.control).toBe('both');
 	});
 
@@ -383,7 +391,8 @@ describe('updatePartnership', () => {
 		const ok = await updatePartnership(db, id, jun.id, {
 			inviterName: 'Hijacked',
 			inviteeName: 'Hijacked',
-			relationshipLabel: null,
+			inviterRole: null,
+			inviteeRole: null,
 			control: 'invitee'
 		});
 
@@ -396,7 +405,8 @@ describe('updatePartnership', () => {
 		const edit = {
 			inviterName: 'A',
 			inviteeName: 'J',
-			relationshipLabel: null,
+			inviterRole: null,
+			inviteeRole: null,
 			control: 'both' as const
 		};
 		expect(await updatePartnership(db, id, ada.id, edit)).toBe(true);
@@ -408,7 +418,8 @@ describe('updatePartnership', () => {
 		const ok = await updatePartnership(db, id, stranger.id, {
 			inviterName: 'x',
 			inviteeName: 'y',
-			relationshipLabel: null,
+			inviterRole: null,
+			inviteeRole: null,
 			control: 'both'
 		});
 		expect(ok).toBe(false);
@@ -419,7 +430,8 @@ describe('updatePartnership', () => {
 		await updatePartnership(db, id, ada.id, {
 			inviterName: 'Ada',
 			inviteeName: 'Jun',
-			relationshipLabel: null,
+			inviterRole: null,
+			inviteeRole: null,
 			control: 'invitee'
 		});
 
@@ -427,7 +439,8 @@ describe('updatePartnership', () => {
 		const second = await updatePartnership(db, id, ada.id, {
 			inviterName: 'Take it back',
 			inviteeName: 'Jun',
-			relationshipLabel: null,
+			inviterRole: null,
+			inviteeRole: null,
 			control: 'inviter'
 		});
 		expect(second).toBe(false);

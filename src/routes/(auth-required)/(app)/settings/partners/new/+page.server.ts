@@ -10,12 +10,20 @@ import type { Actions, PageServerLoad } from './$types';
 /** The payload `message()` carries back so the page can open the share sheet. */
 export type InviteCreated = { partnershipId: string; url: string };
 
-export const load: PageServerLoad = async () => {
+export const load: PageServerLoad = async ({ locals }) => {
 	return {
 		// 'mix' rather than the enum's first member: defaulting the permission to
 		// "me" would quietly hand control to whoever happened to click Add first.
 		partnerInviteForm: await superValidate(
-			{ partnerName: '', yourName: '', relationshipLabel: null, control: 'mix' as const },
+			{
+				partnerName: '',
+				// Pre-filled from the account so "what do they call you?" starts from
+				// the name the rest of the app already shows for this user.
+				yourName: locals.user?.name ?? '',
+				partnerRole: null,
+				yourRole: null,
+				control: 'mix' as const
+			},
 			zod4(partnerInviteFormSchema),
 			{ errors: false }
 		)
@@ -33,12 +41,13 @@ export const actions: Actions = {
 			return fail(400, { partnerInviteForm });
 		}
 
-		const { partnerName, yourName, relationshipLabel, control } = partnerInviteForm.data;
+		const { partnerName, yourName, partnerRole, yourRole, control } = partnerInviteForm.data;
 		const invite = await createInvite(locals.db, {
 			inviterId: locals.user.id,
 			inviteeName: partnerName,
 			inviterName: yourName,
-			relationshipLabel,
+			inviteeRole: partnerRole,
+			inviterRole: yourRole,
 			// The person adding the partner is always the inviter, so "me" is
 			// 'inviter' here.
 			control: controlFromAnswer(control, 'inviter')

@@ -30,7 +30,8 @@ export type PartnershipRecord = {
 	inviteeId: string | null;
 	inviterName: string;
 	inviteeName: string;
-	relationshipLabel: string | null;
+	inviterRole: string | null;
+	inviteeRole: string | null;
 	control: PartnershipControl;
 };
 
@@ -59,7 +60,10 @@ export type PartnershipView = {
 	partnerName: string;
 	/** What the other person calls the viewer. */
 	yourName: string;
-	relationshipLabel: string | null;
+	/** The other person's role in the connection. Optional. */
+	partnerRole: string | null;
+	/** The viewer's role in the connection. Optional. */
+	yourRole: string | null;
 	/** Null while the invite is still pending — there is no other person yet. */
 	counterpart: PartnershipCounterpart | null;
 	/** May the viewer change names, label and control? */
@@ -118,7 +122,8 @@ export function viewPartnership(
 		// which is why no screen reads the columns directly.
 		partnerName: viewerIsInviter ? record.inviteeName : record.inviterName,
 		yourName: viewerIsInviter ? record.inviterName : record.inviteeName,
-		relationshipLabel: record.relationshipLabel,
+		partnerRole: viewerIsInviter ? record.inviteeRole : record.inviterRole,
+		yourRole: viewerIsInviter ? record.inviterRole : record.inviteeRole,
 		counterpart,
 		canEdit: canEditPartnership(record, userId)
 	};

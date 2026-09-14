@@ -19,8 +19,8 @@
 			label={partner.name}
 		></wa-avatar>
 		<h1>{partner.name}</h1>
-		{#if partner.relationshipLabel}
-			<p class="label">{partner.relationshipLabel}</p>
+		{#if partner.partnerRole}
+			<p class="label">{partner.yourName}'s {partner.partnerRole}</p>
 		{/if}
 		<TimeZoneDisplay
 			timeZone={partner.timezone}
@@ -28,8 +28,6 @@
 			showCurrentTime={true}
 		/>
 	</header>
-
-	<p>They call you <strong>{partner.yourName}</strong>.</p>
 
 	<div class="actions">
 		<wa-button

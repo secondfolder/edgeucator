@@ -20,7 +20,8 @@ function partnership(overrides: Partial<PartnershipRecord> = {}): PartnershipRec
 		inviteeId: INVITEE,
 		inviterName: 'Ada',
 		inviteeName: 'Jun',
-		relationshipLabel: null,
+		inviterRole: null,
+		inviteeRole: null,
 		control: 'both',
 		...overrides
 	};

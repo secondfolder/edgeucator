@@ -113,16 +113,18 @@ describe('load', () => {
 			const invite = await createTestInvite(db, ada, {
 				yourName: 'Ada',
 				partnerName: 'Jun',
-				relationshipLabel: 'partner',
+				partnerRole: 'dom',
+				yourRole: 'sub',
 				control: 'mix'
 			});
 			const data = await runLoad(load(at(invite.inviteToken, jun)));
 
 			expect(data.partnerAcceptForm?.data).toMatchObject({
-				// From Jun's side, "them" is Ada.
+				// From Jun's side, "them" is Ada — and the roles flip with them.
 				partnerName: 'Ada',
 				yourName: 'Jun',
-				relationshipLabel: 'partner',
+				partnerRole: 'sub',
+				yourRole: 'dom',
 				control: 'mix'
 			});
 		});
@@ -138,7 +140,8 @@ describe('load', () => {
 const confirmation = {
 	partnerName: 'Ada',
 	yourName: 'Jun',
-	relationshipLabel: 'partner',
+	partnerRole: '',
+	yourRole: '',
 	control: 'them'
 };
 
@@ -174,7 +177,8 @@ describe('the accept action', () => {
 				at(invite.inviteToken, jun, {
 					partnerName: 'Ada the First',
 					yourName: 'Junior',
-					relationshipLabel: 'trainer',
+					partnerRole: 'dom',
+					yourRole: 'sub',
 					control: 'me'
 				})
 			)
@@ -184,7 +188,8 @@ describe('the accept action', () => {
 		// The accepter is the invitee, so their "partnerName" is the inviter's.
 		expect(row.inviterName).toBe('Ada the First');
 		expect(row.inviteeName).toBe('Junior');
-		expect(row.relationshipLabel).toBe('trainer');
+		expect(row.inviterRole).toBe('dom');
+		expect(row.inviteeRole).toBe('sub');
 		expect(row.control).toBe('invitee');
 	});
 
@@ -201,7 +206,8 @@ describe('the accept action', () => {
 				at(invite.inviteToken, jun, {
 					partnerName: 'Hijacked',
 					yourName: 'Hijacked',
-					relationshipLabel: 'hijacked',
+					partnerRole: 'hijacked',
+					yourRole: 'hijacked',
 					control: 'me'
 				})
 			)
@@ -210,7 +216,8 @@ describe('the accept action', () => {
 		const row = await readPartnershipRow(db, invite.id);
 		expect(row.inviterName).toBe('Ada');
 		expect(row.inviteeName).toBe('Jun');
-		expect(row.relationshipLabel).toBeNull();
+		expect(row.inviterRole).toBeNull();
+		expect(row.inviteeRole).toBeNull();
 		expect(row.control).toBe('inviter');
 		expect(row.status).toBe('accepted');
 	});

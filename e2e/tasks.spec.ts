@@ -20,13 +20,9 @@ test.describe('tasks', () => {
 			await clickWaButton(ada.page, 'Add task');
 			await ada.page.waitForURL(/\/home\/tasks$/);
 
-			await expect(
-				ada.page.locator('.panel').first().getByRole('heading', { name: 'Long shower' })
-			).toBeVisible();
+			await expect(ada.page.getByRole('heading', { name: 'Long shower' })).toBeVisible();
 			await clickWaButton(ada.page, 'Complete');
-			await expect(
-				ada.page.locator('.panel').first().getByRole('heading', { name: 'Long shower' })
-			).toBeVisible();
+			await expect(ada.page.getByRole('heading', { name: 'Long shower' })).toBeVisible();
 
 			await ada.page.goto('/home/rewards');
 			await expect(ada.page.locator('.self .title-row')).toContainText('Credits: 2');
@@ -75,8 +71,13 @@ test.describe('tasks', () => {
 
 			await ada.page.getByRole('link', { name: 'Open full task list' }).click();
 			await ada.page.waitForURL(/\/partner\/[0-9a-f-]{36}\/tasks$/);
+			await expect(ada.page.getByRole('heading', { name: 'Make tea' })).toBeVisible();
+			await ada.page.getByRole('link', { name: 'Completion History' }).click();
+			await ada.page.waitForURL(/\/partner\/[0-9a-f-]{36}\/tasks\/history$/);
 			await expect(ada.page.getByText('Completed by you')).toBeVisible();
 
+			await ada.page.getByRole('link', { name: 'Back to tasks' }).click();
+			await ada.page.waitForURL(/\/partner\/[0-9a-f-]{36}\/tasks$/);
 			await ada.page.getByRole('link', { name: 'Back to partner' }).click();
 			await ada.page.waitForURL(/\/partner\/[0-9a-f-]{36}$/);
 			await ada.page.getByRole('link', { name: 'Rewards' }).click();

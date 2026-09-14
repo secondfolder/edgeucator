@@ -13,7 +13,8 @@ let ada: TestUser;
 const answers = {
 	partnerName: 'Jun',
 	yourName: 'Ada',
-	relationshipLabel: 'partner',
+	partnerRole: 'sub',
+	yourRole: 'dom',
 	control: 'me'
 };
 
@@ -43,6 +44,11 @@ describe('load', () => {
 		expect(partnerInviteForm.data.partnerName).toBe('');
 		expect(partnerInviteForm.errors).toEqual({});
 	});
+
+	test('prefills "yours" from the account name', async () => {
+		const { partnerInviteForm } = await runLoad(load(fakeEvent({ db, user: ada })));
+		expect(partnerInviteForm.data.yourName).toBe('Ada');
+	});
 });
 
 describe('the create action', () => {
@@ -58,7 +64,8 @@ describe('the create action', () => {
 		expect(row.inviterId).toBe(ada.id);
 		expect(row.inviterName).toBe('Ada');
 		expect(row.inviteeName).toBe('Jun');
-		expect(row.relationshipLabel).toBe('partner');
+		expect(row.inviteeRole).toBe('sub');
+		expect(row.inviterRole).toBe('dom');
 	});
 
 	test('the link in the message actually resolves to the stored token', async () => {
@@ -94,11 +101,11 @@ describe('the create action', () => {
 		expect((await readPartnershipRow(db, result.form.message.partnershipId)).control).toBe('both');
 	});
 
-	test('an omitted label is stored as NULL, not an empty string', async () => {
-		const result = await submit({ ...answers, relationshipLabel: '' });
-		expect(
-			(await readPartnershipRow(db, result.form.message.partnershipId)).relationshipLabel
-		).toBeNull();
+	test('an omitted role is stored as NULL, not an empty string', async () => {
+		const result = await submit({ ...answers, partnerRole: '', yourRole: '' });
+		const row = await readPartnershipRow(db, result.form.message.partnershipId);
+		expect(row.inviteeRole).toBeNull();
+		expect(row.inviterRole).toBeNull();
 	});
 
 	test('rejects a blank name without writing anything', async () => {

@@ -21,7 +21,8 @@ export const load: PageServerLoad = async ({ locals, params }) => {
 			yourName: partnership.yourName,
 			image: partnership.counterpart?.image ?? null,
 			timezone: partnership.counterpart?.timezone ?? null,
-			relationshipLabel: partnership.relationshipLabel,
+			partnerRole: partnership.partnerRole,
+			yourRole: partnership.yourRole,
 			canEdit: partnership.canEdit
 		}
 	};

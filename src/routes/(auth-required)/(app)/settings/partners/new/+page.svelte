@@ -56,10 +56,11 @@
 		     once Web Awesome upgrades the element Svelte assigns to the `disabled`
 		     *property*, and this alpha coerces `undefined` to true, which leaves the
 		     button permanently disabled. -->
-			<wa-button type="submit" disabled={$submitting}>Create invite link</wa-button>
+			<div class="actions">
+				<wa-button type="submit" disabled={$submitting}>Create invite link</wa-button>
+				<a class="cancel" href={resolve('/(auth-required)/(app)/settings/partners')}>Cancel</a>
+			</div>
 			{#if $errors._errors}<span class="invalid">{$errors._errors}</span>{/if}
-
-			<a class="cancel" href={resolve('/(auth-required)/(app)/settings/partners')}>Cancel</a>
 		</form>
 	</div>
 </section>
@@ -83,6 +84,13 @@
 
 			.invalid {
 				color: var(--wa-color-text-danger);
+			}
+
+			.actions {
+				display: flex;
+				flex-wrap: wrap;
+				align-items: center;
+				gap: 0.75rem;
 			}
 
 			.cancel {
