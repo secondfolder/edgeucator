@@ -1,6 +1,7 @@
 <script lang="ts">
 	import { goto } from '$app/navigation';
 	import { resolve } from '$app/paths';
+	import NestedPageHeader from '$lib/components/NestedPageHeader.svelte';
 	import PartnerFields from '$lib/components/PartnerFields.svelte';
 	import { shareInviteLink } from '$lib/share';
 	import { superForm } from 'sveltekit-superforms';
@@ -8,6 +9,7 @@
 	import type { InviteCreated } from './+page.server';
 
 	let { data }: { data: PageData } = $props();
+	const backHref = resolve('/(auth-required)/(app)/settings/partners');
 
 	// svelte-ignore state_referenced_locally
 	// Captures the load's initial `data.partnerInviteForm` on purpose:
@@ -38,24 +40,28 @@
 </script>
 
 <section>
-	<h1>Add a partner</h1>
-	<p class="intro">
-		Answer these, then you'll get a link to send them. Nothing is shared until they open it and
-		accept.
-	</p>
+	<NestedPageHeader
+		{backHref}
+		backLabel="Back to partners"
+		backText="Partners"
+		title="Add a partner"
+		description="Answer these, then you will get a link to send them. Nothing is shared until they accept it."
+	/>
 
-	<form method="POST" use:superform.enhance>
-		<PartnerFields {superform} />
+	<div class="content">
+		<form method="POST" use:superform.enhance>
+			<PartnerFields {superform} />
 
-		<!-- `disabled={$submitting}`, never `disabled={$submitting || undefined}`:
+			<!-- `disabled={$submitting}`, never `disabled={$submitting || undefined}`:
 		     once Web Awesome upgrades the element Svelte assigns to the `disabled`
 		     *property*, and this alpha coerces `undefined` to true, which leaves the
 		     button permanently disabled. -->
-		<wa-button type="submit" disabled={$submitting}>Create invite link</wa-button>
-		{#if $errors._errors}<span class="invalid">{$errors._errors}</span>{/if}
+			<wa-button type="submit" disabled={$submitting}>Create invite link</wa-button>
+			{#if $errors._errors}<span class="invalid">{$errors._errors}</span>{/if}
 
-		<a class="cancel" href={resolve('/(auth-required)/(app)/settings/partners')}>Cancel</a>
-	</form>
+			<a class="cancel" href={resolve('/(auth-required)/(app)/settings/partners')}>Cancel</a>
+		</form>
+	</div>
 </section>
 
 <style>
@@ -64,12 +70,10 @@
 		margin: 0 auto;
 		padding: var(--wa-space-l);
 
-		h1 {
-			margin-top: 0;
-		}
+		width: 100%;
 
-		.intro {
-			color: var(--wa-color-text-quiet);
+		.content {
+			padding: var(--wa-space-l);
 		}
 
 		form {

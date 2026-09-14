@@ -311,7 +311,7 @@ public surface is only `/`, `/login` and `/signup`.
 
 **Active nav state compares `page.route.id`, never a pathname.** During SSR
 `resolve()` returns a path relative to the page being rendered (`./home` on
-`/home`, `../home` on `/settings/passkeys`), which never equals
+`/home`, `../home` on `/settings/security`), which never equals
 `page.url.pathname` — comparing them left the current tab unhighlighted until
 hydration. Route ids are identical on both sides.
 
@@ -547,6 +547,14 @@ plan and let the code, feature docs, and commit history show what changed.
 
 1. If the home page becomes too tall once self rewards, partner rewards, and unread links coexist, collapse each rewards section with a default-open summary rather than moving management off home; that preserves the requested collation without creating a second self-rewards destination.
 2. If claim history grows noisy, show a recent slice on home and the fuller history on the partner rewards page while still storing the full claim table from the start.
+
+## Creating Plans/Making Major Changes
+
+Unless the user explicilty indicates otherwise the plan or major change should include:
+
+- [ ] Adding full tests for all requirements.
+- [ ] Copying the exact plan file into the `docs/historical-plans` directory.
+- [ ] A `docs/<feature name>.md` file should be added when working on a feature that isn't covered by the existing docs, or if there is already an existing relevent doc it should be updated.
 
 ## Traps
 

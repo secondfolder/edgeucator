@@ -3,16 +3,9 @@ import { APIError } from 'better-auth/api';
 import { setError, superValidate } from 'sveltekit-superforms';
 import { zod4 } from 'sveltekit-superforms/adapters';
 import { parseKeyWrapParams } from '$lib/encryption';
-import { changePasswordSchema, encryptionSetupSchema } from '$lib/schemas/encryptionForms';
+import { encryptionSetupSchema } from '$lib/schemas/encryptionForms';
 import { clearPasswordCredential, hasPasswordCredential } from '$lib/server/credentials';
-import {
-	addWrap,
-	deleteOtherPasswordWraps,
-	deleteWrap,
-	getUnlockBundle,
-	putUserKeys,
-	replaceUserKeys
-} from '$lib/server/keys';
+import { deleteWrap, getUnlockBundle, putUserKeys, replaceUserKeys } from '$lib/server/keys';
 import { listPartnershipsForUser } from '$lib/server/partnerships';
 import { requestHistoryRestore } from '$lib/server/messaging';
 import type { Actions, PageServerLoad } from './$types';
@@ -32,8 +25,7 @@ export const load: PageServerLoad = async ({ locals }) => {
 		// `blob` is deliberately included: the browser needs it to open the
 		// identity, and it is useless without a key the server does not have.
 		bundle,
-		setupForm: await superValidate(zod4(encryptionSetupSchema)),
-		changeForm: await superValidate(zod4(changePasswordSchema))
+		setupForm: await superValidate(zod4(encryptionSetupSchema))
 	};
 };
 
@@ -113,72 +105,6 @@ export const actions: Actions = {
 			await putUserKeys(locals.db, userId, { recipient: form.data.recipient, wrap });
 		}
 
-		return { form };
-	},
-
-	/**
-	 * Changes the password and re-seals the identity under it.
-	 *
-	 * The order is chosen for crash-safety rather than tidiness, and D1 has no
-	 * transactions across two systems anyway:
-	 *
-	 * 1. Insert the NEW wrap. Both password wraps now exist.
-	 * 2. Change the credential.
-	 * 3. Only now retire the old wrap.
-	 *
-	 * Dying between 1 and 2 leaves two wraps of which the old password still
-	 * opens one. Dying between 2 and 3 leaves two of which the new password
-	 * opens one. Unlock tries each in turn, so neither loses the identity —
-	 * which is why `user_key_wraps` has no unique index on (user_id, type).
-	 */
-	changePassword: async ({ locals, request }) => {
-		if (!locals.user) error(401, 'Not signed in');
-		const form = await superValidate(request, zod4(changePasswordSchema));
-		if (!form.valid) return fail(400, { form });
-
-		const params = parseKeyWrapParams(form.data.wrapParams);
-		if (!params || params.type !== 'password') {
-			return setError(form, '', 'Could not re-seal your keys');
-		}
-
-		const bundle = await getUnlockBundle(locals.db, locals.user.id);
-		if (!bundle.recipient) return setError(form, '', 'This account has no message keys yet');
-
-		const newWrapId = await addWrap(locals.db, locals.user.id, {
-			type: 'password',
-			params,
-			blob: form.data.wrapBlob
-		});
-
-		try {
-			await locals.auth.api.changePassword({
-				body: {
-					currentPassword: form.data.currentAuthSecret,
-					newPassword: form.data.newAuthSecret,
-					// Revoking a session does not revoke a key another device already
-					// holds, so a half-revoked fleet of still-decrypting devices would
-					// be a worse story than an honest one. See docs/encryption.md.
-					revokeOtherSessions: false
-				},
-				headers: request.headers
-			});
-		} catch (caught) {
-			// The new wrap is now orphaned but harmless — nothing opens it, and the
-			// next successful change replaces it. Removing it is still tidier.
-			await deleteWrap(locals.db, newWrapId, locals.user.id);
-			if (caught instanceof APIError) {
-				// Post-authentication, naming the wrong factor is helpful rather than
-				// a leak: the no-leak rule is about the unauthenticated login surface.
-				if (caught.body?.code === 'INVALID_PASSWORD') {
-					return setError(form, 'currentAuthSecret', 'That password is not right');
-				}
-				return setError(form, '', caught.body?.message ?? 'Could not change your password');
-			}
-			console.error(caught);
-			return setError(form, '', 'Could not change your password');
-		}
-
-		await deleteOtherPasswordWraps(locals.db, locals.user.id, newWrapId);
 		return { form };
 	},
 

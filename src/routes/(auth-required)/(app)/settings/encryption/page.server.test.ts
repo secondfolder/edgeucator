@@ -21,7 +21,6 @@ let ada: TestUser;
 
 const PARAMS = JSON.stringify(currentPasswordWrapParams());
 const SECRET_A = 'A'.repeat(43);
-const SECRET_B = 'B'.repeat(43);
 
 /** Gives a user a password credential, as Better Auth would. */
 async function givePassword(userId: string) {
@@ -174,115 +173,6 @@ describe('setup', () => {
 		expect(requests).toHaveLength(1);
 		expect(requests[0].requestedRecipient).toBe(JUN_RECIPIENT);
 		expect(requests[0].mine).toBe(false);
-	});
-});
-
-describe('changePassword', () => {
-	async function setUpAda() {
-		await givePassword(ada.id);
-		return createTestUserKeys(harness.db, ada);
-	}
-
-	/**
-	 * The ordering that makes a mid-request crash survivable: the new wrap goes
-	 * in first, so both exist briefly and exactly one opens under whichever
-	 * password is current.
-	 */
-	it('inserts the new wrap, changes the credential, then retires the old', async () => {
-		await setUpAda();
-		const seen: number[] = [];
-		const changePassword = vi.fn().mockImplementation(async () => {
-			// Captured mid-flight: both wraps must exist at this moment.
-			seen.push((await readWrapRows(harness.db, ada.id)).length);
-			return {};
-		});
-
-		const result = await actions.changePassword(
-			fakeEvent({
-				db: harness.db,
-				user: ada,
-				authApi: { changePassword },
-				formData: {
-					currentAuthSecret: SECRET_A,
-					newAuthSecret: SECRET_B,
-					wrapParams: PARAMS,
-					wrapBlob: 'bmV3LXdyYXAtYmxvYi10aGF0LWlzLWxvbmctZW5vdWdo'
-				}
-			})
-		);
-
-		expect(result).toMatchObject({ form: { valid: true } });
-		expect(seen).toEqual([2]);
-		const remaining = await readWrapRows(harness.db, ada.id);
-		expect(remaining).toHaveLength(1);
-		expect(remaining[0].blob).toBe('bmV3LXdyYXAtYmxvYi10aGF0LWlzLWxvbmctZW5vdWdo');
-	});
-
-	it('rolls the new wrap back when the credential change fails', async () => {
-		await setUpAda();
-		const changePassword = vi
-			.fn()
-			.mockRejectedValue(
-				new APIError('BAD_REQUEST', { code: 'INVALID_PASSWORD', message: 'Invalid password' })
-			);
-
-		const result = await actions.changePassword(
-			fakeEvent({
-				db: harness.db,
-				user: ada,
-				authApi: { changePassword },
-				formData: {
-					currentAuthSecret: SECRET_A,
-					newAuthSecret: SECRET_B,
-					wrapParams: PARAMS,
-					wrapBlob: 'bmV3LXdyYXAtYmxvYi10aGF0LWlzLWxvbmctZW5vdWdo'
-				}
-			})
-		);
-
-		expect(JSON.stringify(result)).toContain('not right');
-		const remaining = await readWrapRows(harness.db, ada.id);
-		expect(remaining).toHaveLength(1);
-		expect(remaining[0].blob).toBe(FAKE_WRAP_BLOB);
-	});
-
-	// Revoking a session does not revoke a key another device already holds, so
-	// a half-revoked fleet of still-decrypting devices would be a worse story.
-	it('does not revoke other sessions', async () => {
-		await setUpAda();
-		const changePassword = vi.fn().mockResolvedValue({});
-		await actions.changePassword(
-			fakeEvent({
-				db: harness.db,
-				user: ada,
-				authApi: { changePassword },
-				formData: {
-					currentAuthSecret: SECRET_A,
-					newAuthSecret: SECRET_B,
-					wrapParams: PARAMS,
-					wrapBlob: 'bmV3LXdyYXAtYmxvYi10aGF0LWlzLWxvbmctZW5vdWdo'
-				}
-			})
-		);
-		expect(changePassword.mock.calls[0][0].body.revokeOtherSessions).toBe(false);
-	});
-
-	it('refuses on an account with no keys', async () => {
-		await givePassword(ada.id);
-		const result = await actions.changePassword(
-			fakeEvent({
-				db: harness.db,
-				user: ada,
-				authApi: { changePassword: vi.fn() },
-				formData: {
-					currentAuthSecret: SECRET_A,
-					newAuthSecret: SECRET_B,
-					wrapParams: PARAMS,
-					wrapBlob: 'bmV3LXdyYXAtYmxvYi10aGF0LWlzLWxvbmctZW5vdWdo'
-				}
-			})
-		);
-		expect(JSON.stringify(result)).toContain('no message keys');
 	});
 });
 

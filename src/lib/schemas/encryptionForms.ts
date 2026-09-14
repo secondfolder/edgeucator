@@ -20,18 +20,17 @@ export const encryptionSetupSchema = z.object({
 export type EncryptionSetupSchema = typeof encryptionSetupSchema;
 
 /**
- * Changing the password, which has to re-seal the identity.
+ * Changing the password from Security.
  *
- * Both secrets are derived in the browser: the current one proves the user
- * knows the old password, and the new wrap is built from the identity that the
- * old password just opened. If the old password were wrong the browser would
- * have failed to open the wrap and never got here — see `buildPasswordChange`.
+ * The auth secrets are always derived in the browser. If the account already
+ * has message keys, the same submit also includes a replacement wrap so the
+ * identity stays readable under the new password.
  */
 export const changePasswordSchema = z.object({
 	currentAuthSecret: authSecretField,
 	newAuthSecret: authSecretField,
-	wrapParams: identityFields.wrapParams,
-	wrapBlob: identityFields.wrapBlob
+	wrapParams: identityFields.wrapParams.optional(),
+	wrapBlob: identityFields.wrapBlob.optional()
 });
 
 export type ChangePasswordSchema = typeof changePasswordSchema;

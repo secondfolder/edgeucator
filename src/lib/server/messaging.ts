@@ -1,4 +1,4 @@
-import { and, asc, desc, eq, inArray, ne, sql } from 'drizzle-orm';
+import { and, asc, desc, eq, inArray, ne, or, sql } from 'drizzle-orm';
 import type { Db } from './db';
 import {
 	historyRestoreRequests,
@@ -8,6 +8,7 @@ import {
 	messageThreadTags,
 	messageThreads,
 	messages,
+	partnerships,
 	threadReads
 } from './db/schema';
 import { getPartnershipForUser } from './partnerships';
@@ -31,6 +32,18 @@ import type {
 	RestoreRequestView
 } from '../types';
 import type { PartnerView, TagView } from '../types';
+
+/** Whether message-key settings are relevant for this user yet. */
+export async function userHasMessageHistory(db: Db, userId: string): Promise<boolean> {
+	const rows = await db
+		.select({ id: messageThreads.id })
+		.from(messageThreads)
+		.innerJoin(partnerships, eq(partnerships.id, messageThreads.partnershipId))
+		.where(or(eq(partnerships.inviterId, userId), eq(partnerships.inviteeId, userId)))
+		.limit(1);
+
+	return rows.length > 0;
+}
 
 /**
  * Every database access for messaging.

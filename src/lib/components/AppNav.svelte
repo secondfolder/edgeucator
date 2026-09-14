@@ -14,7 +14,7 @@
 	// to the page being rendered ('./home', '../home'), which never equals
 	// page.url.pathname, so the highlight was missing until hydration.
 	const routeId = $derived(page.route.id);
-	// Both tabs own child routes (/home/guides, /settings/passkeys) and stay lit
+	// Both tabs own child routes (/home/guides, /settings/security) and stay lit
 	// while you are inside them, so these are prefix matches rather than equality.
 	const isHome = $derived(routeId?.startsWith('/(auth-required)/(app)/home') ?? false);
 	const isSettings = $derived(routeId?.startsWith('/(auth-required)/(app)/settings') ?? false);

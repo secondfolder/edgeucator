@@ -2,10 +2,14 @@
 	import { enhance } from '$app/forms';
 	import { page } from '$app/state';
 	import { resolve } from '$app/paths';
+	import type { PageData } from './$types';
+
+	let { data }: { data: PageData } = $props();
 
 	// Server load data is the single source of truth for auth state — see the
 	// note in src/routes/+layout.svelte.
 	const user = $derived(page.data.user);
+	const hasMessageHistory = $derived(data.hasMessageHistory);
 </script>
 
 <section>
@@ -13,37 +17,46 @@
 
 	{#if user}
 		<div class="account">
+			<span class="eyebrow">Signed in as</span>
 			<span class="name">{user.name}</span>
 			<span class="email">{user.email}</span>
+
+			<!-- Plain use:enhance is enough: its default behaviour already does goto +
+			     invalidateAll for a redirect result. -->
+			<form method="POST" action="/logout" use:enhance>
+				<wa-button type="submit" appearance="outlined" variant="danger">Log out</wa-button>
+			</form>
 		</div>
 	{/if}
 
 	<ul>
+		<li>
+			<a href={resolve('/(auth-required)/(app)/settings/account')}>
+				<span>Account</span>
+				<wa-icon name="chevron-right" variant="solid"></wa-icon>
+			</a>
+		</li>
+		<li>
+			<a href={resolve('/(auth-required)/(app)/settings/security')}>
+				<span>Security</span>
+				<wa-icon name="chevron-right" variant="solid"></wa-icon>
+			</a>
+		</li>
 		<li>
 			<a href={resolve('/(auth-required)/(app)/settings/partners')}>
 				<span>Partners</span>
 				<wa-icon name="chevron-right" variant="solid"></wa-icon>
 			</a>
 		</li>
-		<li>
-			<a href={resolve('/(auth-required)/(app)/settings/passkeys')}>
-				<span>Passkeys</span>
-				<wa-icon name="chevron-right" variant="solid"></wa-icon>
-			</a>
-		</li>
-		<li>
-			<a href={resolve('/(auth-required)/(app)/settings/encryption')}>
-				<span>Encrypted messages</span>
-				<wa-icon name="chevron-right" variant="solid"></wa-icon>
-			</a>
-		</li>
+		{#if hasMessageHistory}
+			<li>
+				<a href={resolve('/(auth-required)/(app)/settings/encryption')}>
+					<span>Encrypted messages</span>
+					<wa-icon name="chevron-right" variant="solid"></wa-icon>
+				</a>
+			</li>
+		{/if}
 	</ul>
-
-	<!-- Plain use:enhance is enough: its default behaviour already does goto +
-	     invalidateAll for a redirect result. -->
-	<form method="POST" action="/logout" use:enhance>
-		<wa-button type="submit" appearance="outlined" variant="danger">Log out</wa-button>
-	</form>
 </section>
 
 <style>
@@ -59,6 +72,17 @@
 		.account {
 			display: flex;
 			flex-direction: column;
+			gap: 0.125rem;
+			padding: 0.875rem 1rem;
+			border: 1px solid var(--wa-color-surface-border);
+			border-radius: var(--wa-border-radius-l);
+			background: var(--wa-color-surface-raised);
+			margin-bottom: var(--wa-space-l);
+
+			.eyebrow {
+				font-size: var(--wa-font-size-s);
+				color: var(--wa-color-text-quiet);
+			}
 
 			.name {
 				font-weight: var(--wa-font-weight-semibold, 600);
@@ -67,11 +91,15 @@
 			.email {
 				color: var(--wa-color-text-quiet);
 			}
+
+			form {
+				margin-top: var(--wa-space-s);
+			}
 		}
 
 		ul {
 			padding: 0;
-			margin: var(--wa-space-l) 0;
+			margin: 0;
 
 			li {
 				list-style-type: none;

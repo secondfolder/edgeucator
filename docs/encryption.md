@@ -84,8 +84,9 @@ meter, why the meter rewards length over punctuation, and why
   parameters. It is the most valuable test in the feature: it fails if any of
   the above moves, which is the difference between finding out in CI and finding
   out when every user has lost their history.
-- **Changing an account's email would invalidate its master key.** There is no
-  email-change UI. If one is ever added it must re-wrap the identity first.
+- **Changing an account's email would invalidate its master key.** The Account
+  settings page therefore leaves email read-only for now. If email changes are
+  ever added they must re-wrap the identity first and coordinate with auth.
 
 ## The identity, and how it is stored
 
@@ -251,19 +252,20 @@ Four ways a device ends up unlocked, in the order they are tried:
    most often — the browser having evicted its storage. iOS drops IndexedDB
    after about a week of not opening the app, so this is a screen a regular user
    sees regularly, and it is designed as one rather than as an error.
-4. **No keys at all** (`absent`), which is a legacy or passkey-first account and
-   sends the user to `/settings/encryption`.
+4. **No keys at all** (`absent`), which is a legacy or passkey-first account.
+   The messaging screens and `/settings/encryption` explain how to set them up
+   when that state becomes relevant.
 
 A wrong password is caught by the AES-GCM tag **on the device**, with no server
 round trip — so it is answered instantly and tells a watcher nothing.
 
 `EncryptionGate` in the app shell decides which of these applies, once. It is
 deliberately not a wall: the guides and the partner screens need no keys, so a
-locked device gets a callout and everything else keeps working. The "locked"
-callout is only shown when the user actually has partners fully set up; until
-then there are no partner messages to unlock. Only the messaging screens and
-`/settings/encryption` render their own locked state, and the gate keeps quiet
-on those to avoid two identical unlock forms on one page.
+locked device gets a callout and everything else keeps working. The gate only
+speaks up once the user has actual message history, which is the point where a
+locked or absent key state can strand real data. Only the messaging screens
+and `/settings/encryption` render their own locked state, and the gate keeps
+quiet on those to avoid two identical unlock forms on one page.
 
 ### Two things treated as normal rather than exceptional
 
@@ -277,8 +279,15 @@ on those to avoid two identical unlock forms on one page.
 
 ## Changing and resetting the password
 
-`/settings/encryption` covers three cases, and which one it shows depends on
-whether the account has a password credential and whether it has keys.
+The settings split is now deliberate:
+
+- `/settings/security` handles ordinary account-password changes and passkey
+  management.
+- `/settings/encryption` handles message-key setup, unlock-method management,
+  and forgotten-password recovery for message history.
+
+`/settings/security` changes the password in one of two ways, depending on
+whether the account already has message keys.
 
 **Changing it** re-seals the same identity, so nothing already sent is lost. The
 order is chosen for crash-safety, and there is a test asserting it:
@@ -295,19 +304,24 @@ rolled back.
 The old password is checked **in the browser** first, by opening the existing
 wrap with it. A wrong one therefore fails before anything is sent.
 
-**Forgetting it** is not recoverable, and the screen says so in as many words.
-What it offers instead: set a _new_ password, generate a _new_ identity, and ask
-each partner to re-encrypt the shared history to it — see
+If the account has no message keys yet, `/settings/security` still changes the
+Better Auth credential without writing any wrap rows.
+
+`/settings/encryption` still covers the message-specific paths. **Forgetting the
+password** is not recoverable, and the screen says so in as many words. What it
+offers instead: set a _new_ password, generate a _new_ identity, and ask each
+partner to re-encrypt the shared history to it — see
 [docs/messaging.md](messaging.md). That needs an authenticated session, which
 today means a passkey, so `clearPasswordCredential` nulls the stored credential
 and `setPassword` writes the new one. (`setPassword` throws
 `PASSWORD_ALREADY_SET` otherwise, and `changePassword` needs the old password,
 which is precisely what is missing.)
 
-**Setting up on an account with a password but no keys** verifies the password
-before sealing anything to it — via a no-op `changePassword`, which is the only
-way to ask Better Auth "is this the current password?". Sealing to a mistyped
-password would produce a key that looks fine and can never be opened.
+**Setting up encrypted messages on an account with a password but no keys**
+verifies the password before sealing anything to it — via a no-op
+`changePassword`, which is the only way to ask Better Auth "is this the current
+password?". Sealing to a mistyped password would produce a key that looks fine
+and can never be opened.
 
 The last remaining unlock method cannot be removed. A recipient with no wraps is
 an identity nobody can open again, and the tempting recovery from it —

@@ -21,23 +21,23 @@ const { default: EncryptionGate } = await import('./EncryptionGate.svelte');
 const user = { id: 'usr-1', email: 'ada@example.com' };
 
 describe('EncryptionGate', () => {
-	test('shows locked callout when keyring is locked and user has partners', () => {
+	test('shows locked callout when keyring is locked and the user has message history', () => {
 		mockKeyringStatus = 'locked';
-		render(EncryptionGate, { user, hasPartners: true, handledByPage: false });
+		render(EncryptionGate, { user, userHasMessageHistory: true, handledByPage: false });
 
 		expect(screen.getByText('Your messages are locked on this device')).toBeInTheDocument();
 	});
 
-	test('does NOT show locked callout when keyring is locked but user has no partners', () => {
+	test('does NOT show locked callout when keyring is locked but the user has no message history', () => {
 		mockKeyringStatus = 'locked';
-		render(EncryptionGate, { user, hasPartners: false, handledByPage: false });
+		render(EncryptionGate, { user, userHasMessageHistory: false, handledByPage: false });
 
 		expect(screen.queryByText('Your messages are locked on this device')).not.toBeInTheDocument();
 	});
 
-	test('does NOT show locked callout when handledByPage is true even if user has partners', () => {
+	test('does NOT show locked callout when handledByPage is true even if the user has message history', () => {
 		mockKeyringStatus = 'locked';
-		render(EncryptionGate, { user, hasPartners: true, handledByPage: true });
+		render(EncryptionGate, { user, userHasMessageHistory: true, handledByPage: true });
 
 		expect(screen.queryByText('Your messages are locked on this device')).not.toBeInTheDocument();
 	});

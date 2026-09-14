@@ -462,7 +462,7 @@ test.describe('getting your keys back', () => {
 		try {
 			const page = await first.newPage();
 			await signUp(page, who);
-			await page.goto('/settings/encryption');
+			await page.goto('/settings/security');
 
 			await fillPassword(page, 'oldPassword', who.password);
 			await fillPassword(page, 'newPassword', newPassword);
