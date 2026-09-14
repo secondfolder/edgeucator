@@ -14,8 +14,8 @@ test.describe('rewards', () => {
 			await ada.page.getByRole('button', { name: 'Edit your reward credits' }).click();
 			await ada.page.getByLabel('Set your reward credits').fill('4');
 			await ada.page.getByRole('button', { name: 'Save your reward credits' }).click();
-			await expect(ada.page.locator('.self .title-row')).toContainText('Your rewards');
-			await expect(ada.page.locator('.self .title-row')).toContainText('4 credits');
+			await expect(ada.page.locator('.self .title-row')).toContainText('Your Rewards');
+			await expect(ada.page.locator('.self .title-row')).toContainText('Credits: 4');
 
 			await ada.page.getByRole('link', { name: 'Add a reward' }).click();
 			await ada.page.waitForURL(/\/home\/rewards\/add$/);
@@ -30,7 +30,7 @@ test.describe('rewards', () => {
 
 			await expect(ada.page.getByRole('heading', { name: 'Long bath' })).toBeVisible();
 			await clickWaButton(ada.page, 'Claim');
-			await expect(ada.page.locator('.self .title-row')).toContainText('2 credits');
+			await expect(ada.page.locator('.self .title-row')).toContainText('Credits: 2');
 
 			await ada.page.getByRole('link', { name: 'Claim history' }).click();
 			await ada.page.waitForURL(/\/home\/rewards\/history$/);
@@ -82,9 +82,9 @@ test.describe('rewards', () => {
 			await ada.page.goto('/home/rewards');
 			await expect(ada.page.getByRole('heading', { name: 'Jun' })).toBeVisible();
 			await expect(ada.page.locator('.partner .title-row').first()).toContainText('Jun');
-			await expect(ada.page.locator('.partner .title-row').first()).toContainText('4 credits');
+			await expect(ada.page.locator('.partner .title-row').first()).toContainText('Credits: 4');
 			await clickWaButton(ada.page, 'Claim');
-			await expect(ada.page.locator('.partner .title-row').first()).toContainText('2 credits');
+			await expect(ada.page.locator('.partner .title-row').first()).toContainText('Credits: 2');
 
 			await ada.page.getByRole('link', { name: 'Open full rewards' }).click();
 			await ada.page.waitForURL(/\/rewards$/);

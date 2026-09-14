@@ -429,7 +429,9 @@ Notes that cost a debugging round each:
   fixture wraps `browser` so every page — including contexts the specs create
   by hand — fails the run on browser-engine diagnostics: console warnings and
   errors (minus Chromium's "Failed to load resource" network log, which specs
-  intentionally provoke, plus Lit's own dev-mode banner under `vite dev`) and
+  intentionally provoke, plus Lit's own dev-mode banner under `vite dev`, plus
+  Chromium's WebGL "GPU stall due to ReadPixels" warning from the landing
+  page's halftone overlay) and
   uncaught `pageerror`s. This is the only net for problems no assertion can
   see, like an invalid `pattern` attribute
   (Chromium compiles those with the `v` flag; Zod's `z.email()` regex is not

@@ -28,6 +28,10 @@ import { test as base, type Browser, type Page } from '@playwright/test';
  * - Lit logs a dev-mode banner under `vite dev`, which is the server Playwright
  *   runs against. That is environment noise rather than an app regression, so
  *   the watcher ignores it instead of making every e2e run fail by design.
+ * - Chromium logs a WebGL performance warning when the landing page's halftone
+ *   overlay reads back its canvas. That readback is deliberate — the overlay's
+ *   own e2e assertion depends on it — and the warning is browser noise rather
+ *   than a functional failure.
  * - The list of watchers is per-test (the fixture rebuilds it), so nothing
  *   leaks between tests even though contexts are closed lazily.
  *
@@ -38,7 +42,8 @@ import { test as base, type Browser, type Page } from '@playwright/test';
 
 const IGNORED = [
 	/^Failed to load resource/,
-	/^Lit is in dev mode\. Not recommended for production!/
+	/^Lit is in dev mode\. Not recommended for production!/,
+	/^\[\.WebGL-[^\]]+\]GL Driver Message \(OpenGL, Performance, GL_CLOSE_PATH_NV, High\): GPU stall due to ReadPixels/
 ];
 const FAILING_CONSOLE_TYPES = new Set(['warning', 'error']);
 

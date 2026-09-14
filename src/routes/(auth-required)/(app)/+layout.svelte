@@ -27,6 +27,7 @@
 		     the content would cover it. -->
 		<EncryptionGate
 			user={data.user}
+			hasPartners={data.partners.length > 0}
 			handledByPage={(page.route.id?.includes('/partner/[id]/messages') ?? false) ||
 				(page.route.id?.endsWith('/settings/encryption') ?? false)}
 		/>

@@ -259,9 +259,11 @@ round trip — so it is answered instantly and tells a watcher nothing.
 
 `EncryptionGate` in the app shell decides which of these applies, once. It is
 deliberately not a wall: the guides and the partner screens need no keys, so a
-locked device gets a callout and everything else keeps working. Only the
-messaging screens and `/settings/encryption` render their own locked state, and
-the gate keeps quiet on those to avoid two identical unlock forms on one page.
+locked device gets a callout and everything else keeps working. The "locked"
+callout is only shown when the user actually has partners fully set up; until
+then there are no partner messages to unlock. Only the messaging screens and
+`/settings/encryption` render their own locked state, and the gate keeps quiet
+on those to avoid two identical unlock forms on one page.
 
 ### Two things treated as normal rather than exceptional
 

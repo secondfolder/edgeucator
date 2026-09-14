@@ -16,15 +16,18 @@
 	 * answer is needed before the user gets there and because the prompt is
 	 * worth showing wherever they happen to be. It is deliberately **not**
 	 * blocking: the guides and the partner screens need no keys, so a locked
-	 * device is a callout and not a wall.
+	 * device is a callout and not a wall. The locked callout is only shown
+	 * when the user has at least one partner fully set up.
 	 *
 	 * Only the messaging screens themselves refuse to render while locked.
 	 */
 	let {
 		user = null,
+		hasPartners = false,
 		handledByPage = false
 	}: {
 		user?: { id: string; email: string } | null;
+		hasPartners?: boolean;
 		handledByPage?: boolean;
 	} = $props();
 	const keyring = $derived(currentKeyring());
@@ -74,7 +77,7 @@
 	 */
 </script>
 
-{#if user && keyring.status === 'locked' && !handledByPage}
+{#if user && hasPartners && keyring.status === 'locked' && !handledByPage}
 	<wa-callout variant="warning" class="gate">
 		<wa-icon slot="icon" name="lock" variant="solid"></wa-icon>
 		<strong>Your messages are locked on this device</strong>

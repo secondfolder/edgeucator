@@ -40,7 +40,7 @@
 	"picking a tag in the composer keeps the dialog open".
 -->
 <wa-dialog
-	aria-label={`Send to ${partnerName}`}
+	label={`Send to ${partnerName}`}
 	class="composer-dialog"
 	open
 	onwa-after-hide={onAfterHide}
