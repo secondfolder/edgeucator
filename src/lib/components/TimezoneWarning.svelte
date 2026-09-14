@@ -11,6 +11,12 @@
 
 	let deviceTimezone = $state('UTC');
 	let dismissed = $state(false);
+	// False until refresh() has actually read the device timezone and the
+	// dismissal state. Rendering before that shows the banner to anyone whose
+	// account timezone differs from the SSR default ('UTC') for the first paint
+	// — a flash that disappears once onMount runs. Default to hidden and only
+	// reveal once we know it is warranted.
+	let checked = $state(false);
 	let busy = $state(false);
 	let problem = $state<string | null>(null);
 	let lastUserId: string | null = null;
@@ -23,7 +29,9 @@
 		if (user?.id !== lastUserId) refresh();
 	});
 
-	const visible = $derived(Boolean(user && user.timezone !== deviceTimezone && !dismissed));
+	const visible = $derived(
+		checked && Boolean(user && user.timezone !== deviceTimezone && !dismissed)
+	);
 
 	function refresh() {
 		lastUserId = user?.id ?? null;
@@ -32,6 +40,7 @@
 		dismissed = user
 			? window.localStorage.getItem(timezoneBannerStorageKey(user.id)) === deviceTimezone
 			: false;
+		checked = true;
 	}
 
 	function dismiss() {
