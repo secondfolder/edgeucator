@@ -5,16 +5,20 @@
 	import { page } from '$app/state';
 	import InputField from '$lib/components/InputField.svelte';
 	import NestedPageHeader from '$lib/components/NestedPageHeader.svelte';
+	import TimezoneSelect from '$lib/components/TimezoneSelect.svelte';
 	import { superForm } from 'sveltekit-superforms';
+	import { currentTimeZoneOrUtc } from '$lib/timezone';
 	import type { PageData } from './$types';
 
 	let { data }: { data: PageData } = $props();
 	let ready = $state(false);
+	let deviceTimezone = $state('UTC');
 	const backHref = resolve('/(auth-required)/(app)/settings');
 	const user = $derived(page.data.user);
 
 	onMount(() => {
 		ready = true;
+		deviceTimezone = currentTimeZoneOrUtc();
 	});
 
 	// svelte-ignore state_referenced_locally
@@ -28,7 +32,8 @@
 			await invalidateAll();
 		}
 	});
-	const { errors, submitting } = superform;
+	const { errors, isTainted, submitting, tainted } = superform;
+	const hasUnsavedChanges = $derived(isTainted($tainted));
 </script>
 
 <section>
@@ -37,7 +42,7 @@
 		backLabel="Back to settings"
 		backText="Settings"
 		title="Account"
-		description="Update the name shown around the app and review the sign-in details on this account."
+		description="Update the name and timezone used on this account, and review the sign-in details attached to it."
 	/>
 
 	<div class="content">
@@ -48,8 +53,16 @@
 			data-ready={ready ? 'true' : undefined}
 		>
 			<InputField {superform} field="name" title="Name" type="text" autocomplete="name" />
+			<TimezoneSelect {superform} field="timezone" title="Timezone" {deviceTimezone} />
 
-			<wa-button type="submit" disabled={$submitting}>Save account details</wa-button>
+			<wa-button
+				type="submit"
+				appearance={hasUnsavedChanges ? 'filled' : 'outlined'}
+				variant={hasUnsavedChanges ? 'brand' : undefined}
+				disabled={$submitting}
+			>
+				Save account details
+			</wa-button>
 			{#if $errors._errors}<span class="invalid">{$errors._errors}</span>{/if}
 		</form>
 

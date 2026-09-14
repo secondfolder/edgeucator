@@ -12,7 +12,7 @@ const { default: Page } = await import('./+page.svelte');
 
 function data(claimCount: number): PageData {
 	return {
-		user: { id: 'u1', name: 'Ada', email: 'ada@example.com', image: null },
+		user: { id: 'u1', name: 'Ada', email: 'ada@example.com', image: null, timezone: 'UTC' },
 		partners: [{ id: 'p1', name: 'Jun', image: null }],
 		userHasMessageHistory: false,
 		selfRewards: {

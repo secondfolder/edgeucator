@@ -24,8 +24,8 @@
 		"db:seed": "tsx src/lib/server/db/seed.ts",
 		"db:reset": "rm -f local.db local.db-shm local.db-wal && rm -rf local-media && npm run db:migrate && npm run db:seed",
 		"db:studio": "drizzle-kit studio",
-		"auth:schema": "auth generate --config ./better-auth.config.ts --adapter drizzle --dialect sqlite --output src/lib/server/db/schema/auth.ts --yes",
-		"auth:secret": "auth secret",
+		"auth:schema": "better-auth generate --config ./better-auth.config.ts --output src/lib/server/db/schema/auth.ts --yes",
+		"auth:secret": "better-auth secret",
 		"cf-typegen": "wrangler types ./src/worker-env.d.ts --include-runtime=false"
 	},
 	"lint-staged": {
@@ -37,6 +37,7 @@
 	},
 	"devDependencies": {
 		"@cloudflare/workers-types": "^5.20260906.1",
+		"@better-auth/cli": "^1.4.21",
 		"@eslint/compat": "^2.1.1",
 		"@eslint/js": "^10.0.1",
 		"@libsql/client": "^0.18.0",
@@ -72,6 +73,7 @@
 		"@scure/base": "^2.4.0",
 		"age-encryption": "^0.3.1",
 		"better-auth": "^1.7.3",
+		"countries-and-timezones": "^3.10.0",
 		"drizzle-orm": "^0.45.2",
 		"html2canvas-pro": "^2.4.2",
 		"sveltekit-superforms": "^2.30.2",

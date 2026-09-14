@@ -78,6 +78,16 @@ export function createAuth(db: Db, config: AuthRequestConfig) {
 		// baseURL, which `isAuthPath` compares against the request origin.
 		trustedOrigins: [config.origin, `https://${config.host}`],
 		database: drizzleAdapter(db, { provider: 'sqlite', schema }),
+		user: {
+			additionalFields: {
+				timezone: {
+					type: 'string',
+					defaultValue: 'UTC',
+					required: true,
+					returned: true
+				}
+			}
+		},
 		emailAndPassword: {
 			enabled: true,
 			autoSignIn: true,

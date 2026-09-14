@@ -5,7 +5,7 @@ import type { PageData } from './$types';
 
 const pageState = {
 	data: {
-		user: { id: 'u1', name: 'Ada', email: 'ada@example.com', image: null }
+		user: { id: 'u1', name: 'Ada', email: 'ada@example.com', image: null, timezone: 'UTC' }
 	}
 };
 

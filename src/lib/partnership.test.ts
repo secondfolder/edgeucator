@@ -115,8 +115,12 @@ describe('viewPartnership', () => {
 	});
 
 	test('carries the counterpart through untouched', () => {
-		const view = viewPartnership(record(), INVITER, { userId: INVITEE, image: '/a.png' });
-		expect(view.counterpart).toEqual({ userId: INVITEE, image: '/a.png' });
+		const view = viewPartnership(record(), INVITER, {
+			userId: INVITEE,
+			image: '/a.png',
+			timezone: 'UTC'
+		});
+		expect(view.counterpart).toEqual({ userId: INVITEE, image: '/a.png', timezone: 'UTC' });
 	});
 
 	test('id is the partnership id, never a user id', () => {

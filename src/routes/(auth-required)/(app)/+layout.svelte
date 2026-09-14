@@ -2,10 +2,22 @@
 	import { page } from '$app/state';
 	import AppNav from '$lib/components/AppNav.svelte';
 	import EncryptionGate from '$lib/components/EncryptionGate.svelte';
+	import TimezoneWarning from '$lib/components/TimezoneWarning.svelte';
 	import type { Snippet } from 'svelte';
 	import type { LayoutData } from './$types';
 
 	let { data, children }: { data: LayoutData; children: Snippet } = $props();
+
+	const showTimezoneWarning = $derived.by(() => {
+		const routeId = page.route.id;
+		if (!routeId) return false;
+
+		return (
+			routeId === '/(auth-required)/(app)/home' ||
+			routeId.startsWith('/(auth-required)/(app)/partner/') ||
+			routeId.startsWith('/(auth-required)/(app)/settings')
+		);
+	});
 </script>
 
 <svelte:head>
@@ -22,6 +34,9 @@
 
 <div class="shell">
 	<main>
+		{#if showTimezoneWarning}
+			<TimezoneWarning user={data.user} />
+		{/if}
 		<!-- Inside <main> so it scrolls with the page: `position: fixed` against
 		     the viewport does not work in this shell, and a callout pinned over
 		     the content would cover it. -->

@@ -15,6 +15,7 @@
 	import { stashUnlock } from '$lib/crypto/stash';
 	import { MIN_PASSWORD_LENGTH, scorePassword } from '$lib/password-strength';
 	import type { SignupFormSchema } from '$lib/schemas/signupForm';
+	import { currentTimeZoneOrUtc } from '$lib/timezone';
 	import InputField from './InputField.svelte';
 	import PasswordField from './PasswordField.svelte';
 
@@ -79,6 +80,7 @@
 			passwordError = undefined;
 			confirmError = undefined;
 			cryptoError = null;
+			formData.set('timezone', currentTimeZoneOrUtc());
 
 			// Before any of the crypto below runs, so an insecure page gets the
 			// message that names the problem rather than the generic catch's
@@ -180,6 +182,7 @@
 	<input type="hidden" name="recipient" value="" />
 	<input type="hidden" name="wrapParams" value="" />
 	<input type="hidden" name="wrapBlob" value="" />
+	<input type="hidden" name="timezone" value="" />
 
 	<wa-button type="submit" disabled={!hydrated || working}>Sign Up</wa-button>
 	{#if cryptoError}<span class="invalid">{cryptoError}</span>{/if}

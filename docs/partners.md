@@ -113,6 +113,16 @@ The edit action does the same: it re-checks `control` against the database
 rather than trusting that the page hid the form, because control can have
 changed since the page was rendered.
 
+### Privacy boundaries matter here
+
+The general rule lives in [`docs/privacy.md`](privacy.md): a user must not be
+able to probe another user's information unless the app has already established
+they are allowed to see that specific data.
+
+For partners, that means counterpart details are shown only through
+membership-checked partnership reads, and only for fields the product has
+explicitly decided to share on partner surfaces.
+
 ## The invite link
 
 - **Token**: 32 bytes from `crypto.getRandomValues`, unpadded base64url.
@@ -142,17 +152,17 @@ token (`not-found`), an expired one (`expired`), the inviter's own link
 
 ## Screens
 
-| Route                              | Group             | What it does                                                                                        |
-| ---------------------------------- | ----------------- | --------------------------------------------------------------------------------------------------- |
-| `/settings/partners`               | `(auth-required)` | Linked partners and outstanding invites. "Add" starts a new one.                                    |
-| `/settings/partners/new`           | `(auth-required)` | The four questions. Creates the pending row and the link.                                           |
-| `/settings/partners/[id]`          | `(auth-required)` | Pending: the link, share, renew, cancel. Accepted: edit, disconnect.                                |
-| `/invite/[token]`                  | **`(public)`**    | The landing page for the person being invited.                                                      |
-| `/partner/[id]`                    | `(auth-required)` | The partner's own page. Accepted links only.                                                        |
-| `/partner/[id]/rewards`            | `(auth-required)` | Shared rewards and reward credits for that link, with buttons to add rewards or open claim history. |
-| `/partner/[id]/rewards/add`        | `(auth-required)` | The add-reward form for the controlling side of that link.                                          |
-| `/partner/[id]/rewards/[rewardId]` | `(auth-required)` | The edit screen for one reward on that link, using the same form layout as add.                     |
-| `/partner/[id]/rewards/history`    | `(auth-required)` | Reward claim history for that link.                                                                 |
+| Route                              | Group             | What it does                                                                                              |
+| ---------------------------------- | ----------------- | --------------------------------------------------------------------------------------------------------- |
+| `/settings/partners`               | `(auth-required)` | Linked partners and outstanding invites. "Add" starts a new one.                                          |
+| `/settings/partners/new`           | `(auth-required)` | The four questions. Creates the pending row and the link.                                                 |
+| `/settings/partners/[id]`          | `(auth-required)` | Pending: the link, share, renew, cancel. Accepted: edit, disconnect.                                      |
+| `/invite/[token]`                  | **`(public)`**    | The landing page for the person being invited.                                                            |
+| `/partner/[id]`                    | `(auth-required)` | The partner's own page. Accepted links only. Shows their local time, and date too when their day differs. |
+| `/partner/[id]/rewards`            | `(auth-required)` | Shared rewards and reward credits for that link, with buttons to add rewards or open claim history.       |
+| `/partner/[id]/rewards/add`        | `(auth-required)` | The add-reward form for the controlling side of that link.                                                |
+| `/partner/[id]/rewards/[rewardId]` | `(auth-required)` | The edit screen for one reward on that link, using the same form layout as add.                           |
+| `/partner/[id]/rewards/history`    | `(auth-required)` | Reward claim history for that link.                                                                       |
 
 ## Partnership rewards
 

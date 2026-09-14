@@ -39,6 +39,7 @@ export type PartnershipCounterpart = {
 	/** The counterpart's *user* id. Not the partnership id. */
 	userId: string;
 	image: string | null;
+	timezone: string;
 };
 
 /**

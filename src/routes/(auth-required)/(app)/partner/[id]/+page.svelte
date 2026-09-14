@@ -1,10 +1,30 @@
 <script lang="ts">
 	import { resolve } from '$app/paths';
+	import { page } from '$app/state';
 	import { initialsFor } from '$lib/initials';
+	import {
+		describeTimeZoneDifference,
+		formatDateTimeInTimeZoneForViewer,
+		humanizeTimeZone,
+		UTC_TIMEZONE
+	} from '$lib/timezone';
 	import type { PageData } from './$types';
 
 	let { data }: { data: PageData } = $props();
 	let partner = $derived(data.partner);
+	const viewerTimezone = $derived(page.data.user?.timezone ?? UTC_TIMEZONE);
+	const showPartnerTimezone = $derived(
+		Boolean(partner.timezone && partner.timezone !== viewerTimezone)
+	);
+	const partnerLocalTime = $derived(
+		partner.timezone ? formatDateTimeInTimeZoneForViewer(partner.timezone, viewerTimezone) : ''
+	);
+	const partnerTimezoneSummary = $derived(
+		partner.timezone ? `${humanizeTimeZone(partner.timezone)} time` : ''
+	);
+	const partnerTimezoneDetail = $derived(
+		partner.timezone ? `${describeTimeZoneDifference(partner.timezone, viewerTimezone)}` : ''
+	);
 </script>
 
 <section>
@@ -17,6 +37,12 @@
 		<h1>{partner.name}</h1>
 		{#if partner.relationshipLabel}
 			<p class="label">{partner.relationshipLabel}</p>
+		{/if}
+		{#if showPartnerTimezone}
+			<p class="timezone">
+				<wa-icon name="globe" variant="solid"></wa-icon>
+				<span>{partnerLocalTime} {partnerTimezoneSummary} ({partnerTimezoneDetail})</span>
+			</p>
 		{/if}
 	</header>
 
@@ -75,6 +101,16 @@
 			.label {
 				margin: 0;
 				color: var(--wa-color-text-quiet);
+			}
+
+			.timezone {
+				display: inline-flex;
+				align-items: center;
+				justify-content: center;
+				gap: 0.375rem;
+				color: var(--wa-color-text-quiet);
+				font-size: 0.9375rem;
+				flex-wrap: wrap;
 			}
 		}
 

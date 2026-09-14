@@ -20,6 +20,7 @@ export const load: PageServerLoad = async ({ locals, params }) => {
 			name: partnership.partnerName,
 			yourName: partnership.yourName,
 			image: partnership.counterpart?.image ?? null,
+			timezone: partnership.counterpart?.timezone ?? null,
 			relationshipLabel: partnership.relationshipLabel,
 			canEdit: partnership.canEdit
 		}

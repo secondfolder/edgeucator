@@ -3,15 +3,18 @@ import { APIError } from 'better-auth/api';
 import { setError, superValidate } from 'sveltekit-superforms';
 import { zod4 } from 'sveltekit-superforms/adapters';
 import { accountFormSchema } from '$lib/schemas/accountForm';
+import { updateCurrentUserProfile } from '$lib/server/user-settings';
 import type { Actions, PageServerLoad } from './$types';
 
 export const load: PageServerLoad = async ({ locals }) => {
 	if (!locals.user) error(401, 'Not signed in');
 
 	return {
-		accountForm: await superValidate({ name: locals.user.name }, zod4(accountFormSchema), {
-			errors: false
-		})
+		accountForm: await superValidate(
+			{ name: locals.user.name, timezone: locals.user.timezone },
+			zod4(accountFormSchema),
+			{ errors: false }
+		)
 	};
 };
 
@@ -23,9 +26,9 @@ export const actions: Actions = {
 		if (!accountForm.valid) return fail(400, { accountForm });
 
 		try {
-			await locals.auth.api.updateUser({
-				body: { name: accountForm.data.name },
-				headers: request.headers
+			await updateCurrentUserProfile(locals.auth, request.headers, {
+				name: accountForm.data.name,
+				timezone: accountForm.data.timezone
 			});
 		} catch (caught) {
 			if (caught instanceof APIError) {

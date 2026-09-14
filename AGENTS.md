@@ -84,9 +84,9 @@ noise:
     The initial-capture is deliberate: `superForm` registers its lifecycle
     once and its returned stores are the live connection, so re-deriving it on
     every `invalidate()` would reset the form. Add one to new ones.
-- `npm test`: 471 tests. Partners and the encryption keys are covered end to end
+- `npm test`: 568 tests. Partners and the encryption keys are covered end to end
   at three levels — see **Testing** below. Outside those the net is still thin.
-- `npm run test:e2e`: 32 Playwright specs, ~55s once the browser is installed
+- `npm run test:e2e`: 49 Playwright specs, ~55s once the browser is installed
   (`npx playwright install chromium` first). A run that takes ~2 minutes has
   something hanging on its 90-second timeout, not something slow.
 
@@ -294,6 +294,12 @@ which is why Svelte's a11y warnings fire on them. Style with `--wa-*` custom
 properties and `::part()`. Pinned to `3.0.0-alpha.11` — an alpha, so treat a
 version bump as a change that needs the app actually opened.
 
+**Save buttons start outlined and become solid only when there is something to save.**
+An idle save action is secondary, not a call to act. When a form becomes dirty,
+promote its save button to a solid brand style. On `superForm(...)` screens,
+key that off the form's tainted state rather than hand-rolled comparisons so
+the button follows the same definition of "unsaved changes" as the form logic.
+
 **Two shells, one per group.** `(public)` renders `SiteHeader` above a centred
 800px column; `(auth-required)/(app)` renders a `100svh` flex column whose
 `<main>` scrolls and whose `AppNav` bottom bar does not. The root
@@ -494,12 +500,14 @@ Four places, split on scope:
 
 ### Feature docs
 
-| Doc                                      | Feature                                                             |
-| ---------------------------------------- | ------------------------------------------------------------------- |
-| [docs/partners.md](docs/partners.md)     | Linking two accounts: invites, the control permission, the nav tabs |
-| [docs/rewards.md](docs/rewards.md)       | Self rewards and partnership rewards: credits, claims, control      |
-| [docs/encryption.md](docs/encryption.md) | Message keys: the client-side KDF, the wraps, what the guarantee is |
-| [docs/messaging.md](docs/messaging.md)   | Encrypted partner messages: threads, the board, unread, restore     |
+| Doc                                      | Feature                                                                |
+| ---------------------------------------- | ---------------------------------------------------------------------- |
+| [docs/partners.md](docs/partners.md)     | Linking two accounts: invites, the control permission, the nav tabs    |
+| [docs/privacy.md](docs/privacy.md)       | General privacy boundaries: who may see which user data, and why       |
+| [docs/rewards.md](docs/rewards.md)       | Self rewards and partnership rewards: credits, claims, control         |
+| [docs/encryption.md](docs/encryption.md) | Message keys: the client-side KDF, the wraps, what the guarantee is    |
+| [docs/messaging.md](docs/messaging.md)   | Encrypted partner messages: threads, the board, unread, restore        |
+| [docs/timezone.md](docs/timezone.md)     | Account timezone storage, mismatch prompts, and device-local dismissal |
 
 **Keeping these current is part of the change, not a follow-up to it.**
 
@@ -554,7 +562,10 @@ Unless the user explicilty indicates otherwise the plan or major change should i
 
 - [ ] Adding full tests for all requirements.
 - [ ] Copying the exact plan file into the `docs/historical-plans` directory.
-- [ ] A `docs/<feature name>.md` file should be added when working on a feature that isn't covered by the existing docs, or if there is already an existing relevent doc it should be updated.
+- [ ] A `docs/<feature name>.md` file should be added when working on a feature that isn't covered by the existing docs,
+      or if there is already an existing relevent doc it should be updated. If adding new feature that is a superset of an
+      existing feature with an existing doc file consider renaming the existing file under the new superset feature name and
+      placing it's existing contents into a new section dedicated to that subfeature.
 
 ## Traps
 

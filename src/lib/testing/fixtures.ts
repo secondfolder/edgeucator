@@ -66,7 +66,13 @@ function nextFixtureTime(): Date {
 	return new Date(fixtureClock);
 }
 
-export type TestUser = { id: string; name: string; email: string; image: string | null };
+export type TestUser = {
+	id: string;
+	name: string;
+	email: string;
+	image: string | null;
+	timezone: string;
+};
 
 export async function createTestUser(db: Db, overrides: Partial<TestUser> = {}): Promise<TestUser> {
 	counter += 1;
@@ -74,7 +80,8 @@ export async function createTestUser(db: Db, overrides: Partial<TestUser> = {}):
 		id: overrides.id ?? `user-${counter}`,
 		name: overrides.name ?? `Test User ${counter}`,
 		email: overrides.email ?? `user-${counter}@example.test`,
-		image: overrides.image ?? null
+		image: overrides.image ?? null,
+		timezone: overrides.timezone ?? 'UTC'
 	};
 
 	await db.insert(user).values({
@@ -83,6 +90,7 @@ export async function createTestUser(db: Db, overrides: Partial<TestUser> = {}):
 		email: row.email,
 		emailVerified: false,
 		image: row.image,
+		timezone: row.timezone,
 		createdAt: new Date(),
 		updatedAt: new Date()
 	});

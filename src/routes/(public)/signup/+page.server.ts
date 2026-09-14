@@ -25,7 +25,7 @@ export const actions: Actions = {
 			return fail(400, { signupForm });
 		}
 
-		const { name, email, authSecret, recipient, wrapParams, wrapBlob } = signupForm.data;
+		const { name, email, timezone, authSecret, recipient, wrapParams, wrapBlob } = signupForm.data;
 
 		// Validated by the Zod field, parsed again here because the column is
 		// typed. `parseKeyWrapParams` is the one definition of "valid params", so
@@ -39,7 +39,7 @@ export const actions: Actions = {
 			// the user and establishes the session — the old create-then-
 			// authenticate pair is no longer needed.
 			const created = await locals.auth.api.signUpEmail({
-				body: { name, email, password: authSecret },
+				body: { name, email, timezone, password: authSecret },
 				headers: request.headers
 			});
 			userId = created.user.id;

@@ -17,15 +17,19 @@
 
 	{#if user}
 		<div class="account">
-			<span class="eyebrow">Signed in as</span>
-			<span class="name">{user.name}</span>
-			<span class="email">{user.email}</span>
+			<div class="account-row">
+				<div class="account-copy">
+					<span class="eyebrow">Signed in as</span>
+					<span class="name">{user.name}</span>
+					<span class="email">{user.email}</span>
+				</div>
 
-			<!-- Plain use:enhance is enough: its default behaviour already does goto +
-			     invalidateAll for a redirect result. -->
-			<form method="POST" action="/logout" use:enhance>
-				<wa-button type="submit" appearance="outlined" variant="danger">Log out</wa-button>
-			</form>
+				<!-- Plain use:enhance is enough: its default behaviour already does goto +
+				     invalidateAll for a redirect result. -->
+				<form method="POST" action="/logout" use:enhance>
+					<wa-button type="submit" appearance="outlined" variant="danger">Log out</wa-button>
+				</form>
+			</div>
 		</div>
 	{/if}
 
@@ -70,14 +74,26 @@
 		}
 
 		.account {
-			display: flex;
-			flex-direction: column;
-			gap: 0.125rem;
 			padding: 0.875rem 1rem;
 			border: 1px solid var(--wa-color-surface-border);
 			border-radius: var(--wa-border-radius-l);
 			background: var(--wa-color-surface-raised);
 			margin-bottom: var(--wa-space-l);
+
+			.account-row {
+				display: flex;
+				align-items: center;
+				justify-content: space-between;
+				gap: 1rem;
+				flex-wrap: wrap;
+			}
+
+			.account-copy {
+				display: flex;
+				flex-direction: column;
+				gap: 0.125rem;
+				min-width: 0;
+			}
 
 			.eyebrow {
 				font-size: var(--wa-font-size-s);
@@ -93,7 +109,7 @@
 			}
 
 			form {
-				margin-top: var(--wa-space-s);
+				margin-left: auto;
 			}
 		}
 

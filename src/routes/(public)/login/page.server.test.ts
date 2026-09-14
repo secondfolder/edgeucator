@@ -8,7 +8,7 @@ import { fakeEvent, runAndCatch, runLoad } from '$lib/testing/events';
  * end to end by the Playwright suite.
  */
 
-const user = { id: 'u1', name: 'Ada', email: 'ada@example.test', image: null };
+const user = { id: 'u1', name: 'Ada', email: 'ada@example.test', image: null, timezone: 'UTC' };
 
 test('offers a validated redirectTo to the page', async () => {
 	const data = await runLoad(

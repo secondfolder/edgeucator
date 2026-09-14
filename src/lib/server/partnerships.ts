@@ -43,7 +43,9 @@ const partnershipColumns = {
 	inviteExpiresAt: partnerships.inviteExpiresAt,
 	createdAt: partnerships.createdAt,
 	inviterImage: inviterUser.image,
-	inviteeImage: inviteeUser.image
+	inviteeImage: inviteeUser.image,
+	inviterTimezone: inviterUser.timezone,
+	inviteeTimezone: inviteeUser.timezone
 } as const;
 
 type PartnershipRow = PartnershipRecord & {
@@ -52,6 +54,8 @@ type PartnershipRow = PartnershipRecord & {
 	createdAt: Date;
 	inviterImage: string | null;
 	inviteeImage: string | null;
+	inviterTimezone: string;
+	inviteeTimezone: string;
 };
 
 function baseQuery(db: Db) {
@@ -71,10 +75,13 @@ function toView(row: PartnershipRow, userId: string): PartnershipView {
 	const role = roleOf(row, userId);
 	const counterpartId = role === 'inviter' ? row.inviteeId : row.inviterId;
 	const counterpartImage = role === 'inviter' ? row.inviteeImage : row.inviterImage;
+	const counterpartTimezone = role === 'inviter' ? row.inviteeTimezone : row.inviterTimezone;
 	return viewPartnership(
 		row,
 		userId,
-		counterpartId ? { userId: counterpartId, image: counterpartImage } : null
+		counterpartId
+			? { userId: counterpartId, image: counterpartImage, timezone: counterpartTimezone }
+			: null
 	);
 }
 

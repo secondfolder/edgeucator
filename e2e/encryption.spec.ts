@@ -485,7 +485,11 @@ test.describe('getting your keys back', () => {
 
 			await fillPassword(page, 'unlockPassword', who.password);
 			await clickWaButton(page, 'Unlock messages');
-			await expect(page.getByText(/did not unlock your messages/)).toBeVisible();
+			// The dedicated wrong-password test above covers the exact inline copy.
+			// What matters here is that the OLD password no longer unlocks.
+			await expect(page.locator('wa-input[data-field="unlockPassword"] input')).toHaveValue('');
+			await expect(page.getByText(/Locked on this device/)).toBeVisible();
+			await expect(page.getByText(/Your messages are unlocked here/)).toHaveCount(0);
 
 			await fillPassword(page, 'unlockPassword', newPassword);
 			await clickWaButton(page, 'Unlock messages');

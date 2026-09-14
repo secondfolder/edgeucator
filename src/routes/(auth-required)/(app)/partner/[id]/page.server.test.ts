@@ -19,8 +19,8 @@ let stranger: TestUser;
 beforeEach(async () => {
 	harness = await createTestDb();
 	db = harness.db;
-	ada = await createTestUser(db, { name: 'Ada', image: '/ada.png' });
-	jun = await createTestUser(db, { name: 'Jun' });
+	ada = await createTestUser(db, { name: 'Ada', image: '/ada.png', timezone: 'Europe/London' });
+	jun = await createTestUser(db, { name: 'Jun', timezone: 'America/New_York' });
 	stranger = await createTestUser(db);
 });
 
@@ -41,6 +41,7 @@ test('shows each side their own view of the same link', async () => {
 		name: 'Jun',
 		yourName: 'Ada',
 		image: null,
+		timezone: 'America/New_York',
 		relationshipLabel: 'partner',
 		canEdit: true
 	});
@@ -50,6 +51,7 @@ test('shows each side their own view of the same link', async () => {
 		name: 'Ada',
 		yourName: 'Jun',
 		image: '/ada.png',
+		timezone: 'Europe/London',
 		relationshipLabel: 'partner',
 		canEdit: false
 	});
