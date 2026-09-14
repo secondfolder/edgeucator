@@ -110,7 +110,7 @@
 			// Replace with the id from `npx wrangler d1 create edgeucator`.
 			// Only needed for `npm run preview:worker` and `npm run deploy` —
 			// `npm run dev` uses ./local.db and never reads this file.
-			"database_id": "REPLACE_ME",
+			"database_id": "70452d20-897a-4234-b125-2786b364e47d",
 			// drizzle-kit's `out`. Applied with `wrangler d1 migrations apply`;
 			// the local ./local.db is applied with `drizzle-kit migrate` instead.
 			"migrations_dir": "drizzle"

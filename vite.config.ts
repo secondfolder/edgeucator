@@ -1,12 +1,30 @@
 import { svelteTesting } from '@testing-library/svelte/vite';
 import { sveltekit } from '@sveltejs/kit/vite';
-import { defineConfig } from 'vitest/config';
+import { defineConfig, type Plugin } from 'vitest/config';
 
 const host: string | undefined = process.env.HOST;
 const port: number = Number(process.env.PORT) || 58769;
 
+/**
+ * Removes bare `import "devalue";` statements generated into server chunks by
+ * SvelteKit/Rollup tree-shaking when no devalue exports are used in that chunk.
+ * `devalue` has `"sideEffects": false`, so Wrangler's esbuild pass warns on it.
+ */
+function removeBareDevalueImport(): Plugin {
+	return {
+		name: 'remove-bare-devalue-import',
+		generateBundle(_options, bundle) {
+			for (const file of Object.values(bundle)) {
+				if (file.type === 'chunk' && file.code.includes('devalue')) {
+					file.code = file.code.replace(/import\s*["']devalue["'];?\n?/g, '');
+				}
+			}
+		}
+	};
+}
+
 export default defineConfig({
-	plugins: [sveltekit()],
+	plugins: [sveltekit(), removeBareDevalueImport()],
 
 	test: {
 		projects: [
