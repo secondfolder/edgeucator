@@ -568,7 +568,8 @@ export async function createTag(
 	db: Db,
 	partnershipId: string,
 	userId: string,
-	name: string
+	name: string,
+	color?: string
 ): Promise<TagMutationResult> {
 	if (!(await requireMembership(db, partnershipId, userId)))
 		return { ok: false, reason: 'not-a-member' };
@@ -580,11 +581,14 @@ export async function createTag(
 		.where(and(eq(messageTags.partnershipId, partnershipId), eq(messageTags.name, validName)))
 		.limit(1);
 	if (existing[0]) return { ok: false, reason: 'duplicate-name' };
+	// A chosen colour wins; anything malformed falls back to the random pick
+	// rather than refusing, so the picker's default never blocks creation.
+	const chosen = color !== undefined && validTagColor(color) ? color : null;
 	const tag = {
 		id: crypto.randomUUID(),
 		partnershipId,
 		name: validName,
-		color: TAG_COLORS[Math.floor(Math.random() * TAG_COLORS.length)] ?? TAG_COLORS[0]
+		color: chosen ?? TAG_COLORS[Math.floor(Math.random() * TAG_COLORS.length)] ?? TAG_COLORS[0]
 	};
 	await db.insert(messageTags).values(tag);
 	return { ok: true, tag: { id: tag.id, name: tag.name, color: tag.color } };

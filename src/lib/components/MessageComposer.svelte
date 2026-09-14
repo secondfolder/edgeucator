@@ -10,12 +10,10 @@
 	 */
 	let {
 		send,
-		close,
 		placeholder = 'Say something…',
 		submitLabel = 'Send'
 	}: {
 		send: (message: { text: string; files: File[] }) => Promise<string | null>;
-		close?: () => void;
 		placeholder?: string;
 		submitLabel?: string;
 	} = $props();
@@ -204,12 +202,6 @@
 		<wa-button variant="brand" disabled={sending || nothingToSend} onclick={submit}>
 			{#if sending}<wa-spinner></wa-spinner>{:else}{submitLabel}{/if}
 		</wa-button>
-		{#if close}
-			<!-- svelte-ignore a11y_click_events_have_key_events,a11y_no_static_element_interactions -->
-			<wa-button appearance="plain" aria-label="Close" disabled={sending} onclick={close}>
-				<wa-icon name="xmark" variant="solid" label="Close"></wa-icon>
-			</wa-button>
-		{/if}
 	</div>
 </div>
 
@@ -228,10 +220,6 @@
 		wa-button {
 			/* Stops iOS turning a double tap on the send button into a zoom. */
 			touch-action: manipulation;
-		}
-
-		wa-button:last-child {
-			--wa-button-size: 2.75rem;
 		}
 	}
 

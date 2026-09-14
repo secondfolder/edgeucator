@@ -658,3 +658,66 @@ test.describe('attachments', () => {
 		}
 	});
 });
+
+test.describe('thread tags', () => {
+	// The composer dialog used to have `light-dismiss`, and the tag dropdown's
+	// popup counts as an outside click: selecting a tag flashed the chip and
+	// closed the whole dialog. Only a real browser can see that, because it is
+	// Web Awesome's popup layering doing the dismissing — jsdom never upgrades
+	// `wa-dialog`, so the component tests are blind to it by design.
+	test('picking a tag in the composer keeps the dialog open', async ({ browser }) => {
+		const ada = await newSide(browser, 'Ada');
+		const jun = await newSide(browser, 'Jun');
+
+		try {
+			await signUp(ada.page, ada.who);
+			await signUp(jun.page, jun.who);
+			await linkAccounts(ada, jun);
+
+			await ada.page.goto('/home');
+			await openBoard(ada.page, 'Jun');
+
+			await clickWaButton(ada.page, 'Write something');
+			// The composer's textarea, not the `wa-dialog` host: the host itself
+			// carries no bounding box while the visible panel lives in its shadow
+			// DOM, so a visibility assertion on the host is always "hidden".
+			const composer = ada.page.getByLabel('Message to Jun');
+			await expect(composer).toBeVisible();
+			// Locator scope for the picker's controls — the dialog subtree, never the
+			// textarea's, because the picker is a sibling of the composer.
+			const dialog = ada.page.locator('wa-dialog');
+
+			// Create one tag, so the dropdown has something real to select.
+			await clickWaButton(ada.page, 'Add tag');
+			await ada.page.locator('wa-dropdown-item').filter({ hasText: 'New tag' }).click();
+			// Staged: the dialog must survive every popup interaction.
+			await expect(composer).toBeVisible();
+			await ada.page.getByLabel('New tag', { exact: true }).fill('planning');
+			await ada.page.getByRole('button', { name: 'Add', exact: true }).click();
+			await expect(composer).toBeVisible();
+			await expect(dialog.getByText('planning')).toBeVisible();
+
+			// Deselect it (chip pencil → trash), leaving it addable again.
+			await dialog.getByRole('button', { name: 'Edit planning' }).click();
+			await dialog.getByRole('button', { name: 'Remove tag' }).click();
+			await expect(dialog.getByRole('button', { name: 'Edit planning' })).toHaveCount(0);
+
+			// THE interaction that closed the dialog: selecting from the popup.
+			await clickWaButton(ada.page, 'Add tag');
+			await ada.page.locator('wa-dropdown-item').filter({ hasText: 'planning' }).click();
+			await expect(composer).toBeVisible();
+
+			await expect(dialog.getByText('planning')).toBeVisible();
+			// The dialog itself survived: the composer is still there to type into.
+			await expect(composer).toBeVisible();
+
+			// No Save/Cancel in the composer's tag picker: sending the message is
+			// the save, so the confirm pair belongs to the opened thread only.
+			await expect(dialog.getByRole('button', { name: 'Save', exact: true })).toHaveCount(0);
+			await expect(dialog.getByRole('button', { name: 'Cancel' })).toHaveCount(0);
+		} finally {
+			await ada.close();
+			await jun.close();
+		}
+	});
+});
