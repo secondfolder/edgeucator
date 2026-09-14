@@ -253,9 +253,10 @@
 		   The decorative ::before pill now carries the filter; the label stays
 		   crisp and all of the displacement budget is spent on the silhouette. */
 		isolation: isolate;
-		color: #4a2200;
+		color: #ffac00;
+		text-shadow: 0 6px 24px rgba(0, 0, 0, 0.55);
 		font-family: var(--wa-font-family-body);
-		font-size: clamp(1.5rem, 5vw, 2.25rem);
+		font-size: clamp(1.5rem, 20vw, 4em);
 		font-weight: 700;
 		text-decoration: none;
 
@@ -265,11 +266,8 @@
 			inset: 0;
 			z-index: -1;
 			border-radius: 999px;
-			/* Yellow face, brown ink: the landing's own palette, readable on the
-			   rust wash whether the rings pass under it or not. The border and
-			   shadow live on the filtered shape too, so the whole silhouette gets
-			   the same rough-cut treatment. */
-			background: #ffac00;
+			border: #ffac00 2px solid;
+			background: #ffac004d;
 			box-shadow: 0 6px 24px rgb(0 0 0 / 0.35);
 			filter: url('#ragged-edge');
 		}
@@ -277,11 +275,10 @@
 		span {
 			position: relative;
 			z-index: 1;
-		}
+			transition: scale 0.1s ease;
 
-		&:hover {
-			&::before {
-				background: #ffbe33;
+			&:hover {
+				scale: 1.03;
 			}
 		}
 
@@ -300,6 +297,10 @@
 		text-decoration: underline;
 		font-size: 1rem;
 		white-space: nowrap;
+		margin-top: 1em;
+		font-weight: bold;
+		font-size: 1.2em;
+		transition: color 0.1s ease;
 
 		&:hover {
 			color: #ffac00;
