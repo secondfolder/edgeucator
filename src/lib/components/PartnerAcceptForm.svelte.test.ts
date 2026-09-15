@@ -161,11 +161,12 @@ describe('when the inviter keeps control', () => {
 		});
 	});
 
-	test('disables the radios so the choice cannot be changed', async () => {
+	test('omits the control question entirely rather than showing disabled radios', async () => {
+		// Someone who cannot change the answer is not asked it — a row of
+		// disabled radios is noise, not information.
 		render(PartnerAcceptForm, { data: await formData(), editable: false });
-		for (const value of ['me', 'them', 'mix']) {
-			expect(radio(value)).toBeDisabled();
-		}
+		expect(document.querySelectorAll('input[name="control"][type="radio"]')).toHaveLength(0);
+		expect(screen.queryByText('Who calls the shots?')).not.toBeInTheDocument();
 	});
 
 	test('leaves the roles section values out when there are none', async () => {

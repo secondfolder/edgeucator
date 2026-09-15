@@ -110,11 +110,13 @@ nothing else.
 
 ### Permissions are enforced on the server
 
-A disabled input is a rendering decision, not a permission. The read-only accept
-screen still posts every field as hidden inputs, so that the payload satisfies
-the same Zod schema — and `acceptInvite` then re-reads the stored row and
-ignores anything submitted by someone who does not hold control, `control`
-included. Accepting an invite is never a way to seize control of it.
+A hidden input is a rendering decision, not a permission. On the read-only
+accept screen the control question is not shown at all (the page text instead
+says what accepting would hand over — tasks, rewards and punishments), but every
+field is still posted as hidden inputs so the payload satisfies the same Zod
+schema — and `acceptInvite` then re-reads the stored row and ignores anything
+submitted by someone who does not hold control, `control` included. Accepting an
+invite is never a way to seize control of it.
 
 The edit action does the same: it re-checks `control` against the database
 rather than trusting that the page hid the form, because control can have
@@ -229,13 +231,13 @@ The whole point is that it is opened by someone who may not have an account. The
 carries no `redirectTo`, lose the invite entirely. Its load returns one of five
 states:
 
-| State              | When                               | What the page shows                                                         |
-| ------------------ | ---------------------------------- | --------------------------------------------------------------------------- |
-| `invalid`          | Unknown, consumed or expired token | "This link doesn't work". Nothing else — see below.                         |
-| `sign-in-required` | Valid token, nobody signed in      | The inviter's chosen name, plus login/signup buttons carrying `redirectTo`. |
-| `self`             | The inviter opened their own link  | "That's your own link"                                                      |
-| `already-linked`   | The two are already connected      | "You're already linked"                                                     |
-| `confirm`          | Otherwise                          | The confirmation form, editable per `control`.                              |
+| State              | When                               | What the page shows                                                                                                                                                                              |
+| ------------------ | ---------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `invalid`          | Unknown, consumed or expired token | "This link doesn't work". Nothing else — see below.                                                                                                                                              |
+| `sign-in-required` | Valid token, nobody signed in      | The inviter's chosen name, plus login/signup buttons carrying `redirectTo`. "Create an account" is primary: someone opening an invite while signed out most likely does not have an account yet. |
+| `self`             | The inviter opened their own link  | "That's your own link"                                                                                                                                                                           |
+| `already-linked`   | The two are already connected      | "You're already linked"                                                                                                                                                                          |
+| `confirm`          | Otherwise                          | The confirmation form, editable per `control`.                                                                                                                                                   |
 
 An expired token and an unknown one are reported identically: there is no value
 in telling an anonymous visitor which of the two they found. Before sign-in the
@@ -257,6 +259,11 @@ It rejects absolute URLs and protocol-relative ones — `//evil.example` and
 
 The passkey sign-in path never touches the server action, so `LoginForm` applies
 the same destination itself; otherwise a passkey login would drop the invite.
+
+The login and signup pages also link to each other below the form, and each
+carries `redirectTo` into that link — so someone who clicked "Log in" on the
+invite, then realised they have no account, can switch to signup and still land
+back on the invite after creating one.
 
 ## The bottom nav
 

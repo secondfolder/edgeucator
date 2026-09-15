@@ -103,35 +103,38 @@
 	<input type="hidden" name="yourRole" value={$form.yourRole ?? ''} />
 {/if}
 
-<!-- Native radios rather than <wa-radio-group>: this control decides a
-     permission, so it must submit even if the Web Awesome CDN bundle has not
-     upgraded the custom elements yet. -->
-<fieldset class="control-fieldset">
-	<legend>Who calls the shots?</legend>
-	<p class="control-description">
-		This decides who can set tasks, punishments, rewards and other settings for this link.
-	</p>
-	<div class="control-options">
-		{#each controlOptions as option (option.value)}
-			<label class:selected={$form.control === option.value}>
-				<input
-					type="radio"
-					name="control"
-					value={option.value}
-					checked={$form.control === option.value}
-					disabled={!editable}
-					onchange={() => ($form.control = option.value)}
-				/>
-				{option.label}
-			</label>
-		{/each}
-	</div>
-	{#if !editable}
-		<!-- A disabled radio submits nothing, so the value still has to be sent.
-		     Like the names above, the server does not trust it. -->
-		<input type="hidden" name="control" value={$form.control} />
-	{/if}
-</fieldset>
+{#if editable}
+	<!-- Native radios rather than <wa-radio-group>: this control decides a
+	     permission, so it must submit even if the Web Awesome CDN bundle has not
+	     upgraded the custom elements yet. -->
+	<fieldset class="control-fieldset">
+		<legend>Who calls the shots?</legend>
+		<p class="control-description">
+			This decides who can set tasks, punishments, rewards and other settings for this link.
+		</p>
+		<div class="control-options">
+			{#each controlOptions as option (option.value)}
+				<label class:selected={$form.control === option.value}>
+					<input
+						type="radio"
+						name="control"
+						value={option.value}
+						checked={$form.control === option.value}
+						onchange={() => ($form.control = option.value)}
+					/>
+					{option.label}
+				</label>
+			{/each}
+		</div>
+	</fieldset>
+{:else}
+	<!-- The question is not shown at all to someone who cannot change the
+	     answer — a row of disabled radios is noise, not information. The value
+	     still has to be sent so the payload matches the same Zod schema; like
+	     the names above, the server does not trust it and re-reads the stored
+	     row (see invariant 14 in AGENTS.md). -->
+	<input type="hidden" name="control" value={$form.control} />
+{/if}
 
 <style>
 	.question-fieldset,

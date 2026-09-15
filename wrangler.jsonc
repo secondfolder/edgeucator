@@ -7,9 +7,7 @@
 	// and @better-auth/core/async_hooks does the same. `nodejs_als` is the minimum
 	// that would work; `nodejs_compat` is a superset and also populates
 	// process.env, which stops better-auth's env probing from coming up empty.
-	"compatibility_flags": [
-		"nodejs_compat"
-	],
+	"compatibility_flags": ["nodejs_compat"],
 	// `src/routes/+layout.svelte` statically imports the Web Awesome
 	// registrations so hydration does not have to fetch them after load. That
 	// puts Lit in the server graph too, and workerd has no `HTMLElement`, so
@@ -102,9 +100,7 @@
 	"migrations": [
 		{
 			"tag": "v1",
-			"new_sqlite_classes": [
-				"RealtimeRoom"
-			]
+			"new_sqlite_classes": ["RealtimeRoom"]
 		}
 	],
 	"d1_databases": [

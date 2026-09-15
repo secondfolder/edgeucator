@@ -48,7 +48,7 @@ test.describe('linking two accounts', () => {
 			// Jun opens the link cold, with no account at all.
 			await jun.page.goto(link);
 			await expect(
-				jun.page.getByRole('heading', { name: 'Ada wants to link with you' })
+				jun.page.getByRole('heading', { name: 'Ada wants to add you as a partner' })
 			).toBeVisible();
 
 			await jun.page.getByRole('link', { name: 'Create an account' }).click();
@@ -58,7 +58,7 @@ test.describe('linking two accounts', () => {
 			// Signing up must land back on the invite, not on /home.
 			await jun.page.waitForURL(/\/invite\//);
 			await expect(
-				jun.page.getByRole('heading', { name: 'Ada wants to link with you' })
+				jun.page.getByRole('heading', { name: 'Ada wants to add you as a partner' })
 			).toBeVisible();
 
 			// Control is shared, so Jun may rewrite the names before accepting.
@@ -100,9 +100,15 @@ test.describe('linking two accounts', () => {
 			await jun.page.goto(link);
 
 			// Displayed, not editable — the requirement for "they're in control".
+			// The control question is not shown at all; the page instead says what
+			// accepting would hand over.
 			await expect(jun.page.locator('wa-input[name="partnerName"]')).toHaveCount(0);
 			await expect(jun.page.getByText('Ada', { exact: true })).toBeVisible();
-			await expect(jun.page.locator('input[name="control"][value="me"]')).toBeDisabled();
+			// Matched in pieces: the sentence wraps across lines in the source, and
+			// Playwright matches regexes against the un-normalised text.
+			await expect(jun.page.getByText(/they'll be able to set/)).toBeVisible();
+			await expect(jun.page.getByText(/tasks, rewards and punishments for you/)).toBeVisible();
+			await expect(jun.page.locator('input[name="control"][type="radio"]')).toHaveCount(0);
 
 			await clickWaButton(jun.page, 'Accept and link');
 			await jun.page.waitForURL(/\/partner\//);
@@ -244,7 +250,7 @@ test.describe('managing a link', () => {
 
 			await jun.page.goto(second);
 			await expect(
-				jun.page.getByRole('heading', { name: 'Ada wants to link with you' })
+				jun.page.getByRole('heading', { name: 'Ada wants to add you as a partner' })
 			).toBeVisible();
 		} finally {
 			await ada.close();
