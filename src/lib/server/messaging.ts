@@ -519,6 +519,13 @@ async function writeAttachments(
  * reachable from an opened thread (invariant 14).
  */
 function markSenderRead(db: Db, threadId: string, senderId: string, now: Date) {
+	// `timestamp_ms` column mode maps a Date for the `values()` half of this
+	// statement, but NOT inside a hand-written `sql` fragment — there Drizzle
+	// binds whatever it is given as-is, and D1 rejects Date objects with
+	// D1_TYPE_ERROR (libsql, used in dev and tests, accepts them, so only the
+	// real Workers runtime catches it). Bind the epoch millis the columns
+	// actually store.
+	const nowMs = now.getTime();
 	return db
 		.insert(threadReads)
 		.values({ threadId, userId: senderId, lastFullyReadAt: now, lastReadMessageAt: now })
@@ -527,8 +534,8 @@ function markSenderRead(db: Db, threadId: string, senderId: string, now: Date) {
 			set: {
 				lastFullyReadAt: sql`case
 					when ${threadReads.lastReadMessageAt} is null
-					  or ${threadReads.lastReadMessageAt} < ${now}
-					then ${now}
+					  or ${threadReads.lastReadMessageAt} < ${nowMs}
+					then ${nowMs}
 					else ${threadReads.lastFullyReadAt}
 				end`,
 				lastReadMessageAt: now
