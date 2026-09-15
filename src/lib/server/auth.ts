@@ -63,7 +63,7 @@ export interface AuthRequestConfig {
  */
 export function createAuth(db: Db, config: AuthRequestConfig) {
 	return betterAuth({
-		appName: 'Edgeucator',
+		appName: 'Bound Up',
 		// Passed explicitly: Better Auth's own env lookup reads
 		// `globalThis.process.env`, and its fallback is a hard-coded default
 		// secret that only throws when NODE_ENV === 'production' — which
@@ -124,7 +124,7 @@ export function createAuth(db: Db, config: AuthRequestConfig) {
 			// is the check that matters.
 			passkey({
 				rpID: config.rpID,
-				rpName: 'Edgeucator',
+				rpName: 'Bound Up',
 				/**
 				 * PRF, so a passkey can later unlock the message identity with the
 				 * same touch that signs the user in.

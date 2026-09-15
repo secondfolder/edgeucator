@@ -69,9 +69,9 @@ export const MASTER_KEY_V1: MasterKeyParams = {
 export const MASTER_KEY_VERSIONS: readonly MasterKeyParams[] = [MASTER_KEY_V1];
 
 /** HKDF `info` strings. Distinct so one master key yields two unrelated keys. */
-export const AUTH_SECRET_INFO = 'edgeucator-auth-v1';
-export const WRAP_KEY_INFO = 'edgeucator-wrap-v1';
-export const PRF_WRAP_KEY_INFO = 'edgeucator-wrap-prf-v1';
+export const AUTH_SECRET_INFO = 'bound-up-auth-v1';
+export const WRAP_KEY_INFO = 'bound-up-wrap-v1';
+export const PRF_WRAP_KEY_INFO = 'bound-up-wrap-prf-v1';
 
 /**
  * The PBKDF2 salt.
@@ -83,7 +83,7 @@ export const PRF_WRAP_KEY_INFO = 'edgeucator-wrap-prf-v1';
  * with an email. It does not make a weak password safe — see docs/encryption.md.
  */
 export function masterKeySalt(email: string, params: MasterKeyParams): string {
-	return `edgeucator-mk-v${params.version}|${normaliseEmail(email)}`;
+	return `bound-up-mk-v${params.version}|${normaliseEmail(email)}`;
 }
 
 /**
@@ -233,7 +233,7 @@ export function fromBase64Url(value: string): Uint8Array<ArrayBuffer> {
  */
 export function safetyNumberSource(a: string, b: string): string {
 	const [first, second] = [a, b].sort();
-	return `edgeucator-safety-v1\n${first}\n${second}`;
+	return `bound-up-safety-v1\n${first}\n${second}`;
 }
 
 /** How many bytes of the digest the safety number shows. 10 bytes = 80 bits. */

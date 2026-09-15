@@ -212,5 +212,5 @@ export function searchTimeZones(query: string, limit = supportedTimeZones().leng
 }
 
 export function timezoneBannerStorageKey(userId: string): string {
-	return `edgeucator:timezone-banner:${userId}`;
+	return `bound-up:timezone-banner:${userId}`;
 }

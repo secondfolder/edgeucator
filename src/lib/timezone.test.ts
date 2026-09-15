@@ -19,7 +19,7 @@ describe('canonicalizeTimeZone', () => {
 });
 
 test('scopes the timezone banner key to one user', () => {
-	expect(timezoneBannerStorageKey('u1')).toBe('edgeucator:timezone-banner:u1');
+	expect(timezoneBannerStorageKey('u1')).toBe('bound-up:timezone-banner:u1');
 });
 
 test('humanizes the final timezone segment for compact UI copy', () => {

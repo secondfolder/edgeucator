@@ -9,7 +9,8 @@ will break if you guess, and what "done" means.
 
 ## What this is
 
-Edgeucator is a small SvelteKit 2 / Svelte 5 app on Cloudflare Workers. A
+Bound Up (formerly Edgeucator) is a small SvelteKit 2 / Svelte 5 app on Cloudflare
+Workers. A
 _guide_ has ordered _edge tasks_; an edge task renders a counter and reveals prose as the
 count crosses thresholds. Accounts are email/password + passkeys via Better
 Auth. Data is Drizzle over Cloudflare D1 (production) and a local SQLite file
@@ -84,7 +85,7 @@ noise:
     The initial-capture is deliberate: `superForm` registers its lifecycle
     once and its returned stores are the live connection, so re-deriving it on
     every `invalidate()` would reset the form. Add one to new ones.
-- `npm test`: 678 tests. Partners, tasks, and the encryption keys are covered end to end
+- `npm test`: 679 tests. Partners, tasks, and the encryption keys are covered end to end
   at three levels — see **Testing** below. Outside those the net is still thin.
 - `npm run test:e2e`: 51 Playwright specs, about 90 seconds once the browser is installed
   (`npx playwright install chromium` first). A run that takes ~2 minutes has

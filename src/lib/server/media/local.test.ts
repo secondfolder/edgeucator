@@ -17,7 +17,7 @@ async function read(result: Awaited<ReturnType<MediaStore['get']>>): Promise<Uin
 }
 
 beforeEach(async () => {
-	root = await mkdtemp(path.join(tmpdir(), 'edgeucator-media-'));
+	root = await mkdtemp(path.join(tmpdir(), 'bound-up-media-'));
 	store = createLocalStore(root);
 });
 

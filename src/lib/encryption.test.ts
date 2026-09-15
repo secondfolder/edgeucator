@@ -46,7 +46,7 @@ describe('normaliseEmail', () => {
 describe('masterKeySalt', () => {
 	it('carries the version and the normalised email', () => {
 		expect(masterKeySalt(' Ada@Example.test ', MASTER_KEY_V1)).toBe(
-			'edgeucator-mk-v1|ada@example.test'
+			'bound-up-mk-v1|ada@example.test'
 		);
 	});
 
@@ -106,7 +106,7 @@ describe('base64url', () => {
 
 describe('wrapAad', () => {
 	it('binds a wrap to its recipient', () => {
-		expect(wrapAad('age1abc')).toBe('edgeucator-wrap-v1|age1abc');
+		expect(wrapAad('age1abc')).toBe('bound-up-wrap-v1|age1abc');
 		expect(wrapAad('age1abc')).not.toBe(wrapAad('age1abd'));
 	});
 });
@@ -117,7 +117,7 @@ describe('safetyNumberSource', () => {
 	});
 
 	it('is domain-separated and separates the two keys', () => {
-		expect(safetyNumberSource('age1aaa', 'age1bbb')).toBe('edgeucator-safety-v1\nage1aaa\nage1bbb');
+		expect(safetyNumberSource('age1aaa', 'age1bbb')).toBe('bound-up-safety-v1\nage1aaa\nage1bbb');
 	});
 
 	it('changes when either key changes', () => {

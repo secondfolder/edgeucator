@@ -7,7 +7,7 @@
 	const user = $derived(page.data.user);
 </script>
 
-<nav>
+<nav data-halftone-ignore="true">
 	<div class="navbar-end">
 		<ul class="menu menu-horizontal">
 			{#if user}

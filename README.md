@@ -1,4 +1,4 @@
-# Edgeucator
+# Bound Up
 
 SvelteKit 2 + Svelte 5 on Cloudflare Workers, with Drizzle ORM over Cloudflare D1
 and Better Auth (email/password + passkeys).
@@ -41,7 +41,7 @@ npm run dev
 
 ```sh
 npx wrangler login
-npx wrangler d1 create edgeucator      # paste database_id into wrangler.jsonc
+npx wrangler d1 create bound-up        # paste database_id into wrangler.jsonc
 npx wrangler secret put BETTER_AUTH_SECRET
 npm run db:migrate:remote
 npm run deploy

@@ -31,12 +31,19 @@ describe('deriveMasterKey + deriveAuthSecret', () => {
 	 * Computed once, against the shipping parameters. Do not "update" it to make
 	 * a failing build green: a change here means the change that caused it is
 	 * a breaking one, and needs the migration path in docs/encryption.md.
+	 *
+	 * The vector below is the third one this file has frozen. The first was
+	 * computed against the pre-launch `edgeucator-*` domain strings and was
+	 * refreshed when the app was renamed to Bound Up; the second was computed
+	 * against the unhyphenated `boundup-*` strings and was refreshed — again
+	 * deliberately, accounts and all — when those were hyphenated to
+	 * `bound-up-*` before launch. No account exists from either predecessor.
 	 */
 	it('matches the frozen vector for the shipping parameters', async () => {
 		const master = await deriveMasterKey('correct-horse-battery', 'ada@example.test');
 		expect(master.params).toBe(MASTER_KEY_V1);
 		await expect(deriveAuthSecret(master)).resolves.toBe(
-			'V08Y9CTT-B9OMRnBEyUnCGJHXV9pIofbWLhbRyFYUTY'
+			'BKfC6un0lJPt7d1_rFl-_eYH_frFSwXaP44xMDZZ9PQ'
 		);
 	});
 

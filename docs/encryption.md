@@ -38,9 +38,9 @@ shape is Bitwarden's published design: one expensive derivation from the
 password, then two cheap one-way derivations from that.
 
 ```
-masterKey  = PBKDF2-SHA256(password, "edgeucator-mk-v1|" + email, 650_000, 256 bits)
-authSecret = HKDF-SHA256(masterKey, info "edgeucator-auth-v1")  -> to the server
-wrapKey    = HKDF-SHA256(masterKey, info "edgeucator-wrap-v1")  -> never leaves
+masterKey  = PBKDF2-SHA256(password, "bound-up-mk-v1|" + email, 650_000, 256 bits)
+authSecret = HKDF-SHA256(masterKey, info "bound-up-auth-v1")  -> to the server
+wrapKey    = HKDF-SHA256(masterKey, info "bound-up-wrap-v1")  -> never leaves
 ```
 
 `authSecret` is 32 bytes as unpadded base64url — 43 characters — and is
@@ -99,7 +99,7 @@ signup.
 | `user_key_wraps`      | One row per way to unlock: `(type, params, blob)`. All opaque to the server. |
 
 `blob` is base64url of `12-byte IV ‖ AES-256-GCM(identity) ‖ 16-byte tag`, with
-the additional authenticated data set to `"edgeucator-wrap-v1|" + recipient`.
+the additional authenticated data set to `"bound-up-wrap-v1|" + recipient`.
 That AAD binds a wrap to the public key it belongs to, so a wrap row moved
 between accounts fails its tag check instead of decrypting into someone else's
 identity.
@@ -140,7 +140,7 @@ the identity with the same touch that signs the user in:
 
 ```
 prfOutput = clientExtensionResults.prf.results.first
-wrapKey   = HKDF-SHA256(prfOutput, info "edgeucator-wrap-prf-v1")
+wrapKey   = HKDF-SHA256(prfOutput, info "bound-up-wrap-prf-v1")
 ```
 
 The wrap format is identical, so there is exactly one AES-GCM envelope in the
@@ -335,7 +335,7 @@ protocol prevents that. What the design gives you instead is that a
 **substitution is visible**.
 
 - **A safety number.** The first 80 bits of
-  `SHA-256("edgeucator-safety-v1\n" + the two recipients, sorted)`, as Crockford
+  `SHA-256("bound-up-safety-v1\n" + the two recipients, sorted)`, as Crockford
   base32 in groups of four. Sorted so both people derive the same string without
   either needing to know who is "first"; Crockford because it has no I, L, O or
   U to misread aloud. 80 bits makes forging a match a 2^80 search, and 16

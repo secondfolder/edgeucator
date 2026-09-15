@@ -12,9 +12,9 @@
  * The shape is Bitwarden's published design. One expensive derivation from the
  * password, then two cheap one-way derivations from that:
  *
- *     masterKey  = PBKDF2-SHA256(password, "edgeucator-mk-v1|" + email, 650k)
- *     authSecret = HKDF(masterKey, "edgeucator-auth-v1")   -> sent to the server
- *     wrapKey    = HKDF(masterKey, "edgeucator-wrap-v1")   -> never leaves here
+ *     masterKey  = PBKDF2-SHA256(password, "bound-up-mk-v1|" + email, 650k)
+ *     authSecret = HKDF(masterKey, "bound-up-auth-v1")   -> sent to the server
+ *     wrapKey    = HKDF(masterKey, "bound-up-wrap-v1")   -> never leaves here
  *
  * The server receives only `authSecret` and hashes it again with its own scrypt
  * and its own per-user salt, so a stolen database is not a login verifier. And

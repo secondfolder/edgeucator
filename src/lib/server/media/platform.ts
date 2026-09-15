@@ -14,7 +14,7 @@ export function requireR2(platform: App.Platform | undefined): MediaBucket {
 		throw new Error(
 			'The R2 binding "MEDIA" is unavailable. This code path only runs on ' +
 				'Cloudflare Workers. Create the bucket with ' +
-				'`npx wrangler r2 bucket create edgeucator-media`, check that ' +
+				'`npx wrangler r2 bucket create bound-up-media`, check that ' +
 				'wrangler.jsonc has an r2_buckets entry with "binding": "MEDIA", and ' +
 				'note that `npm run dev` never reads it — it writes to ./local-media ' +
 				'instead.'

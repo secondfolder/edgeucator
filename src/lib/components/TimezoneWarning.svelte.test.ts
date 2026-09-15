@@ -8,7 +8,7 @@ const invalidateAll = vi.fn().mockResolvedValue(undefined);
 vi.mock('$app/navigation', () => ({ invalidateAll }));
 vi.mock('$lib/timezone', () => ({
 	currentTimeZoneOrUtc: () => deviceTimezone,
-	timezoneBannerStorageKey: (userId: string) => `edgeucator:timezone-banner:${userId}`
+	timezoneBannerStorageKey: (userId: string) => `bound-up:timezone-banner:${userId}`
 }));
 
 const { default: TimezoneWarning } = await import('./TimezoneWarning.svelte');
@@ -62,12 +62,12 @@ describe('TimezoneWarning', () => {
 		if (!(dismiss instanceof HTMLElement)) throw new Error('missing dismiss button');
 		await fireEvent.click(dismiss);
 
-		expect(window.localStorage.getItem('edgeucator:timezone-banner:u1')).toBe('America/New_York');
+		expect(window.localStorage.getItem('bound-up:timezone-banner:u1')).toBe('America/New_York');
 		expect(screen.queryByText('This device is in a different timezone')).not.toBeInTheDocument();
 	});
 
 	test('honours a cached dismissal only for the same device timezone', () => {
-		window.localStorage.setItem('edgeucator:timezone-banner:u1', 'America/New_York');
+		window.localStorage.setItem('bound-up:timezone-banner:u1', 'America/New_York');
 		const first = render(TimezoneWarning, { user });
 		expect(screen.queryByText('This device is in a different timezone')).not.toBeInTheDocument();
 

@@ -15,7 +15,7 @@ export function requireD1(platform: App.Platform | undefined): AnyD1Database {
 			'The D1 binding "DB" is unavailable. This code path only runs on Cloudflare ' +
 				'Workers. Check that wrangler.jsonc has a d1_databases entry with ' +
 				'"binding": "DB" and a real database_id (create one with ' +
-				'`npx wrangler d1 create edgeucator`), and that migrations have been ' +
+				'`npx wrangler d1 create bound-up`), and that migrations have been ' +
 				'applied with `npm run db:migrate:d1` (local) or ' +
 				'`npm run db:migrate:remote` (production).'
 		);

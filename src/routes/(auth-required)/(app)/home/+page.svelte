@@ -8,8 +8,8 @@
 
 <div class="home">
 	<header>
-		<h1>Edgeucator</h1>
-		<span class="subtitle">Your Edging Escort</span>
+		<h1>Bound Up</h1>
+		<span class="subtitle">Your Kink Companion</span>
 	</header>
 	<div class="quick-links">
 		<wa-button variant="brand" size="l" href={resolve('/(auth-required)/(app)/home/guides')}

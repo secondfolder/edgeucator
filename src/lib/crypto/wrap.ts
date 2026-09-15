@@ -6,7 +6,7 @@
  * One AES-256-GCM envelope, and only one, whatever the wrap key came from:
  *
  *     blob = base64url( 12-byte IV || ciphertext || 16-byte tag )
- *     aad  = "edgeucator-wrap-v1|" + recipient
+ *     aad  = "bound-up-wrap-v1|" + recipient
  *
  * age's own passphrase mode is deliberately not used here. It would run scrypt
  * over a value that is already the output of 650,000 PBKDF2 iterations — a

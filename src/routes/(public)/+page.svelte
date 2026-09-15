@@ -133,8 +133,8 @@
 
 <div class="landing">
 	<header>
-		<h1>Edgeucator</h1>
-		<span class="subtitle">Your Edging Escort</span>
+		<h1>Bound Up</h1>
+		<span class="subtitle">Your Kink Companion</span>
 	</header>
 
 	<!-- Dead centre, above the overlay: the rings radiate from the centre of
@@ -152,7 +152,7 @@
 			<!-- aria-labels keep the accessible names distinct from the site
 			     header's "Login"/"Sign up" — two links sharing a name is both an
 			     a11y problem and an ambiguous test locator. -->
-			<a class="big" href={resolve('/(public)/signup')} aria-label="Sign up for Edgeucator">
+			<a class="big" href={resolve('/(public)/signup')} aria-label="Sign up for Bound Up">
 				<span>Sign up</span>
 			</a>
 			<a class="small" href={resolve('/(public)/login')}>Log in</a>
@@ -203,7 +203,6 @@
 				   family instead. */
 				color: #ffac00;
 				line-height: 1.1;
-				margin-left: 4.5em;
 			}
 		}
 	}

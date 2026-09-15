@@ -85,7 +85,7 @@ phone.
 
 The banner stores one value per signed-in user in `localStorage`:
 
-- key: `edgeucator:timezone-banner:<userId>`
+- key: `bound-up:timezone-banner:<userId>`
 - value: the device timezone that was dismissed
 
 That means the dismissal is valid only while the device reports the same

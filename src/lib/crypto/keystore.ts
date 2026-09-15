@@ -21,7 +21,7 @@
  *   is a designed screen and not an error state.
  */
 
-const DB_NAME = 'edgeucator-keys';
+const DB_NAME = 'bound-up-keys';
 const DB_VERSION = 1;
 const IDENTITY_STORE = 'identity';
 const PIN_STORE = 'pins';

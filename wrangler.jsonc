@@ -1,13 +1,15 @@
 {
 	"$schema": "node_modules/wrangler/config-schema.json",
-	"name": "edgeucator",
+	"name": "bound-up",
 	"main": ".svelte-kit/cloudflare/_worker.js",
 	"compatibility_date": "2026-09-01",
 	// Required twice over: kit's getRequestEvent does import('node:async_hooks'),
 	// and @better-auth/core/async_hooks does the same. `nodejs_als` is the minimum
 	// that would work; `nodejs_compat` is a superset and also populates
 	// process.env, which stops better-auth's env probing from coming up empty.
-	"compatibility_flags": ["nodejs_compat"],
+	"compatibility_flags": [
+		"nodejs_compat"
+	],
 	// `src/routes/+layout.svelte` statically imports the Web Awesome
 	// registrations so hydration does not have to fetch them after load. That
 	// puts Lit in the server graph too, and workerd has no `HTMLElement`, so
@@ -71,11 +73,11 @@
 		{
 			"binding": "MEDIA",
 			// Encrypted message attachments. Create it with
-			// `npx wrangler r2 bucket create edgeucator-media`.
+			// `npx wrangler r2 bucket create bound-up-media`.
 			// `npm run dev` never reads this: with no platform there is no R2
 			// binding at all, and src/lib/server/media/dev.ts writes to
 			// ./local-media instead.
-			"bucket_name": "edgeucator-media"
+			"bucket_name": "bound-up-media"
 		}
 	],
 	"durable_objects": {
@@ -100,17 +102,19 @@
 	"migrations": [
 		{
 			"tag": "v1",
-			"new_sqlite_classes": ["RealtimeRoom"]
+			"new_sqlite_classes": [
+				"RealtimeRoom"
+			]
 		}
 	],
 	"d1_databases": [
 		{
 			"binding": "DB",
-			"database_name": "edgeucator",
-			// Replace with the id from `npx wrangler d1 create edgeucator`.
+			"database_name": "bound-up",
+			// Replace with the id from `npx wrangler d1 create bound-up`.
 			// Only needed for `npm run preview:worker` and `npm run deploy` —
 			// `npm run dev` uses ./local.db and never reads this file.
-			"database_id": "70452d20-897a-4234-b125-2786b364e47d",
+			"database_id": "eb783b31-d64c-4582-b386-d43c3d59ac67",
 			// drizzle-kit's `out`. Applied with `wrangler d1 migrations apply`;
 			// the local ./local.db is applied with `drizzle-kit migrate` instead.
 			"migrations_dir": "drizzle"
