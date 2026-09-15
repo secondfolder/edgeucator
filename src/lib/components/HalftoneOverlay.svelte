@@ -1,39 +1,47 @@
 <script lang="ts">
 	import { onMount } from 'svelte';
+	import { HALFTONE_CAPTURE_IGNORE_SELECTOR, buildHalftoneFragmentShader } from '$lib/halftone';
 
 	/**
-	 * A halftone "concentric rings" overlay rendered over the live page.
+	 * A halftone overlay rendered over the live page.
 	 *
 	 * The page is captured with html2canvas, then a WebGL fragment shader
-	 * re-renders it as ink rings whose thickness follows local luminance:
-	 * each fragment averages the OKLab lightness of the radial band its ring
-	 * cell covers, and dark cells get thick ink while light cells thin out.
-	 * The canvas itself is transparent except for ink, and sits over the page
-	 * with `mix-blend-mode: soft-light` so the content shows through.
+	 * re-renders it as a grayscale halftone screen matching Affinity's Halftone
+	 * filter. The model — Rec.601 luma, a triangle screen, and a tangent
+	 * contrast slope — is documented in [docs/halftone.md](../../../docs/halftone.md)
+	 * and lives in `$lib/halftone`, which the shader source is generated from so
+	 * the CPU reference renderer and the GPU path cannot drift apart.
 	 *
 	 * html2canvas is imported dynamically inside onMount so it never enters
 	 * the SSR graph — it touches `document`/`window` at module scope and the
 	 * server bundle must stay free of browser-only libraries.
 	 */
 	interface Props {
-		/** Distance between ring centerlines, in CSS px. */
-		spacing?: number;
-		/** 0..1. Higher = harder ring edges. */
+		/** Which halftone motif to draw: concentric rings or parallel lines. */
+		pattern?: 'circle' | 'line';
+		/** Line pattern only: the angle of the lines, in degrees from horizontal. */
+		angle?: number;
+		/** 0..1, Affinity's 0..100 contrast slider over 100. 0 is a plain
+		 * grayscale pass; 1 is a hard black-and-white threshold. */
 		contrast?: number;
-		/** Caps how much of a band the ink may fill, 0..1. */
-		maxInk?: number;
-		/** 0..1 white-noise grain composited over the rings. */
+		/** Size of one halftone cell, in CSS px: the distance between
+		 * adjacent ring/line peaks. */
+		cellSize?: number;
+		/** 0..1, Affinity's 0..100 noise slider over 100. Higher is allowed, but
+		 * grain wide enough to clip only survives mid-band and reads as the
+		 * band pattern — see docs/halftone.md. */
 		noiseStrength?: number;
-		/** Outward drift of the rings, in CSS px per second. */
+		/** Pattern drift, in CSS px per second. */
 		speed?: number;
 	}
 
 	let {
-		spacing = 10,
+		pattern = 'circle',
+		angle = 0,
 		contrast = 0.5,
-		maxInk = 1,
+		cellSize = 10,
 		noiseStrength = 0.5,
-		speed = 4
+		speed = 0
 	}: Props = $props();
 
 	let canvas: HTMLCanvasElement;
@@ -42,100 +50,7 @@
 attribute vec2 aPos;
 void main() { gl_Position = vec4(aPos, 0.0, 1.0); }`;
 
-	// Ported from the prototype: sRGB → linear → OKLab lightness, band
-	// averaging along the radial strip each ring cell covers, soft-edged ink
-	// whose half-width is darkness × maxInk × spacing/2, with white noise
-	// composited over it via the Porter-Duff "over" operator so both the
-	// grain and the ink stay correctly transparent. Invert is deliberately
-	// omitted — this deployment always puts ink on dark areas.
-	const fragSrc = `
-precision highp float;
-uniform sampler2D uImage;
-uniform vec2 uResolution;
-uniform vec2 uCenter;
-uniform float uSpacing;
-uniform float uContrast;
-uniform float uMaxInk;
-uniform float uNoiseStrength;
-uniform float uTime; // seconds since mount — drives the outward ring drift
-uniform float uSpeed; // px/s outward drift
-
-vec3 srgbToLinear(vec3 c) {
-  return mix(c / 12.92, pow((c + 0.055) / 1.055, vec3(2.4)), step(vec3(0.04045), c));
-}
-float cbrtSafe(float x) { return sign(x) * pow(abs(x), 1.0 / 3.0); }
-float oklabLightness(vec3 lin) {
-  float l = 0.4122214708 * lin.r + 0.5363325363 * lin.g + 0.0514459929 * lin.b;
-  float m = 0.2119034982 * lin.r + 0.6806995451 * lin.g + 0.1073969566 * lin.b;
-  float s = 0.0883024619 * lin.r + 0.2817188376 * lin.g + 0.6299787005 * lin.b;
-  float l_ = cbrtSafe(l);
-  float m_ = cbrtSafe(m);
-  float s_ = cbrtSafe(s);
-  return 0.2104542553 * l_ + 0.7936177850 * m_ - 0.0040720468 * s_;
-}
-
-void main() {
-  vec2 delta = gl_FragCoord.xy - uCenter;
-  float radius = length(delta);
-  float angle = atan(delta.y, delta.x);
-  vec2 dir = vec2(cos(angle), sin(angle));
-
-  // The drift shifts every ring outward continuously: subtracting it from
-  // the radius before the floor() and adding it back to the centerline makes
-  // each ring index's centerline advance at uSpeed px/s, so the pattern
-  // radiates gently out from uCenter. The luminance band is sampled at the
-  // drifted centerline, so a ring carries its own ink as it travels.
-  float drift = uTime * uSpeed;
-  float ringIndex = floor((radius - drift) / uSpacing + 0.5);
-  float ringCenterRadius = ringIndex * uSpacing + drift;
-
-  // Average luminance across the full radial band this ring cell covers,
-  // not just the centerline point.
-  const int SAMPLES = 10;
-  float halfSpacing = uSpacing * 0.5;
-  float bandStart = ringCenterRadius - halfSpacing;
-  vec3 sumLinear = vec3(0.0);
-  for (int i = 0; i < SAMPLES; i++) {
-    float t = (float(i) + 0.5) / float(SAMPLES);
-    float r = max(bandStart + t * uSpacing, 0.0);
-    vec2 samplePos = uCenter + dir * r;
-    vec2 sUv = clamp(samplePos / uResolution, 0.0, 1.0);
-    sUv.y = 1.0 - sUv.y;
-    sumLinear += srgbToLinear(texture2D(uImage, sUv).rgb);
-  }
-  vec3 avgLinear = sumLinear / float(SAMPLES);
-  float L = clamp(oklabLightness(avgLinear), 0.0, 1.0);
-  float darkness = 1.0 - L;
-
-  float distToLine = abs(radius - ringCenterRadius);
-  float halfWidth = darkness * uMaxInk * halfSpacing;
-float edgeSoft = max(mix(uSpacing * 0.5, 0.6, uContrast), 0.4);
-	// The prototype tied edge softness to the full ring spacing, which makes
-	// it dominate at wider spacings: with spacing 20, edgeSoft was ~5 px while
-	// halfWidth at maxInk 0.01..0.1 was only 0.1..1 px, so changing maxInk
-	// barely moved the visible ring width at all. Soften relative to the
-	// intended ink width instead: low maxInk now really does mean finer lines,
-	// while contrast still controls how hard their edges are.
-	// float edgeSoft = max(mix(max(halfWidth, 0.25), 0.25, uContrast), 0.15);
-
-  float ink = clamp(1.0 - smoothstep(halfWidth - edgeSoft, halfWidth + edgeSoft, distToLine), 0.0, 1.0);
-
-  // Sine-free per-pixel hash (Dave Hoskins, "hash without sine"). The
-  // prototype used the classic fract(sin(dot(...))) hash, whose sin argument
-  // grows with pixel coordinate — GPUs compute it in limited precision, so at
-  // larger coordinates neighbouring pixels collapse onto nearby sin values
-  // and the "noise" comes out as diagonal banding rather than white noise.
-  // This one is all multiplies and fracts, which stay exact enough.
-  vec3 p3 = fract(vec3(gl_FragCoord.xyx) * 0.1031);
-  p3 += dot(p3, p3.yzx + 33.33);
-  float noiseRand = fract((p3.x + p3.y) * p3.z);
-  vec3 noiseColor = vec3(noiseRand);
-  float noiseAlpha = clamp(uNoiseStrength, 0.0, 1.0);
-
-  float outAlpha = ink + noiseAlpha * (1.0 - ink);
-  vec3 outColor = outAlpha > 0.0001 ? (noiseColor * noiseAlpha * (1.0 - ink)) / outAlpha : vec3(0.0);
-  gl_FragColor = vec4(outColor, clamp(outAlpha, 0.0, 1.0));
-}`;
+	const fragSrc = buildHalftoneFragmentShader();
 
 	onMount(() => {
 		const userAgent = navigator.userAgent;
@@ -143,11 +58,9 @@ float edgeSoft = max(mix(uSpacing * 0.5, 0.6, uContrast), 0.4);
 			navigator.vendor === 'Apple Computer, Inc.' &&
 			!/CriOS|FxiOS|EdgiOS|Chrome|Chromium|Android/.test(userAgent);
 		if (isSafari) {
-			// Safari's soft-light compositing comes out visibly punchier on this
-			// grayscale overlay than Chromium's, so its final opacity is reduced.
-			// Using the fade target rather than an extra wrapper keeps the first
-			// reveal animation and the runtime path identical across browsers.
-			canvas.style.setProperty('--overlay-opacity', '0.3');
+			// Safari's soft-light compositing still reads punchier on this
+			// grayscale overlay than Chromium's and Firefox's so we tone it down with brightness()
+			canvas.style.setProperty('filter', 'brightness(0.9)');
 		}
 
 		// preserveDrawingBuffer so the composited frame survives past the
@@ -165,12 +78,22 @@ float edgeSoft = max(mix(uSpacing * 0.5, 0.6, uContrast), 0.4);
 			const shader = gl.createShader(type)!;
 			gl.shaderSource(shader, src);
 			gl.compileShader(shader);
+			// A failed compile otherwise renders nothing, silently, forever —
+			// the canvas just stays transparent. Surface it so the e2e suite's
+			// console-error net catches a broken shader, not only the blank-
+			// canvas pixel assertion.
+			if (!gl.getShaderParameter(shader, gl.COMPILE_STATUS)) {
+				console.error('HalftoneOverlay shader failed to compile:', gl.getShaderInfoLog(shader));
+			}
 			return shader;
 		};
 		const prog = gl.createProgram()!;
 		gl.attachShader(prog, compile(gl.VERTEX_SHADER, vertSrc));
 		gl.attachShader(prog, compile(gl.FRAGMENT_SHADER, fragSrc));
 		gl.linkProgram(prog);
+		if (!gl.getProgramParameter(prog, gl.LINK_STATUS)) {
+			console.error('HalftoneOverlay program failed to link:', gl.getProgramInfoLog(prog));
+		}
 		gl.useProgram(prog);
 
 		const buf = gl.createBuffer()!;
@@ -182,9 +105,10 @@ float edgeSoft = max(mix(uSpacing * 0.5, 0.6, uContrast), 0.4);
 
 		const uResolution = gl.getUniformLocation(prog, 'uResolution');
 		const uCenter = gl.getUniformLocation(prog, 'uCenter');
-		const uSpacing = gl.getUniformLocation(prog, 'uSpacing');
+		const uPattern = gl.getUniformLocation(prog, 'uPattern');
+		const uAngle = gl.getUniformLocation(prog, 'uAngle');
 		const uContrast = gl.getUniformLocation(prog, 'uContrast');
-		const uMaxInk = gl.getUniformLocation(prog, 'uMaxInk');
+		const uCellSize = gl.getUniformLocation(prog, 'uCellSize');
 		const uNoiseStrength = gl.getUniformLocation(prog, 'uNoiseStrength');
 		const uTime = gl.getUniformLocation(prog, 'uTime');
 		const uSpeed = gl.getUniformLocation(prog, 'uSpeed');
@@ -201,9 +125,12 @@ float edgeSoft = max(mix(uSpacing * 0.5, 0.6, uContrast), 0.4);
 			gl.uniform2f(uResolution, canvas.width, canvas.height);
 			// gl_FragCoord y runs bottom-up; the picked center is top-down.
 			gl.uniform2f(uCenter, canvas.width / 2, canvas.height / 2);
-			gl.uniform1f(uSpacing, spacing);
+			// uPattern/uAngle are read once per frame, so re-reading the props
+			// here keeps a changed pattern live without a re-init.
+			gl.uniform1i(uPattern, pattern === 'line' ? 1 : 0);
+			gl.uniform1f(uAngle, (angle * Math.PI) / 180);
 			gl.uniform1f(uContrast, contrast);
-			gl.uniform1f(uMaxInk, maxInk);
+			gl.uniform1f(uCellSize, cellSize);
 			gl.uniform1f(uNoiseStrength, noiseStrength);
 			gl.uniform1f(uTime, timeSeconds);
 			gl.uniform1f(uSpeed, speed);
@@ -279,14 +206,18 @@ float edgeSoft = max(mix(uSpacing * 0.5, 0.6, uContrast), 0.4);
 				captureInFlight = false;
 				return;
 			}
-			// The overlay itself must not feed the capture it is drawn from:
-			// excluding it here is what keeps the feedback loop out.
+			// The overlay itself must not feed the capture it is drawn from, and
+			// some foreground chrome intentionally sits above the effect rather
+			// than being screened by it. In particular the CTA's SVG-filtered
+			// pseudo-element is not reproduced accurately by html2canvas, so the
+			// capture must skip any subtree marked as halftone-ignored.
 			const captured = await html2canvas(document.body, {
 				backgroundColor: null,
 				scale: 1, // 1 canvas px = 1 CSS px so the rings line up exactly
 				useCORS: true,
 				logging: false,
-				ignoreElements: (el) => el === canvas
+				ignoreElements: (el) =>
+					el === canvas || el.closest(HALFTONE_CAPTURE_IGNORE_SELECTOR) !== null
 			});
 			if (cancelled) {
 				captureInFlight = false;
@@ -332,7 +263,7 @@ float edgeSoft = max(mix(uSpacing * 0.5, 0.6, uContrast), 0.4);
 </script>
 
 <!-- pointer-events: none keeps the overlay decorative — links underneath stay
-     clickable. blend mode is the "transparent ink" mode from the prototype. -->
+	clickable. -->
 <!-- width/height start at 0 (not the 300×150 default) so anything that waits
      on the canvas being sized — the e2e spec's poll, chiefly — is waiting on
      the capture having run, not on the element merely existing. -->
@@ -362,7 +293,6 @@ float edgeSoft = max(mix(uSpacing * 0.5, 0.6, uContrast), 0.4);
 		--overlay-opacity: 1;
 		opacity: 0;
 		transition: opacity 1.2s ease-out;
-
 		&:global(.ready) {
 			opacity: var(--overlay-opacity);
 		}

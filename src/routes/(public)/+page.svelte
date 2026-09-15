@@ -6,17 +6,10 @@
 
 	// The root layout whitelists this — `locals.user` itself never crosses.
 	const user = $derived(page.data.user);
-	let viewportWidth = $state(0);
 	let ctaBlurStdDeviation = $state('0.45');
 	let ctaWobbleBaseFrequency = $state('0.0200');
 	let ctaWobbleScale = $state('40.00');
 	let ctaGrainScale = $state('6.00');
-	const narrowViewport = $derived(viewportWidth > 0 && viewportWidth < 640);
-	// On smaller screens the rings need larger gaps and thinner ink: otherwise
-	// the denser desktop screen collapses into mush once the whole effect is
-	// packed into fewer pixels. Wider spacing + lower maxInk keeps it airy.
-	const halftoneSpacing = $derived(narrowViewport ? 26 : 12);
-	const halftoneMaxInk = $derived(narrowViewport ? 0.035 : 0.1);
 
 	onMount(() => {
 		const prefersReducedMotion = matchMedia('(prefers-reduced-motion: reduce)').matches;
@@ -60,8 +53,6 @@
 	});
 </script>
 
-<svelte:window bind:innerWidth={viewportWidth} />
-
 <svelte:head>
 	<!-- Page-scoped body rule, in the layout's idiom: each shell sets the body
 	     rules it needs through svelte:head so they mount and unmount with it.
@@ -70,13 +61,19 @@
 	<style>
 		html,
 		body {
-			background: radial-gradient(circle, #943700 0%, #711500 80%);
-			background-attachment: fixed;
+			background: linear-gradient(to right, #943700 10%, #711500 100%);
 		}
 	</style>
 </svelte:head>
 
-<HalftoneOverlay maxInk={halftoneMaxInk} noiseStrength={0.3} spacing={halftoneSpacing} />
+<HalftoneOverlay
+	pattern="line"
+	angle={15}
+	contrast={0.4}
+	cellSize={6}
+	noiseStrength={1.3}
+	speed={0}
+/>
 
 <!-- The raggedy edge on the big CTA, in two passes — one feTurbulence can
      only be coarse-or-fine, never both:
@@ -144,8 +141,11 @@
 		     the captured document, and this stack is placed at 50%/50% of the
 		     same initial containing block so the button sits on the rings' origin.
 		     z-index 10000 beats the overlay canvas's 9999 — everything else on
-		     the page stays under the effect, this one element floats on it. -->
-	<div class="cta">
+		     the page stays under the effect, this one element floats on it.
+		     It is also excluded from the halftone capture: html2canvas sees the
+		     undeformed ::before pill more faithfully than the live SVG-filtered
+		     edge, which made the overlay pick up a faint static outline. -->
+	<div class="cta" data-halftone-ignore="true">
 		{#if user}
 			<a class="big" href={resolve('/(auth-required)/(app)/home')}><span>Start</span></a>
 		{:else}

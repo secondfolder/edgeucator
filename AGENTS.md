@@ -84,7 +84,7 @@ noise:
     The initial-capture is deliberate: `superForm` registers its lifecycle
     once and its returned stores are the live connection, so re-deriving it on
     every `invalidate()` would reset the form. Add one to new ones.
-- `npm test`: 641 tests. Partners, tasks, and the encryption keys are covered end to end
+- `npm test`: 678 tests. Partners, tasks, and the encryption keys are covered end to end
   at three levels — see **Testing** below. Outside those the net is still thin.
 - `npm run test:e2e`: 51 Playwright specs, about 90 seconds once the browser is installed
   (`npx playwright install chromium` first). A run that takes ~2 minutes has
@@ -507,6 +507,7 @@ Four places, split on scope:
 | [docs/rewards.md](docs/rewards.md)               | Self rewards and partnership rewards: credits, claims, control            |
 | [docs/tasks.md](docs/tasks.md)                   | Self tasks and partnership tasks: scheduling, credits, timezone ownership |
 | [docs/encryption.md](docs/encryption.md)         | Message keys: the client-side KDF, the wraps, what the guarantee is       |
+| [docs/halftone.md](docs/halftone.md)             | The landing page's halftone overlay: the screen model and its fixtures    |
 | [docs/messaging.md](docs/messaging.md)           | Encrypted partner messages: threads, the board, unread, restore           |
 | [docs/timezone.md](docs/timezone.md)             | Account timezone storage, mismatch prompts, and device-local dismissal    |
 | [docs/temporary-code.md](docs/temporary-code.md) | Temporary-code cleanup notes, including the Temporal API polyfill         |

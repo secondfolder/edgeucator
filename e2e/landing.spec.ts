@@ -44,63 +44,69 @@ test('the halftone overlay paints over the landing page', async ({ page }) => {
 		return painted / (scratch.width * scratch.height);
 	});
 
-	// With noise strength at 0.5 the grain alone composites over roughly half
-	// the page, so anything under a tenth of pixels carrying ink means the
-	// shader drew nothing but the capture still "succeeded".
-	expect(paintedFraction).toBeGreaterThan(0.1);
+	// The current calibration targets Affinity's blend-free line halftone, so
+	// the canvas is an opaque grayscale screen rather than a translucent ink
+	// overlay. A render that paints under most pixels but leaves the frame
+	// non-opaque or coloured is the wrong algorithm, not a stylistic variant.
+	expect(paintedFraction).toBeGreaterThan(0.95);
 
-	// The grain must be *white* noise, not just any per-pixel texture. The
-	// pure-noise background shows up as the most common translucent alpha in
-	// the rendered frame: it is the overlay's noise floor with no ink laid on
-	// top. Sample exactly those pixels and their neighbouring colour values
-	// should differ strongly. The first version used the fract(sin(dot(...)))
-	// hash, whose precision collapse at larger coordinates reads as diagonal
-	// banding — adjacent pixels end up far too similar. A local-difference
-	// check guards that directly and avoids overfitting the test to one exact
-	// histogram shape, which changes as the landing's spacing/maxInk tuning
-	// changes.
-	const { dominantAlpha, pairs, meanNeighborDiff } = await canvas.evaluate((el) => {
-		const canvasEl = el as HTMLCanvasElement;
-		const scratch = document.createElement('canvas');
-		scratch.width = canvasEl.width;
-		scratch.height = canvasEl.height;
-		const ctx = scratch.getContext('2d')!;
-		ctx.drawImage(canvasEl, 0, 0);
-		const { data } = ctx.getImageData(0, 0, scratch.width, scratch.height);
-		const alphas = new Array(256).fill(0) as number[];
-		for (let i = 3; i < data.length; i += 4) {
-			const alpha = data[i]!;
-			if (alpha === 0 || alpha === 255) continue;
-			alphas[alpha]!++;
-		}
-
-		let dominantAlpha = 1;
-		for (let alpha = 2; alpha < 255; alpha++) {
-			if (alphas[alpha]! > alphas[dominantAlpha]!) dominantAlpha = alpha;
-		}
-
-		let pairs = 0;
-		let diffSum = 0;
-		for (let y = 0; y < scratch.height; y++) {
-			for (let x = 0; x < scratch.width - 1; x++) {
-				const i = (y * scratch.width + x) * 4;
-				const j = i + 4;
-				if (data[i + 3]! !== dominantAlpha || data[j + 3]! !== dominantAlpha) continue;
-				diffSum += Math.abs(data[i]! - data[j]!);
-				pairs++;
+	const { opaqueFraction, meanChannelDelta, leftMin, leftMax, rightMin, rightMax } =
+		await canvas.evaluate((el) => {
+			const canvasEl = el as HTMLCanvasElement;
+			const scratch = document.createElement('canvas');
+			scratch.width = canvasEl.width;
+			scratch.height = canvasEl.height;
+			const ctx = scratch.getContext('2d')!;
+			ctx.drawImage(canvasEl, 0, 0);
+			const { data } = ctx.getImageData(0, 0, scratch.width, scratch.height);
+			let opaque = 0;
+			let total = 0;
+			let channelDeltaSum = 0;
+			for (let i = 3; i < data.length; i += 4) {
+				if (data[i]! >= 230) opaque++;
+				channelDeltaSum +=
+					Math.abs(data[i - 3]! - data[i - 2]!) + Math.abs(data[i - 2]! - data[i - 1]!);
+				total++;
 			}
-		}
-		return {
-			dominantAlpha,
-			pairs,
-			meanNeighborDiff: pairs > 0 ? diffSum / pairs : 0
-		};
-	});
 
-	// The exact count moves with the page tuning: wider spacing and finer ink
-	// leave fewer untouched pixels than the earlier denser screen. We only
-	// need enough background-noise pairs to judge the local variation.
-	expect(dominantAlpha).toBeGreaterThan(0);
-	expect(pairs).toBeGreaterThan(10_000);
-	expect(meanNeighborDiff).toBeGreaterThan(20);
+			const sampleColumn = (x: number) => {
+				let min = 255;
+				let max = 0;
+				for (let y = 0; y < scratch.height; y++) {
+					const v = data[(y * scratch.width + x) * 4]!;
+					if (v < min) min = v;
+					if (v > max) max = v;
+				}
+				return { min: min / 255, max: max / 255 };
+			};
+
+			const left = sampleColumn(Math.floor(scratch.width * 0.05));
+			const right = sampleColumn(Math.floor(scratch.width * 0.95));
+			return {
+				opaqueFraction: opaque / total,
+				meanChannelDelta: channelDeltaSum / total,
+				leftMin: left.min,
+				leftMax: left.max,
+				rightMin: right.min,
+				rightMax: right.max
+			};
+		});
+	expect(opaqueFraction).toBeGreaterThan(0.99);
+	expect(meanChannelDelta).toBeLessThan(1);
+
+	// At a 15 degree line angle the bands still run near-horizontally, so
+	// vertical samples on both sides of the page's left-to-right gradient
+	// should oscillate strongly. The bounds come from the model in
+	// docs/halftone.md: at contrast 0.4 the slope is tan(36°) = 0.727, so a
+	// tone t peaks at t·1.727 and troughs below zero for anything under 0.58.
+	// The background runs #943700 (tone 0.30) to #711500 (tone 0.18), which
+	// predicts crests near 0.52 on the left and 0.31 on the right, both on a
+	// black floor, plus up to 0.078 of grain. Asserting the shape rather than
+	// the numbers keeps this honest through tuning.
+	expect(leftMin).toBeLessThan(0.05);
+	expect(leftMax).toBeGreaterThan(0.4);
+	expect(rightMin).toBeLessThan(0.05);
+	expect(rightMax).toBeGreaterThan(0.25);
+	expect(rightMax).toBeLessThan(0.45);
+	expect(leftMax).toBeGreaterThan(rightMax + 0.05);
 });
