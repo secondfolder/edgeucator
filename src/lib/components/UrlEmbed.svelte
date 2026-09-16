@@ -505,6 +505,7 @@
 			color: inherit;
 			cursor: pointer;
 			min-inline-size: 3.75rem;
+			margin-inline-end: 0.1em;
 
 			&.busy {
 				cursor: pointer;

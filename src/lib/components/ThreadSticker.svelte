@@ -380,7 +380,7 @@
 		.unreadable,
 		.pending {
 			margin: 0;
-			font-size: 0.82rem;
+			font-size: 0.7rem;
 			line-height: 1.3;
 		}
 
@@ -388,8 +388,8 @@
 			white-space: pre-line;
 			overflow: hidden;
 			display: -webkit-box;
-			line-clamp: 3;
-			-webkit-line-clamp: 3;
+			line-clamp: 4;
+			-webkit-line-clamp: 4;
 			-webkit-box-orient: vertical;
 			color: var(--wa-color-text-normal);
 		}
