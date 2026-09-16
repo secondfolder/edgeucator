@@ -699,6 +699,16 @@ export const messages = sqliteTable(
 			.notNull()
 			.references(() => user.id, { onDelete: 'cascade' }),
 		ciphertext: text('ciphertext').notNull(),
+		/**
+		 * An encrypted sidecar for derived message metadata, such as cached embed
+		 * details resolved from URLs in the body.
+		 *
+		 * Kept separate from `ciphertext` so the app can add or backfill derived
+		 * data without rewriting the author-written body itself. Encrypted for the
+		 * same reason as the body: a cached title or thumbnail URL is still message
+		 * content derived from plaintext the server must not store in the clear.
+		 */
+		metadataCiphertext: text('metadata_ciphertext'),
 		...timestamps
 	},
 	(table) => [

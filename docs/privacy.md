@@ -56,6 +56,13 @@ spells out the difference between "the server stores ciphertext only" and the
 stronger guarantees people often assume from the phrase "end-to-end
 encrypted".
 
+The messaging feature now has one explicit derived-data exception worth naming:
+the browser may send supported URLs from a decrypted message to Bound Up's own
+`/api/embed-metadata` endpoint so it can resolve a preview and hand it back for
+encryption into the message's metadata sidecar. That does widen what the server
+may transiently receive, but the derived preview is still stored only as
+ciphertext in the database.
+
 ## Design rule for new features
 
 When adding a field or screen, ask two separate questions:

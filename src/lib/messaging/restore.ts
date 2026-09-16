@@ -29,12 +29,17 @@
  *   Stopping there would mean no restore ever completes for those two.
  */
 
-import { decryptPayload, encryptPayload } from '../crypto/messages';
-import type { MessagePayload, ReactionPayload } from '../crypto/messages';
+import {
+	decryptMessageMetadata,
+	decryptPayload,
+	encryptMessageMetadata,
+	encryptPayload
+} from '../crypto/messages';
+import type { MessageMetadataPayload, MessagePayload, ReactionPayload } from '../crypto/messages';
 import { unlockedIdentity } from '../crypto/session.svelte';
 
 type RestorePage = {
-	messages: { id: string; ciphertext: string }[];
+	messages: { id: string; ciphertext: string; metadataCiphertext?: string | null }[];
 	reactions: { id: string; ciphertext: string }[];
 	nextCursor: string | null;
 };
@@ -78,14 +83,27 @@ export async function runHistoryRestore(
 		for (;;) {
 			const page = await fetchPage(partnershipId, request.id, cursor);
 
-			const messages: { id: string; ciphertext: string }[] = [];
+			const messages: { id: string; ciphertext: string; metadataCiphertext?: string | null }[] = [];
 			for (const row of page.messages) {
 				const payload = await decryptPayload<MessagePayload>(row.ciphertext, unlocked.identity);
 				if (!payload) {
 					progress.skipped += 1;
 					continue;
 				}
-				messages.push({ id: row.id, ciphertext: await encryptPayload(payload, recipients) });
+				const next: { id: string; ciphertext: string; metadataCiphertext?: string | null } = {
+					id: row.id,
+					ciphertext: await encryptPayload(payload, recipients)
+				};
+				if (row.metadataCiphertext !== undefined) {
+					const metadata =
+						row.metadataCiphertext === null
+							? null
+							: await decryptMessageMetadata(row.metadataCiphertext, unlocked.identity);
+					next.metadataCiphertext = metadata
+						? await encryptMessageMetadata(metadata as MessageMetadataPayload, recipients)
+						: null;
+				}
+				messages.push(next);
 			}
 
 			const reactions: { id: string; ciphertext: string }[] = [];

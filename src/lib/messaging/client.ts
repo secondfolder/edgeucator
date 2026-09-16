@@ -14,14 +14,18 @@ import {
 } from '$lib/messaging';
 import {
 	decryptAttachment,
+	decryptMessageMetadata,
 	decryptPayload,
 	encryptAttachment,
+	encryptMessageMetadata,
 	encryptPayload,
 	normaliseBody,
 	type MessageAttachmentInfo,
+	type MessageMetadataPayload,
 	type MessagePayload,
 	type ReactionPayload
 } from '$lib/crypto/messages';
+import { findRenderableLinks, type CachedEmbedDetails } from '$lib/embeds';
 
 export type ComposedMessage = {
 	text: string;
@@ -89,6 +93,8 @@ function kindOf(file: File): 'image' | 'video' {
 async function buildBody(message: ComposedMessage, recipients: string[]): Promise<FormData> {
 	const attachments: MessageAttachmentInfo[] = [];
 	const body = new FormData();
+	const text = normaliseBody(message.text);
+	const metadataPromise = resolveMessageMetadata(text);
 
 	for (const file of message.files) {
 		const sealed = await encryptAttachment(file);
@@ -108,11 +114,46 @@ async function buildBody(message: ComposedMessage, recipients: string[]): Promis
 
 	const payload: MessagePayload = {
 		version: 1,
-		text: normaliseBody(message.text),
+		text,
 		attachments
 	};
 	body.set('ciphertext', await encryptPayload(payload, recipients));
+	const metadata = await metadataPromise.catch(() => null);
+	if (metadata) {
+		body.set('metadataCiphertext', await encryptMessageMetadata(metadata, recipients));
+	}
 	return body;
+}
+
+function embeddableUrls(text: string): string[] {
+	const urls: string[] = [];
+	const seen = new Set<string>();
+	for (const match of findRenderableLinks(text)) {
+		if (!match.embed || seen.has(match.href)) continue;
+		seen.add(match.href);
+		urls.push(match.href);
+	}
+	return urls;
+}
+
+async function resolveEmbedMetadata(urls: string[]): Promise<CachedEmbedDetails[]> {
+	if (urls.length === 0) return [];
+
+	const response = await fetch('/api/embed-metadata', {
+		method: 'POST',
+		headers: { 'content-type': 'application/json' },
+		body: JSON.stringify({ urls })
+	});
+	if (!response.ok) return [];
+	const result = (await response.json()) as { embeds?: CachedEmbedDetails[] };
+	return Array.isArray(result.embeds) ? result.embeds : [];
+}
+
+async function resolveMessageMetadata(text: string): Promise<MessageMetadataPayload | null> {
+	const urls = embeddableUrls(text);
+	const embeds = await resolveEmbedMetadata(urls);
+	if (embeds.length === 0) return null;
+	return { version: 1, embeds };
 }
 
 export type SendTarget =
@@ -188,6 +229,13 @@ export async function openMessage(
 	return decryptPayload<MessagePayload>(ciphertext, identity);
 }
 
+export async function openMessageMetadata(
+	ciphertext: string,
+	identity: CryptoKey | string
+): Promise<MessageMetadataPayload | null> {
+	return decryptMessageMetadata(ciphertext, identity);
+}
+
 export async function openReaction(
 	ciphertext: string,
 	identity: CryptoKey | string
@@ -198,6 +246,65 @@ export async function openReaction(
 
 export async function buildReaction(emoji: string, recipients: string[]): Promise<string> {
 	return encryptPayload({ version: 1, emoji }, recipients);
+}
+
+export async function fillMissingMessageMetadata(
+	partnershipId: string,
+	messageId: string,
+	href: string,
+	current: MessageMetadataPayload | null,
+	recipients: string[]
+): Promise<MessageMetadataPayload | null> {
+	if (recipients.length === 0) return null;
+	if (current?.embeds.some((embed) => embed.href === href)) return current;
+
+	return writeMessageMetadataEntry(partnershipId, messageId, href, current, recipients, false);
+}
+
+export async function refreshMessageMetadata(
+	partnershipId: string,
+	messageId: string,
+	href: string,
+	current: MessageMetadataPayload | null,
+	recipients: string[]
+): Promise<MessageMetadataPayload | null> {
+	if (recipients.length === 0) return null;
+	return writeMessageMetadataEntry(partnershipId, messageId, href, current, recipients, true);
+}
+
+async function writeMessageMetadataEntry(
+	partnershipId: string,
+	messageId: string,
+	href: string,
+	current: MessageMetadataPayload | null,
+	recipients: string[],
+	replaceExisting: boolean
+): Promise<MessageMetadataPayload | null> {
+	const embeds = await resolveEmbedMetadata([href]);
+	const embed = embeds.find((entry) => entry.href === href) ?? null;
+	if (!embed) return null;
+	const existing = current?.embeds ?? [];
+	const present = existing.some((entry) => entry.href === href);
+	if (present && !replaceExisting) return current;
+
+	const metadata: MessageMetadataPayload = {
+		version: 1,
+		embeds: present
+			? existing.map((entry) => (entry.href === href ? embed : entry))
+			: [...existing, embed]
+	};
+
+	const metadataCiphertext = await encryptMessageMetadata(metadata, recipients);
+	const response = await fetch(
+		`/api/partnerships/${partnershipId}/messages/${messageId}/metadata`,
+		{
+			method: 'PUT',
+			headers: { 'content-type': 'application/json' },
+			body: JSON.stringify({ metadataCiphertext })
+		}
+	);
+	if (!response.ok) return null;
+	return metadata;
 }
 
 /**

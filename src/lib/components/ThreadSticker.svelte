@@ -1,8 +1,12 @@
 <script lang="ts">
 	import { resolve } from '$app/paths';
-	import type { MessageAttachmentInfo, MessagePayload } from '$lib/crypto/messages';
+	import type {
+		MessageAttachmentInfo,
+		MessageMetadataPayload,
+		MessagePayload
+	} from '$lib/crypto/messages';
 	import { currentKeyring } from '$lib/crypto/session.svelte';
-	import { fetchAttachment, openMessage } from '$lib/messaging/client';
+	import { fetchAttachment, openMessage, openMessageMetadata } from '$lib/messaging/client';
 	import type { ThreadStickerView } from '$lib/types';
 
 	type PreviewMedia = {
@@ -45,6 +49,7 @@
 	const keyring = $derived(currentKeyring());
 	const sealed = $derived(thread.unread && thread.lastFullyReadAt === null);
 	let preview: MessagePayload | null | undefined = $state(undefined);
+	let previewMetadata = $state<MessageMetadataPayload | null | undefined>(undefined);
 	let mediaPreviews: PreviewMedia[] = $state([]);
 	let mediaLoading = $state(false);
 
@@ -56,6 +61,25 @@
 		preview = undefined;
 		void openMessage(thread.previewCiphertext, keyring.identity).then((payload) => {
 			if (!cancelled) preview = payload;
+		});
+
+		return () => {
+			cancelled = true;
+		};
+	});
+
+	$effect(() => {
+		if (sealed) return;
+		if (keyring.status !== 'unlocked') return;
+		if (thread.previewMetadataCiphertext === null) {
+			previewMetadata = null;
+			return;
+		}
+
+		let cancelled = false;
+		previewMetadata = undefined;
+		void openMessageMetadata(thread.previewMetadataCiphertext, keyring.identity).then((payload) => {
+			if (!cancelled) previewMetadata = payload;
 		});
 
 		return () => {
@@ -190,6 +214,8 @@
 			(thread.messageCount > 1 ? `, ${thread.messageCount} messages` : '')
 	);
 	const previewValue = $derived(loadedPreview(preview));
+	const embedPreview = $derived(previewMetadata?.embeds[0] ?? null);
+	const embedThumbnail = $derived(embedPreview?.thumbnailUrl ?? embedPreview?.imageUrl ?? null);
 	const textPreview = $derived(previewValue?.text.trim() ?? '');
 	const hasTextPreview = $derived(Boolean(textPreview));
 	const previewItemCount = $derived(
@@ -223,6 +249,22 @@
 				>
 					{#if preview === undefined}
 						<span class="pending" aria-label="Decrypting">···</span>
+					{:else if embedPreview}
+						<div class:with-thumbnail={Boolean(embedThumbnail)} class="embed-preview">
+							{#if embedThumbnail}
+								<img class="embed-thumb" src={embedThumbnail} alt="" />
+							{/if}
+							<div class="embed-copy">
+								{#if embedPreview.providerName}
+									<span class="provider">{embedPreview.providerName}</span>
+								{/if}
+								{#if embedPreview.title}
+									<p class="title">{embedPreview.title}</p>
+								{:else}
+									<p class="title">Link preview</p>
+								{/if}
+							</div>
+						</div>
 					{:else if preview === null}
 						<p class="unreadable">Restore needed to read this preview.</p>
 					{:else if showFan}
@@ -465,6 +507,61 @@
 		.pending,
 		.unreadable {
 			color: var(--wa-color-text-quiet);
+		}
+
+		.embed-preview {
+			display: flex;
+			align-items: stretch;
+			inline-size: 100%;
+			block-size: 100%;
+			border-radius: 0.8rem;
+			overflow: hidden;
+			background: var(--wa-color-surface-default, white);
+			border: 1px solid color-mix(in srgb, var(--wa-color-surface-border) 85%, transparent);
+
+			&.with-thumbnail .embed-copy {
+				justify-content: flex-start;
+			}
+		}
+
+		.embed-thumb {
+			inline-size: 42%;
+			block-size: 100%;
+			object-fit: cover;
+			flex: 0 0 auto;
+		}
+
+		.embed-copy {
+			display: flex;
+			flex-direction: column;
+			justify-content: center;
+			gap: 0.2rem;
+			padding: 0.55rem 0.65rem;
+			min-inline-size: 0;
+			text-align: left;
+		}
+
+		.provider,
+		.title {
+			margin: 0;
+			overflow: hidden;
+			display: -webkit-box;
+			-webkit-box-orient: vertical;
+		}
+
+		.provider {
+			font-size: 0.63rem;
+			line-clamp: 1;
+			-webkit-line-clamp: 1;
+			color: var(--wa-color-text-quiet);
+		}
+
+		.title {
+			font-size: 0.73rem;
+			line-height: 1.25;
+			line-clamp: 3;
+			-webkit-line-clamp: 3;
+			color: var(--wa-color-text-normal);
 		}
 
 		.meta {

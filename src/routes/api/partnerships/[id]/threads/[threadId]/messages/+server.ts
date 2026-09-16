@@ -19,7 +19,10 @@ export const POST: RequestHandler = async (event) => {
 	}
 
 	const { form, attachments } = await parseSend(request);
-	const parsed = replySchema.safeParse({ ciphertext: form.get('ciphertext') });
+	const parsed = replySchema.safeParse({
+		ciphertext: form.get('ciphertext'),
+		metadataCiphertext: form.get('metadataCiphertext')
+	});
 	if (!parsed.success) error(400, parsed.error.issues[0]?.message ?? 'Malformed message');
 
 	const store = await createMediaStore({ platform });
@@ -28,6 +31,7 @@ export const POST: RequestHandler = async (event) => {
 		threadId: params.threadId,
 		senderId: locals.user.id,
 		ciphertext: parsed.data.ciphertext,
+		metadataCiphertext: parsed.data.metadataCiphertext,
 		attachments
 	});
 

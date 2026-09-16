@@ -1,7 +1,6 @@
 <script lang="ts">
-	import { find as findLinks } from 'linkifyjs';
 	import UrlEmbed from './UrlEmbed.svelte';
-	import { embedSpecFor, isSafeHttpUrl, type EmbedSpec } from '$lib/embeds';
+	import { findRenderableLinks, type CachedEmbedDetails, type EmbedSpec } from '$lib/embeds';
 
 	/**
 	 * Message/task/reward prose with URLs turned into links and, for hosts we
@@ -22,29 +21,53 @@
 	 */
 	type Token =
 		| { type: 'text'; value: string }
-		| { type: 'link'; value: string; href: string; embed: EmbedSpec | null };
+		| {
+				type: 'link';
+				value: string;
+				href: string;
+				embed: EmbedSpec | null;
+				cached: CachedEmbedDetails | null;
+				cachedPending: boolean;
+				requireExplicitReveal: boolean;
+		  };
 
-	let { text, maxEmbeds = Infinity }: { text: string; maxEmbeds?: number } = $props();
+	let {
+		text,
+		maxEmbeds = Infinity,
+		cachedEmbeds = [],
+		cachedEmbedsPending = false,
+		requireExplicitReveal = false,
+		onRevealEmbed = undefined,
+		onRefreshEmbed = undefined
+	}: {
+		text: string;
+		maxEmbeds?: number;
+		cachedEmbeds?: CachedEmbedDetails[];
+		cachedEmbedsPending?: boolean;
+		requireExplicitReveal?: boolean;
+		onRevealEmbed?: ((href: string) => void | Promise<void>) | undefined;
+		onRefreshEmbed?: ((href: string) => void | Promise<void>) | undefined;
+	} = $props();
 
 	const tokens = $derived.by(() => {
-		const found = findLinks(text)
-			// Only http(s) URLs, and only ones linkifyjs normalises to a scheme
-			// we are willing to put in an href.
-			.filter((match) => match.type === 'url' && isSafeHttpUrl(match.href));
+		const found = findRenderableLinks(text, maxEmbeds);
+		const cachedByHref = new Map(cachedEmbeds.map((embed) => [embed.href, embed]));
 
 		const result: Token[] = [];
 		let cursor = 0;
-		let embedsUsed = 0;
 		for (const match of found) {
 			if (match.start > cursor) {
 				result.push({ type: 'text', value: text.slice(cursor, match.start) });
 			}
-			// Every supported URL becomes an embed (the user's call — a
-			// link-heavy message stacks one player per link, and that is wanted).
-			// maxEmbeds only exists so headings can pass 0.
-			const embed = embedsUsed < maxEmbeds ? embedSpecFor(match.href) : null;
-			if (embed) embedsUsed += 1;
-			result.push({ type: 'link', value: match.value, href: match.href, embed });
+			result.push({
+				type: 'link',
+				value: match.value,
+				href: match.href,
+				embed: match.embed,
+				cached: cachedByHref.get(match.href) ?? null,
+				cachedPending: cachedEmbedsPending && match.embed !== null,
+				requireExplicitReveal: requireExplicitReveal && match.embed !== null
+			});
 			cursor = match.end;
 		}
 		if (cursor < text.length) {
@@ -58,7 +81,16 @@
 	{#if token.type === 'text'}
 		{token.value}
 	{:else if token.embed}
-		<UrlEmbed spec={token.embed} href={token.href} label={token.value} />
+		<UrlEmbed
+			spec={token.embed}
+			href={token.href}
+			label={token.value}
+			cached={token.cached}
+			cachedPending={token.cachedPending}
+			requireExplicitReveal={token.requireExplicitReveal}
+			onReveal={onRevealEmbed}
+			onRefresh={onRefreshEmbed}
+		/>
 	{:else}
 		<a href={token.href} target="_blank" rel="noopener noreferrer ugc">{token.value}</a>
 	{/if}

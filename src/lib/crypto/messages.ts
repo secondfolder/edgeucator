@@ -14,6 +14,7 @@
  */
 
 import { MAX_BODY_CHARS } from '../messaging';
+import type { CachedEmbedDetails } from '../embeds';
 import { loadAge } from './identity';
 
 /**
@@ -31,6 +32,11 @@ export type MessagePayload = {
 	version: 1;
 	text: string;
 	attachments: MessageAttachmentInfo[];
+};
+
+export type MessageMetadataPayload = {
+	version: 1;
+	embeds: CachedEmbedDetails[];
 };
 
 export type MessageAttachmentInfo = {
@@ -67,7 +73,7 @@ function decodeBase64(value: string): Uint8Array<ArrayBuffer> {
 
 /** Encrypts a payload to every given recipient. Both partners, in practice. */
 export async function encryptPayload(
-	payload: MessagePayload | ReactionPayload,
+	payload: MessagePayload | MessageMetadataPayload | ReactionPayload,
 	recipients: string[]
 ): Promise<string> {
 	if (recipients.length === 0) throw new Error('A message needs at least one recipient');
@@ -104,6 +110,20 @@ export async function decryptPayload<T = MessagePayload>(
 	} catch {
 		return null;
 	}
+}
+
+export async function encryptMessageMetadata(
+	payload: MessageMetadataPayload,
+	recipients: string[]
+): Promise<string> {
+	return encryptPayload(payload, recipients);
+}
+
+export async function decryptMessageMetadata(
+	ciphertext: string,
+	identity: CryptoKey | string
+): Promise<MessageMetadataPayload | null> {
+	return decryptPayload<MessageMetadataPayload>(ciphertext, identity);
 }
 
 /** Trims and bounds what the composer collected, before it is encrypted. */

@@ -36,12 +36,21 @@ const ciphertextSchema = z
 	.max(MAX_CIPHERTEXT_BYTES, 'That message is too long')
 	.regex(/^[A-Za-z0-9+/=]+$/, 'Malformed message');
 
+const optionalCiphertextSchema = z.preprocess(
+	(value) => (value === null || value === undefined || value === '' ? undefined : value),
+	ciphertextSchema.optional()
+);
+
 export const newThreadSchema = z.object({
 	icon: threadIconSchema,
-	ciphertext: ciphertextSchema
+	ciphertext: ciphertextSchema,
+	metadataCiphertext: optionalCiphertextSchema
 });
 
-export const replySchema = z.object({ ciphertext: ciphertextSchema });
+export const replySchema = z.object({
+	ciphertext: ciphertextSchema,
+	metadataCiphertext: optionalCiphertextSchema
+});
 
 const reactionCiphertextSchema = ciphertextSchema.max(
 	MAX_REACTION_CIPHERTEXT_BYTES,
@@ -49,6 +58,8 @@ const reactionCiphertextSchema = ciphertextSchema.max(
 );
 
 export const reactionSchema = z.object({ ciphertext: reactionCiphertextSchema });
+
+export const messageMetadataSchema = z.object({ metadataCiphertext: ciphertextSchema });
 
 /**
  * One page of a partner-assisted history restore.
@@ -61,7 +72,8 @@ export const reactionSchema = z.object({ ciphertext: reactionCiphertextSchema })
  */
 const restoreRowSchema = z.object({
 	id: z.string().uuid('Malformed id'),
-	ciphertext: ciphertextSchema
+	ciphertext: ciphertextSchema,
+	metadataCiphertext: z.union([ciphertextSchema, z.null()]).optional()
 });
 
 export const restoreApplySchema = z.object({

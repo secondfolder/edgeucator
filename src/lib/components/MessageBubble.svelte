@@ -2,7 +2,7 @@
 	import AttachmentPreview from './AttachmentPreview.svelte';
 	import ReactionPicker from './ReactionPicker.svelte';
 	import RichText from './RichText.svelte';
-	import type { MessagePayload } from '$lib/crypto/messages';
+	import type { MessageMetadataPayload, MessagePayload } from '$lib/crypto/messages';
 	import type { MessageView } from '$lib/types';
 
 	/**
@@ -20,6 +20,9 @@
 	let {
 		message,
 		payload,
+		metadata,
+		onRevealEmbed,
+		onRefreshEmbed,
 		partnershipId,
 		when,
 		reactions,
@@ -28,6 +31,9 @@
 	}: {
 		message: MessageView;
 		payload: MessagePayload | null | undefined;
+		metadata: MessageMetadataPayload | null | undefined;
+		onRevealEmbed: (href: string) => void | Promise<void>;
+		onRefreshEmbed: (href: string) => void | Promise<void>;
 		partnershipId: string;
 		when: string;
 		/** Already-decrypted reaction emoji, with whose they are. */
@@ -38,6 +44,10 @@
 
 	const mine = $derived(message.mine);
 	const myReaction = $derived(reactions.find((reaction) => reaction.mine)?.emoji ?? null);
+	const cachedEmbeds = $derived(metadata?.embeds ?? []);
+	const cachedEmbedsPending = $derived(
+		message.metadataCiphertext !== null && metadata === undefined
+	);
 </script>
 
 <li class:mine class:theirs={!mine}>
@@ -51,7 +61,16 @@
 			</span>
 		{:else}
 			{#if payload.text}
-				<p class="text"><RichText text={payload.text} /></p>
+				<p class="text">
+					<RichText
+						text={payload.text}
+						{cachedEmbeds}
+						{cachedEmbedsPending}
+						requireExplicitReveal
+						{onRevealEmbed}
+						{onRefreshEmbed}
+					/>
+				</p>
 			{/if}
 			{#each payload.attachments as info (info.id)}
 				<AttachmentPreview {info} {partnershipId} />

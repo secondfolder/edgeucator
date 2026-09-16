@@ -5,12 +5,15 @@ stores only ciphertext. This document covers the keys: where they come from,
 where they are kept, and what the guarantee actually is. The messaging feature
 itself is [docs/messaging.md](messaging.md).
 
-One narrow exception now exists for embeds: if a viewer explicitly clicks to
-expand a reddit link, the client sends that URL to `/api/oembed` so the server
-can fetch reddit's CORS-blocked oEmbed endpoint. The server still does not store
-message plaintext, but it does transiently receive that one URL because reddit
-does not expose a browser-callable embed API. The full behaviour and why it is
-click-gated live in [docs/embeds.md](embeds.md).
+Two narrow exceptions now exist for embeds. First, when a new message is sent —
+or an older one is being backfilled with no cached preview yet — the client may
+send supported URLs to `/api/embed-metadata` so the server can resolve preview
+data and hand it back for encryption into the message's metadata sidecar.
+Second, if a viewer explicitly clicks to expand a reddit link, the client sends
+that URL to `/api/oembed` so the server can fetch reddit's CORS-blocked oEmbed
+endpoint. The server still does not store message plaintext, but it can now
+transiently receive those explicit URLs because some providers do not expose a
+browser-callable metadata API. The full behaviour lives in [docs/embeds.md](embeds.md).
 
 ## What this does and does not promise
 

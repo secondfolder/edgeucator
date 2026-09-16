@@ -1,6 +1,6 @@
 import { render, waitFor } from '@testing-library/svelte';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import type { MessagePayload } from '$lib/crypto/messages';
+import type { MessageMetadataPayload, MessagePayload } from '$lib/crypto/messages';
 import type { ThreadStickerView } from '$lib/types';
 
 vi.mock('$app/paths', () => ({
@@ -19,6 +19,11 @@ vi.mock('$lib/crypto/session.svelte', () => ({
 const openMessage =
 	vi.fn<(ciphertext: string, identity: CryptoKey | string) => Promise<MessagePayload | null>>();
 
+const openMessageMetadata =
+	vi.fn<
+		(ciphertext: string, identity: CryptoKey | string) => Promise<MessageMetadataPayload | null>
+	>();
+
 const fetchAttachment =
 	vi.fn<
 		(
@@ -29,6 +34,7 @@ const fetchAttachment =
 
 vi.mock('$lib/messaging/client', () => ({
 	openMessage,
+	openMessageMetadata,
 	fetchAttachment
 }));
 
@@ -43,6 +49,7 @@ function thread(overrides: Partial<ThreadStickerView> = {}): ThreadStickerView {
 		lastFullyReadAt: new Date('2026-09-12T18:00:00Z'),
 		messageCount: 2,
 		previewCiphertext: 'ciphertext',
+		previewMetadataCiphertext: null,
 		...overrides
 	};
 }
@@ -53,6 +60,7 @@ beforeEach(() => {
 	vi.useFakeTimers();
 	vi.setSystemTime(new Date('2026-09-13T15:00:00Z'));
 	openMessage.mockReset();
+	openMessageMetadata.mockReset();
 	fetchAttachment.mockReset();
 	Intl.DateTimeFormat = class {
 		constructor(
@@ -120,6 +128,46 @@ describe('ThreadSticker', () => {
 		expect(container.querySelector('.fan')).toBeNull();
 		expect(container.querySelector('.preview-single')).not.toBeNull();
 		expect(container.querySelector('.single-card.text-bubble')).not.toBeNull();
+	});
+
+	it('prefers cached embed metadata for the board preview when present', async () => {
+		openMessage.mockResolvedValue({ version: 1, text: 'https://example.com', attachments: [] });
+		openMessageMetadata.mockResolvedValue({
+			version: 1,
+			embeds: [
+				{
+					href: 'https://example.com',
+					fetchedAt: Date.now(),
+					kind: 'card',
+					providerName: 'Example',
+					title: 'A richer preview',
+					description: null,
+					thumbnailUrl: 'https://example.com/thumb.jpg',
+					canonicalUrl: 'https://example.com',
+					imageUrl: null,
+					iframeSrc: null,
+					iframeHeight: null,
+					faviconUrl: null,
+					themeColor: null
+				}
+			]
+		});
+
+		const { container, findByText } = render(ThreadSticker, {
+			props: {
+				thread: thread({ previewMetadataCiphertext: 'metadata' }),
+				partnershipId: 'p1',
+				position: 1,
+				total: 1
+			}
+		});
+
+		await findByText('A richer preview');
+		expect(container.querySelector('.embed-preview')).not.toBeNull();
+		expect(container.querySelector('.embed-thumb')).toHaveAttribute(
+			'src',
+			'https://example.com/thumb.jpg'
+		);
 	});
 
 	it('shows a send time for today and an opened date when the latest message was read later', async () => {

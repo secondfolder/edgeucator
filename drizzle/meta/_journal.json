@@ -78,6 +78,13 @@
       "when": 1789372945786,
       "tag": "0010_add-partner-roles",
       "breakpoints": true
+    },
+    {
+      "idx": 11,
+      "version": "6",
+      "when": 1789569291305,
+      "tag": "0011_add_message_metadata_ciphertext",
+      "breakpoints": true
     }
   ]
 }

@@ -213,6 +213,8 @@ export type ThreadStickerView = {
 	messageCount: number;
 	/** The thread's first message, used for the board preview once unlocked. */
 	previewCiphertext: string;
+	/** Cached derived metadata for the first message, encrypted like the body. */
+	previewMetadataCiphertext: string | null;
 };
 
 export type TagView = {
@@ -239,6 +241,8 @@ export type MessageView = {
 	mine: boolean;
 	/** base64 age ciphertext. Never rendered as text, even briefly. */
 	ciphertext: string;
+	/** Cached derived metadata for the message body, encrypted like the body. */
+	metadataCiphertext: string | null;
 	createdAt: Date;
 	attachments: AttachmentView[];
 	reactions: ReactionView[];

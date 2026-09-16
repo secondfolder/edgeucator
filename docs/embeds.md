@@ -7,6 +7,13 @@ URL rendering is split into two jobs:
 2. `UrlEmbed.svelte` decides whether a URL becomes an inline embed, a metadata
    card, or stays a plain link.
 
+For messages specifically, there is now a third piece in the flow: the browser
+may cache resolved preview data for supported URLs in an encrypted
+`metadataCiphertext` sidecar on the message row. That cache is used first for
+board previews and inline message embeds, and is filled at send time for new
+messages. Older rows are backfilled only when the viewer explicitly presses the
+embed's `Show` button for a URL that does not already have a cached entry.
+
 The current scope is every prose field the app renders for a user: message
 bodies, task titles and descriptions, task-completion messages, reward titles
 and descriptions, reward history descriptions, and edge-task reveal prose.
@@ -42,7 +49,7 @@ The browser cannot fetch reddit's oEmbed endpoint directly because
 `noembed.com` does not support reddit at all. So reddit URLs are the one case
 that may reach the server.
 
-That is not automatic.
+That is not automatic for the live embed path.
 
 - A reddit URL first renders as a link plus a `Show reddit embed` button.
 - Only when the viewer clicks that button does the client call `/api/oembed`.
@@ -63,9 +70,16 @@ for some NSFW posts. When the post links to something we already embed natively
   renders the real media instead of the reddit frame. If there is no embeddable
   outbound URL, the client falls back to `embed.reddit.com` for the post itself.
 
-This is the only place where decrypted message text can be sent back to the
-server, and only a URL fragment at that. The click gate is there specifically
-so this is explicit user action rather than background behaviour.
+This is still the only place where a reddit URL is sent for a live embed on
+demand, and the click gate is there specifically so that step is explicit user
+action rather than background behaviour.
+
+Message metadata caching widens the privacy boundary deliberately: at send time,
+and when a viewer explicitly presses `Show` for an older uncached message URL,
+the browser may send that supported URL to `/api/embed-metadata` so Bound Up
+can resolve a first-party preview and the client can encrypt it into the
+message's metadata sidecar. The database still stores only ciphertext for that
+sidecar.
 
 ## Safety model
 
@@ -87,6 +101,13 @@ navigate the top page away.
 `src/lib/embeds.ts` keeps a module-level cache of oEmbed responses in the
 browser. Re-renders and `invalidate()` calls reuse the cached response instead
 of hitting the same provider repeatedly.
+
+Messages now also have a persistent encrypted cache in `messages.metadata_ciphertext`.
+New sends try to fill it before posting the message. Older rows fill it only
+for URLs the viewer explicitly reveals and only when no cached entry for that
+URL exists yet. Once a cached entry exists it is reused by default, but the
+embed also offers a small manual refresh button so the viewer can ask for fresh
+details and rewrite just that one cached URL entry.
 
 Failures are cached too as `'error'`, because a dead provider should degrade to
 one quiet plain link, not a refetch storm.

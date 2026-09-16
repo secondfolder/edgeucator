@@ -417,6 +417,7 @@ export async function createTestThread(
 	options: {
 		icon?: ThreadIcon;
 		ciphertext?: string;
+		metadataCiphertext?: string;
 		at?: Date;
 		attachments?: OutgoingAttachment[];
 		store?: MediaStore;
@@ -430,6 +431,7 @@ export async function createTestThread(
 			senderId: sender.id,
 			icon: options.icon ?? 'envelope',
 			ciphertext: options.ciphertext ?? 'Y2lwaGVydGV4dA',
+			metadataCiphertext: options.metadataCiphertext,
 			attachments: options.attachments ?? []
 		},
 		options.at ?? nextFixtureTime()
@@ -446,6 +448,7 @@ export async function createTestMessage(
 	sender: TestUser,
 	options: {
 		ciphertext?: string;
+		metadataCiphertext?: string;
 		at?: Date;
 		attachments?: OutgoingAttachment[];
 		store?: MediaStore;
@@ -459,6 +462,7 @@ export async function createTestMessage(
 			threadId,
 			senderId: sender.id,
 			ciphertext: options.ciphertext ?? 'cmVwbHk',
+			metadataCiphertext: options.metadataCiphertext,
 			attachments: options.attachments ?? []
 		},
 		options.at ?? nextFixtureTime()

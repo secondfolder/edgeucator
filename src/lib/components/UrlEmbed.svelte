@@ -3,6 +3,7 @@
 		cachedOembed,
 		embedSpecFor,
 		fetchOembed,
+		type CachedEmbedDetails,
 		type EmbedSpec,
 		type OembedResult
 	} from '$lib/embeds';
@@ -44,21 +45,44 @@
 	 * decoration, and a dead provider (noembed has no SLA) must not leave a
 	 * hole or a console error — the e2e fixture fails runs on console noise.
 	 */
-	let { spec, href, label }: { spec: EmbedSpec; href: string; label: string } = $props();
+	let {
+		spec,
+		href,
+		label,
+		cached = null,
+		cachedPending = false,
+		requireExplicitReveal = false,
+		onReveal = undefined,
+		onRefresh = undefined
+	}: {
+		spec: EmbedSpec;
+		href: string;
+		label: string;
+		cached?: CachedEmbedDetails | null;
+		cachedPending?: boolean;
+		requireExplicitReveal?: boolean;
+		onReveal?: ((href: string) => void | Promise<void>) | undefined;
+		onRefresh?: ((href: string) => void | Promise<void>) | undefined;
+	} = $props();
 
 	// Only true after the viewer clicked the placeholder. Gates the
 	// server-proxied fetch. The gate itself stays mounted until the fetch has
 	// resolved, so the button can show a busy state without a layout jump.
 	let unlocked = $state(false);
+	let refreshing = $state(false);
+	const gated = $derived(requireExplicitReveal && cached === null && !unlocked);
+	const canRefresh = $derived(cached !== null && onRefresh !== undefined);
 
 	// The endpoint actually fetched: direct for noembed hosts, our proxy for
 	// reddit — but only once `unlocked`.
 	const endpoint = $derived(
-		spec.kind === 'oembed'
-			? spec.endpoint
-			: spec.kind === 'server-oembed' && unlocked
-				? `/api/oembed?url=${encodeURIComponent(spec.url)}`
-				: null
+		cached !== null || cachedPending || gated
+			? null
+			: spec.kind === 'oembed'
+				? spec.endpoint
+				: spec.kind === 'server-oembed' && unlocked
+					? `/api/oembed?url=${encodeURIComponent(spec.url)}`
+					: null
 	);
 
 	// svelte-ignore state_referenced_locally
@@ -68,12 +92,71 @@
 	let oembed: OembedResult | 'error' | undefined = $state(
 		endpoint === null ? undefined : cachedOembed(endpoint)
 	);
+	const cachedCard = $derived.by(() => {
+		if (!cached) return null;
+		if (!cached.title && !cached.providerName && !cached.thumbnailUrl && !cached.description) {
+			return null;
+		}
+		return {
+			href: cached.canonicalUrl ?? href,
+			providerName: cached.providerName,
+			title: cached.title,
+			thumbnailUrl: cached.thumbnailUrl,
+			mediaHref: cached.canonicalUrl ?? href
+		} satisfies CardView;
+	});
+
+	const cachedCardImage = $derived.by(() => {
+		if (!cached || cached.kind !== 'image' || !cached.imageUrl) return null;
+		return {
+			href: cached.canonicalUrl ?? href,
+			src: cached.imageUrl,
+			alt: label
+		};
+	});
+
+	const cachedIframeEmbed = $derived.by(() => {
+		if (!cached || cached.kind !== 'iframe' || !cached.iframeSrc) return null;
+		return {
+			shellClass: cachedCard ? 'card-media player iframe-shell' : 'embed player iframe-shell',
+			frameClass: null,
+			src: cached.iframeSrc,
+			title: cached.title ?? cached.providerName ?? 'Embedded content',
+			height: cached.iframeHeight,
+			allowFullscreen: true
+		} satisfies IframeView;
+	});
+
+	const cachedStandaloneImage = $derived.by(() => {
+		if (!cachedCardImage || cachedCard) return null;
+		return cachedCardImage;
+	});
+
 	const gateVisible = $derived(
-		spec.kind === 'server-oembed' && (!unlocked || oembed === undefined)
+		!cachedPending &&
+			cached === null &&
+			(gated || (spec.kind === 'server-oembed' && (!unlocked || oembed === undefined)))
 	);
 	const waitingForRedditEmbed = $derived(
-		spec.kind === 'server-oembed' && unlocked && oembed === undefined
+		(spec.kind === 'server-oembed' || spec.kind === 'oembed') && unlocked && oembed === undefined
 	);
+
+	async function reveal(): Promise<void> {
+		unlocked = true;
+		await onReveal?.(href);
+	}
+
+	async function refresh(event: MouseEvent): Promise<void> {
+		event.preventDefault();
+		event.stopPropagation();
+		if (!onRefresh || refreshing) return;
+		refreshing = true;
+		try {
+			await onRefresh(href);
+		} finally {
+			refreshing = false;
+		}
+	}
 
 	$effect(() => {
 		if (endpoint === null) return;
@@ -188,6 +271,7 @@
 	});
 
 	const cardImage = $derived.by(() => {
+		if (cachedCardImage && cachedCard) return cachedCardImage;
 		if (spec.kind !== 'server-oembed' || !card || nativeSpec?.kind !== 'image') return null;
 		return {
 			href: card.mediaHref,
@@ -197,6 +281,7 @@
 	});
 
 	const iframeEmbed = $derived.by(() => {
+		if (cachedIframeEmbed) return cachedIframeEmbed;
 		if (card && spec.kind === 'server-oembed') {
 			if (nativeSpec?.kind === 'iframe') {
 				return {
@@ -260,6 +345,7 @@
 	});
 
 	const standaloneImage = $derived.by(() => {
+		if (cachedStandaloneImage) return cachedStandaloneImage;
 		if (spec.kind !== 'image') return null;
 		return {
 			href,
@@ -269,6 +355,7 @@
 	});
 
 	const showFallbackLink = $derived.by(() => {
+		if (cachedCard || cachedStandaloneImage || cachedIframeEmbed) return false;
 		if (gateVisible || card || standaloneImage || iframeEmbed) return false;
 		if (spec.kind === 'server-oembed') return true;
 		if (oembed === undefined || oembed === 'error') return true;
@@ -294,7 +381,7 @@
 			class:busy={waitingForRedditEmbed}
 			aria-busy={waitingForRedditEmbed}
 			disabled={waitingForRedditEmbed}
-			onclick={() => (unlocked = true)}
+			onclick={reveal}
 		>
 			<span class:visually-hidden={waitingForRedditEmbed}>Show</span>
 			{#if waitingForRedditEmbed}
@@ -304,16 +391,47 @@
 			{/if}
 		</button>
 	</span>
-{:else if card}
+{:else if cachedCard || card}
 	<span class="embed card-shell">
+		{#if canRefresh}
+			<button
+				type="button"
+				class="refresh"
+				aria-label="Refresh preview"
+				title="Refresh preview"
+				aria-busy={refreshing}
+				disabled={refreshing}
+				onclick={refresh}
+			>
+				{#if refreshing}
+					<wa-spinner></wa-spinner>
+				{:else}
+					<wa-icon name="arrows-rotate" variant="solid"></wa-icon>
+				{/if}
+			</button>
+		{/if}
 		<!-- eslint-disable-next-line svelte/no-navigation-without-resolve -->
-		<a class="card card-link" href={card.href} target="_blank" rel="noopener noreferrer ugc">
+		<a
+			class="card card-link"
+			href={(cachedCard ?? card)?.href}
+			target="_blank"
+			rel="noopener noreferrer ugc"
+		>
 			<span class="meta">
-				{#if card.providerName}<span class="provider">{card.providerName}</span>{/if}
-				{#if card.title}<span class="title">{card.title}</span>{/if}
+				{#if (cachedCard ?? card)?.providerName}
+					<span class="provider">{(cachedCard ?? card)?.providerName}</span>
+				{/if}
+				{#if (cachedCard ?? card)?.title}
+					<span class="title">{(cachedCard ?? card)?.title}</span>
+				{/if}
 			</span>
-			{#if card.thumbnailUrl}
-				<img src={card.thumbnailUrl} alt="" loading="lazy" referrerpolicy="no-referrer" />
+			{#if (cachedCard ?? card)?.thumbnailUrl}
+				<img
+					src={(cachedCard ?? card)?.thumbnailUrl}
+					alt=""
+					loading="lazy"
+					referrerpolicy="no-referrer"
+				/>
 			{/if}
 		</a>
 		{#if cardImage}
@@ -440,6 +558,7 @@
 
 	.card-shell {
 		display: block;
+		position: relative;
 		border: 1px solid rgb(0 0 0 / 10%);
 		background: rgb(0 0 0 / 4%);
 		color: inherit;
@@ -478,6 +597,34 @@
 	.card-media {
 		display: block;
 		border-block-start: 1px solid rgb(0 0 0 / 10%);
+	}
+
+	.refresh {
+		position: absolute;
+		inset-block-start: 0.35rem;
+		inset-inline-end: 0.35rem;
+		z-index: 1;
+		display: grid;
+		place-items: center;
+		font: inherit;
+		font-size: 0.9rem;
+		line-height: 1;
+		padding: 0.2rem;
+		border: 0;
+		border-radius: 999px;
+		background: transparent;
+		color: var(--wa-color-text-normal);
+		cursor: pointer;
+
+		wa-icon,
+		wa-spinner {
+			font-size: 0.95rem;
+		}
+
+		&:disabled {
+			cursor: default;
+			opacity: 0.7;
+		}
 	}
 
 	.reddit-frame {

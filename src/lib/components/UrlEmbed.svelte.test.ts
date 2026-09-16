@@ -1,7 +1,7 @@
 import { fireEvent, render } from '@testing-library/svelte';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import UrlEmbed from './UrlEmbed.svelte';
-import { clearOembedCache, type EmbedSpec } from '$lib/embeds';
+import { clearOembedCache, type CachedEmbedDetails, type EmbedSpec } from '$lib/embeds';
 
 afterEach(() => {
 	clearOembedCache();
@@ -142,6 +142,145 @@ describe('UrlEmbed', () => {
 			}
 		});
 		expect(container.querySelector('a')?.textContent).toBe('vimeo link');
+	});
+
+	it('renders from cached metadata without fetching again', () => {
+		const fetchMock = vi.fn(() => new Promise(() => {}));
+		vi.stubGlobal('fetch', fetchMock);
+		const cached = {
+			href: 'https://vimeo.com/2',
+			fetchedAt: Date.now(),
+			kind: 'card',
+			providerName: 'Vimeo',
+			title: 'Cached title',
+			description: null,
+			thumbnailUrl: 'https://example.com/thumb.jpg',
+			canonicalUrl: 'https://vimeo.com/2',
+			imageUrl: null,
+			iframeSrc: null,
+			iframeHeight: null,
+			faviconUrl: null,
+			themeColor: null
+		} satisfies CachedEmbedDetails;
+
+		const { container } = render(UrlEmbed, {
+			props: {
+				spec: { kind: 'oembed', endpoint: 'https://oembed.test/cached' },
+				href: cached.href,
+				label: 'vimeo link',
+				cached
+			}
+		});
+
+		expect(fetchMock).not.toHaveBeenCalled();
+		expect(container.querySelector('.card')?.textContent).toContain('Cached title');
+	});
+
+	it('shows a refresh button for cached metadata and calls it on click', async () => {
+		const onRefresh = vi.fn(async () => undefined);
+		const cached = {
+			href: 'https://vimeo.com/2',
+			fetchedAt: Date.now(),
+			kind: 'card',
+			providerName: 'Vimeo',
+			title: 'Cached title',
+			description: null,
+			thumbnailUrl: 'https://example.com/thumb.jpg',
+			canonicalUrl: 'https://vimeo.com/2',
+			imageUrl: null,
+			iframeSrc: null,
+			iframeHeight: null,
+			faviconUrl: null,
+			themeColor: null
+		} satisfies CachedEmbedDetails;
+
+		const { getByRole } = render(UrlEmbed, {
+			props: {
+				spec: { kind: 'oembed', endpoint: 'https://oembed.test/cached' },
+				href: cached.href,
+				label: 'vimeo link',
+				cached,
+				onRefresh
+			}
+		});
+
+		await fireEvent.click(getByRole('button', { name: 'Refresh preview' }));
+		expect(onRefresh).toHaveBeenCalledWith('https://vimeo.com/2');
+	});
+
+	it('turns the refresh icon into a spinner while a refresh is pending', async () => {
+		const resolver: { current: (() => void) | null } = { current: null };
+		const onRefresh = vi.fn(
+			() =>
+				new Promise<void>((resolve) => {
+					resolver.current = resolve;
+				})
+		);
+		const cached = {
+			href: 'https://vimeo.com/2',
+			fetchedAt: Date.now(),
+			kind: 'card',
+			providerName: 'Vimeo',
+			title: 'Cached title',
+			description: null,
+			thumbnailUrl: 'https://example.com/thumb.jpg',
+			canonicalUrl: 'https://vimeo.com/2',
+			imageUrl: null,
+			iframeSrc: null,
+			iframeHeight: null,
+			faviconUrl: null,
+			themeColor: null
+		} satisfies CachedEmbedDetails;
+
+		const { container, getByRole } = render(UrlEmbed, {
+			props: {
+				spec: { kind: 'oembed', endpoint: 'https://oembed.test/cached' },
+				href: cached.href,
+				label: 'vimeo link',
+				cached,
+				onRefresh
+			}
+		});
+
+		await fireEvent.click(getByRole('button', { name: 'Refresh preview' }));
+		expect(container.querySelector('wa-spinner')).not.toBeNull();
+		expect(container.querySelector('wa-icon')).toBeNull();
+		if (!resolver.current) throw new Error('expected refresh resolver');
+		resolver.current();
+		await vi.waitFor(() => {
+			expect(container.querySelector('wa-spinner')).toBeNull();
+			expect(container.querySelector('wa-icon')).not.toBeNull();
+		});
+	});
+
+	it('waits for a click before fetching a gated oembed, then fetches on reveal', async () => {
+		const fetchMock = vi.fn(async () =>
+			Response.json({
+				title: 'Fetched title',
+				provider_name: 'Provider',
+				html: '<iframe src="https://embed.example.com/x"></iframe>'
+			})
+		);
+		vi.stubGlobal('fetch', fetchMock);
+		const onReveal = vi.fn();
+
+		const { container, getByRole } = render(UrlEmbed, {
+			props: {
+				spec: { kind: 'oembed', endpoint: 'https://oembed.test/gated' },
+				href: 'https://vimeo.com/2',
+				label: 'vimeo link',
+				requireExplicitReveal: true,
+				onReveal
+			}
+		});
+
+		expect(fetchMock).not.toHaveBeenCalled();
+		await fireEvent.click(getByRole('button', { name: 'Show' }));
+		expect(onReveal).toHaveBeenCalledWith('https://vimeo.com/2');
+		await vi.waitFor(() => {
+			expect(fetchMock).toHaveBeenCalledTimes(1);
+			expect(container.querySelector('.player iframe')).not.toBeNull();
+		});
 	});
 
 	describe('server-proxied reddit embeds', () => {

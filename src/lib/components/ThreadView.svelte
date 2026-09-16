@@ -1,10 +1,19 @@
 <script lang="ts">
 	import { tick } from 'svelte';
+	import { SvelteSet } from 'svelte/reactivity';
 	import { invalidate } from '$app/navigation';
 	import { scrollIntoViewWithin } from '$lib/scroll-parent';
 	import { currentKeyring } from '$lib/crypto/session.svelte';
-	import { buildReaction, openMessage, openReaction, sendMessage } from '$lib/messaging/client';
-	import type { MessagePayload } from '$lib/crypto/messages';
+	import {
+		buildReaction,
+		fillMissingMessageMetadata,
+		openMessage,
+		openMessageMetadata,
+		openReaction,
+		refreshMessageMetadata,
+		sendMessage
+	} from '$lib/messaging/client';
+	import type { MessageMetadataPayload, MessagePayload } from '$lib/crypto/messages';
 	import type { MessageView, PartnerRecipientsView, TagView, ThreadView } from '$lib/types';
 	import MessageBubble from './MessageBubble.svelte';
 	import MessageComposer from './MessageComposer.svelte';
@@ -46,8 +55,10 @@
 	 * replaced. `MessageBubble` renders the three cases differently.
 	 */
 	let bodies: Record<string, MessagePayload | null> = $state({});
+	let metadata: Record<string, MessageMetadataPayload | null> = $state({});
 	let reactions: Record<string, { emoji: string; mine: boolean }[]> = $state({});
 	let listElement: HTMLElement | undefined = $state();
+	const attemptedMetadataBackfill = new SvelteSet<string>();
 
 	$effect(() => {
 		const unlocked = keyring.status === 'unlocked' ? keyring.identity : null;
@@ -63,6 +74,9 @@
 				if (cancelled) return;
 				if (!(message.id in bodies)) {
 					bodies[message.id] = await openMessage(message.ciphertext, unlocked);
+				}
+				if (message.metadataCiphertext !== null && !(message.id in metadata)) {
+					metadata[message.id] = await openMessageMetadata(message.metadataCiphertext, unlocked);
 				}
 				const decoded: { emoji: string; mine: boolean }[] = [];
 				for (const reaction of message.reactions) {
@@ -130,6 +144,29 @@
 		);
 		if (response.ok) await invalidate(`messages:thread:${thread.id}`);
 	}
+
+	async function revealEmbed(message: MessageView, href: string) {
+		if (targets.length === 0) return;
+		const key = `${message.id}:${href}`;
+		if (attemptedMetadataBackfill.has(key)) return;
+		attemptedMetadataBackfill.add(key);
+		const current = metadata[message.id] ?? null;
+		const next = await fillMissingMessageMetadata(
+			partnershipId,
+			message.id,
+			href,
+			current,
+			targets
+		);
+		if (next) metadata[message.id] = next;
+	}
+
+	async function refreshEmbed(message: MessageView, href: string) {
+		if (targets.length === 0) return;
+		const current = metadata[message.id] ?? null;
+		const next = await refreshMessageMetadata(partnershipId, message.id, href, current, targets);
+		if (next) metadata[message.id] = next;
+	}
 </script>
 
 <div class="thread">
@@ -141,6 +178,9 @@
 			<MessageBubble
 				{message}
 				payload={message.id in bodies ? bodies[message.id] : undefined}
+				metadata={message.id in metadata ? metadata[message.id] : undefined}
+				onRevealEmbed={(href) => revealEmbed(message, href)}
+				onRefreshEmbed={(href) => refreshEmbed(message, href)}
 				{partnershipId}
 				when={formatWhen(message.createdAt)}
 				reactions={reactions[message.id] ?? []}

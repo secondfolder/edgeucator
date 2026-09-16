@@ -1,3 +1,5 @@
+import { find as findLinks } from 'linkifyjs';
+
 /**
  * URL → embed classification, plus the oEmbed fetch with its module cache.
  *
@@ -18,6 +20,30 @@ export type EmbedSpec =
 	| { kind: 'iframe'; src: string; title: string }
 	| { kind: 'oembed'; endpoint: string }
 	| { kind: 'server-oembed'; url: string };
+
+export type CachedEmbedDetails = {
+	href: string;
+	fetchedAt: number;
+	kind: 'image' | 'iframe' | 'card';
+	providerName: string | null;
+	title: string | null;
+	description: string | null;
+	thumbnailUrl: string | null;
+	canonicalUrl: string | null;
+	imageUrl: string | null;
+	iframeSrc: string | null;
+	iframeHeight: number | null;
+	faviconUrl: string | null;
+	themeColor: string | null;
+};
+
+export type ResolvedLinkMatch = {
+	value: string;
+	href: string;
+	start: number;
+	end: number;
+	embed: EmbedSpec | null;
+};
 
 /** Hosts noembed.com is known to cover well; anything else stays a plain link. */
 const NOEMBED_HOSTS = new Set([
@@ -161,9 +187,38 @@ export function embedSpecFor(href: string): EmbedSpec | null {
 	return null;
 }
 
+/**
+ * The safe, normalised URLs a piece of text contains, plus their embed class.
+ *
+ * RichText renders from this, and message-metadata caching reuses the same
+ * function so the set of URLs that gets cached cannot drift from the set the
+ * UI later tries to render.
+ */
+export function findRenderableLinks(text: string, maxEmbeds = Infinity): ResolvedLinkMatch[] {
+	const found = findLinks(text).filter(
+		(match) => match.type === 'url' && isSafeHttpUrl(match.href)
+	);
+
+	const result: ResolvedLinkMatch[] = [];
+	let embedsUsed = 0;
+	for (const match of found) {
+		const embed = embedsUsed < maxEmbeds ? embedSpecFor(match.href) : null;
+		if (embed) embedsUsed += 1;
+		result.push({
+			value: match.value,
+			href: match.href,
+			start: match.start,
+			end: match.end,
+			embed
+		});
+	}
+	return result;
+}
+
 export interface OembedResult {
 	title: string | null;
 	providerName: string | null;
+	description: string | null;
 	thumbnailUrl: string | null;
 	/** Raw `html` from the provider. Sanitised before it is ever rendered. */
 	html: string | null;
@@ -213,6 +268,7 @@ export async function fetchOembed(endpoint: string): Promise<OembedResult | 'err
 		const result: OembedResult = {
 			title: typeof record.title === 'string' ? record.title : null,
 			providerName: typeof record.provider_name === 'string' ? record.provider_name : null,
+			description: typeof record.description === 'string' ? record.description : null,
 			thumbnailUrl:
 				typeof record.thumbnail_url === 'string' && isSafeHttpUrl(record.thumbnail_url)
 					? record.thumbnail_url

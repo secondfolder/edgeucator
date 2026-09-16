@@ -76,11 +76,20 @@ const messageColumns = {
 	id: messages.id,
 	senderId: messages.senderId,
 	ciphertext: messages.ciphertext,
+	metadataCiphertext: messages.metadataCiphertext,
 	createdAt: messages.createdAt
 } as const;
 
 const previewCiphertext = sql<string>`(
 	select ${messages.ciphertext}
+	from ${messages}
+	where ${messages.threadId} = ${messageThreads.id}
+	order by ${messages.createdAt} asc, ${messages.id} asc
+	limit 1
+)`;
+
+const previewMetadataCiphertext = sql<string | null>`(
+	select ${messages.metadataCiphertext}
 	from ${messages}
 	where ${messages.threadId} = ${messageThreads.id}
 	order by ${messages.createdAt} asc, ${messages.id} asc
@@ -200,7 +209,13 @@ export async function listBoard(
 	)`;
 
 	const rows = await db
-		.select({ ...threadStickerColumns, unread, messageCount, previewCiphertext })
+		.select({
+			...threadStickerColumns,
+			unread,
+			messageCount,
+			previewCiphertext,
+			previewMetadataCiphertext
+		})
 		.from(messageThreads)
 		// The user predicate belongs in the ON, not the WHERE. In the WHERE it
 		// turns this left join into an inner one and every thread the viewer has
@@ -251,7 +266,8 @@ export async function listBoard(
 		lastMessageAt: row.lastMessageAt,
 		lastFullyReadAt: row.lastFullyReadAt ?? null,
 		messageCount: Number(row.messageCount),
-		previewCiphertext: row.previewCiphertext
+		previewCiphertext: row.previewCiphertext,
+		previewMetadataCiphertext: row.previewMetadataCiphertext ?? null
 	}));
 }
 
@@ -320,6 +336,7 @@ export async function getThread(
 				// "never return locals.user wholesale" posture intact.
 				mine: row.senderId === viewerId,
 				ciphertext: row.ciphertext,
+				metadataCiphertext: row.metadataCiphertext ?? null,
 				createdAt: row.createdAt,
 				attachments: [],
 				reactions: []
@@ -669,6 +686,37 @@ export async function setThreadTags(
 	return { ok: true };
 }
 
+/**
+ * Writes a message's encrypted metadata sidecar.
+ *
+ * The client owns the merge policy — for example, appending one newly revealed
+ * embed to an existing metadata payload — and the server only stores opaque
+ * ciphertext after proving the caller can see that message.
+ */
+export async function setMessageMetadataCiphertext(
+	db: Db,
+	input: {
+		partnershipId: string;
+		messageId: string;
+		viewerId: string;
+		metadataCiphertext: string;
+	}
+): Promise<boolean> {
+	const membership = await requireMessageMembership(
+		db,
+		input.partnershipId,
+		input.messageId,
+		input.viewerId
+	);
+	if (!membership) return false;
+
+	await db
+		.update(messages)
+		.set({ metadataCiphertext: input.metadataCiphertext })
+		.where(eq(messages.id, membership.messageId));
+	return true;
+}
+
 /** Creates a thread and its first message in one shot. */
 export async function startThread(
 	db: Db,
@@ -678,6 +726,7 @@ export async function startThread(
 		senderId: string;
 		icon: ThreadIcon;
 		ciphertext: string;
+		metadataCiphertext?: string;
 		attachments: OutgoingAttachment[];
 		tagIds?: string[];
 	},
@@ -718,6 +767,7 @@ export async function startThread(
 			threadId,
 			senderId: input.senderId,
 			ciphertext: input.ciphertext,
+			metadataCiphertext: input.metadataCiphertext ?? null,
 			createdAt: now
 		}),
 		...attachmentRows.map((row) => db.insert(messageAttachments).values(row)),
@@ -737,6 +787,7 @@ export async function sendMessage(
 		threadId: string;
 		senderId: string;
 		ciphertext: string;
+		metadataCiphertext?: string;
 		attachments: OutgoingAttachment[];
 	},
 	now: Date = new Date()
@@ -769,6 +820,7 @@ export async function sendMessage(
 			threadId: input.threadId,
 			senderId: input.senderId,
 			ciphertext: input.ciphertext,
+			metadataCiphertext: input.metadataCiphertext ?? null,
 			createdAt: now
 		}),
 		...attachmentRows.map((row) => db.insert(messageAttachments).values(row)),
@@ -973,7 +1025,7 @@ export async function listRestoreRequests(
 }
 
 export type RestorePage = {
-	messages: { id: string; ciphertext: string }[];
+	messages: { id: string; ciphertext: string; metadataCiphertext?: string | null }[];
 	/** The reactions on *these* messages, so a page is self-contained. */
 	reactions: { id: string; ciphertext: string }[];
 	/** Pass back as `cursor` for the next page. Null means this was the last. */
@@ -1001,7 +1053,12 @@ export async function listHistoryForRestore(
 	const after = parseRestoreCursor(input.cursor);
 
 	const rows = await db
-		.select({ id: messages.id, ciphertext: messages.ciphertext, createdAt: messages.createdAt })
+		.select({
+			id: messages.id,
+			ciphertext: messages.ciphertext,
+			metadataCiphertext: messages.metadataCiphertext,
+			createdAt: messages.createdAt
+		})
 		.from(messages)
 		.where(
 			and(
@@ -1031,7 +1088,11 @@ export async function listHistoryForRestore(
 
 	const last = rows[rows.length - 1];
 	return {
-		messages: rows.map((row) => ({ id: row.id, ciphertext: row.ciphertext })),
+		messages: rows.map((row) => ({
+			id: row.id,
+			ciphertext: row.ciphertext,
+			metadataCiphertext: row.metadataCiphertext ?? null
+		})),
 		reactions,
 		// A short page is the last page. A full page might be exactly the end, in
 		// which case the next call returns nothing and stops — one wasted read,
@@ -1107,7 +1168,7 @@ export async function applyHistoryRestore(
 		requestId: string;
 		/** The partner doing the re-encryption, not the one who lost their key. */
 		actorId: string;
-		messages: { id: string; ciphertext: string }[];
+		messages: { id: string; ciphertext: string; metadataCiphertext?: string | null }[];
 		/**
 		 * Reactions re-encrypted alongside the bodies.
 		 *
@@ -1134,6 +1195,12 @@ export async function applyHistoryRestore(
 	const tooBig = (value: string, cap: number) => value.length === 0 || value.length > cap;
 	if (
 		input.messages.some((message) => tooBig(message.ciphertext, MAX_CIPHERTEXT_BYTES)) ||
+		input.messages.some(
+			(message) =>
+				message.metadataCiphertext !== undefined &&
+				message.metadataCiphertext !== null &&
+				tooBig(message.metadataCiphertext, MAX_CIPHERTEXT_BYTES)
+		) ||
 		reactions.some((reaction) => tooBig(reaction.ciphertext, MAX_REACTION_CIPHERTEXT_BYTES))
 	) {
 		return { ok: false, reason: 'no-such-request' };
@@ -1151,7 +1218,12 @@ export async function applyHistoryRestore(
 		...input.messages.map((message) =>
 			db
 				.update(messages)
-				.set({ ciphertext: message.ciphertext })
+				.set({
+					ciphertext: message.ciphertext,
+					...(message.metadataCiphertext === undefined
+						? {}
+						: { metadataCiphertext: message.metadataCiphertext })
+				})
 				.where(and(eq(messages.id, message.id), inArray(messages.threadId, inThisPartnership)))
 		),
 		...reactions.map((reaction) =>

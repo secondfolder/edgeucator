@@ -29,7 +29,8 @@ export const POST: RequestHandler = async (event) => {
 	const { form, attachments } = await parseSend(request);
 	const parsed = newThreadSchema.safeParse({
 		icon: form.get('icon'),
-		ciphertext: form.get('ciphertext')
+		ciphertext: form.get('ciphertext'),
+		metadataCiphertext: form.get('metadataCiphertext')
 	});
 	if (!parsed.success) error(400, parsed.error.issues[0]?.message ?? 'Malformed message');
 	const rawTagIds = form.get('tagIds');
@@ -52,6 +53,7 @@ export const POST: RequestHandler = async (event) => {
 		senderId: locals.user.id,
 		icon: parsed.data.icon,
 		ciphertext: parsed.data.ciphertext,
+		metadataCiphertext: parsed.data.metadataCiphertext,
 		attachments,
 		tagIds
 	});

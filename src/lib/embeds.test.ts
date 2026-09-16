@@ -133,6 +133,7 @@ describe('fetchOembed', () => {
 		expect(result).toEqual({
 			title: 'A post',
 			providerName: 'Reddit',
+			description: null,
 			thumbnailUrl: 'https://example.com/t.jpg',
 			html: '<iframe src="https://embed.example.com"></iframe>',
 			permalink: null,

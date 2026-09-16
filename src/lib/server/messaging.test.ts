@@ -361,6 +361,14 @@ describe('listBoard', () => {
 		expect(board[0].previewCiphertext).toBeTruthy();
 	});
 
+	it('carries the first message metadata sidecar on the board row', async () => {
+		await createTestThread(harness.db, partnershipId, jun, {
+			metadataCiphertext: 'bWV0YWRhdGE'
+		});
+		const [thread] = await listBoard(harness.db, partnershipId, ada.id);
+		expect(thread.previewMetadataCiphertext).toBe('bWV0YWRhdGE');
+	});
+
 	it('does not reshuffle a read thread when it is reopened without new messages', async () => {
 		const older = await createTestThread(harness.db, partnershipId, jun, { at: at(1000) });
 		const newer = await createTestThread(harness.db, partnershipId, jun, { at: at(2000) });
@@ -459,15 +467,18 @@ describe('getThread', () => {
 	it('resolves `mine` from each side and orders oldest first', async () => {
 		const { threadId } = await createTestThread(harness.db, partnershipId, ada, {
 			ciphertext: 'Zmlyc3Q',
+			metadataCiphertext: 'bWV0YTE',
 			at: at(1000)
 		});
 		await createTestMessage(harness.db, partnershipId, threadId, jun, {
 			ciphertext: 'c2Vjb25k',
+			metadataCiphertext: 'bWV0YTI',
 			at: at(2000)
 		});
 
 		const forAda = await getThread(harness.db, threadId, 'envelope', ada.id);
 		expect(forAda.messages.map((m) => m.ciphertext)).toEqual(['Zmlyc3Q', 'c2Vjb25k']);
+		expect(forAda.messages.map((m) => m.metadataCiphertext)).toEqual(['bWV0YTE', 'bWV0YTI']);
 		expect(forAda.messages.map((m) => m.mine)).toEqual([true, false]);
 
 		const forJun = await getThread(harness.db, threadId, 'envelope', jun.id);
@@ -842,7 +853,8 @@ describe('listHistoryForRestore', () => {
 
 	it('hands the partner every body and the reactions on them', async () => {
 		const { threadId, messageId } = await createTestThread(harness.db, partnershipId, jun, {
-			ciphertext: 'Zmlyc3Q='
+			ciphertext: 'Zmlyc3Q=',
+			metadataCiphertext: 'bWV0YQ=='
 		});
 		const second = await createTestMessage(harness.db, partnershipId, threadId, ada, {
 			ciphertext: 'c2Vjb25k'
@@ -863,6 +875,7 @@ describe('listHistoryForRestore', () => {
 		});
 
 		expect(page?.messages.map((row) => row.id)).toEqual([messageId, second.messageId]);
+		expect(page?.messages[0]?.metadataCiphertext).toBe('bWV0YQ==');
 		expect(page?.reactions).toEqual([{ id: expect.any(String), ciphertext: 'cmVhY3Q=' }]);
 		expect(page?.nextCursor).toBeNull();
 	});
@@ -924,7 +937,9 @@ describe('listHistoryForRestore', () => {
 			actorId: jun.id
 		});
 
-		expect(page?.messages).toEqual([{ id: mine.messageId, ciphertext: 'bWluZQ==' }]);
+		expect(page?.messages).toEqual([
+			{ id: mine.messageId, ciphertext: 'bWluZQ==', metadataCiphertext: null }
+		]);
 	});
 
 	/**
@@ -982,7 +997,9 @@ describe('listHistoryForRestore', () => {
 
 describe('applyHistoryRestore reactions', () => {
 	it('re-encrypts reactions alongside bodies', async () => {
-		const { threadId, messageId } = await createTestThread(harness.db, partnershipId, jun);
+		const { threadId, messageId } = await createTestThread(harness.db, partnershipId, jun, {
+			metadataCiphertext: 'b2xkbWV0YQ=='
+		});
 		await setReaction(harness.db, {
 			partnershipId,
 			messageId,
@@ -1010,7 +1027,13 @@ describe('applyHistoryRestore reactions', () => {
 				partnershipId,
 				requestId: request.id,
 				actorId: jun.id,
-				messages: [{ id: messageId, ciphertext: 'bmV3Ym9keQ==' }],
+				messages: [
+					{
+						id: messageId,
+						ciphertext: 'bmV3Ym9keQ==',
+						metadataCiphertext: 'bmV3bWV0YQ=='
+					}
+				],
 				reactions: [{ id: reactionId as string, ciphertext: 'bmV3cmVhY3Q=' }],
 				final: true
 			})
@@ -1018,6 +1041,7 @@ describe('applyHistoryRestore reactions', () => {
 
 		const thread = await getThread(harness.db, threadId, 'envelope', ada.id);
 		expect(thread.messages[0].ciphertext).toBe('bmV3Ym9keQ==');
+		expect(thread.messages[0].metadataCiphertext).toBe('bmV3bWV0YQ==');
 		expect(thread.messages[0].reactions[0].ciphertext).toBe('bmV3cmVhY3Q=');
 	});
 

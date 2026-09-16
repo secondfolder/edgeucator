@@ -22,11 +22,13 @@ thread. A never-opened unread thread shows as a sealed envelope to the
 recipient only. Every other tile shows a small preview of the thread's first
 message, decrypted in the browser after unlock, with the latest send date under
 it and, for read threads whose latest message was first read on a later day, an
-additional `opened …` line. A first message with text, or with more than one
-attachment, is shown as a small fanned stack: the text sits in its own bubble
-and up to the first few attachments sit behind it as thumbnails. The fan uses
-the whole preview width, sits on a transparent preview background, and spreads
-further apart on hover. An attachment-only first message with just one
+additional `opened …` line. When the first message already has cached embed
+metadata, the board prefers that richer preview card instead of waiting for a
+fresh embed lookup. A first message with text, or with more than one
+attachment, is otherwise shown as a small fanned stack: the text sits in its
+own bubble and up to the first few attachments sit behind it as thumbnails. The
+fan uses the whole preview width, sits on a transparent preview background, and
+spreads further apart on hover. An attachment-only first message with just one
 attachment shows that thumbnail on its own, uncanted and cropped to fill the
 whole preview area, instead of a generic "photo attached" label. While the
 browser is still working out whether this device can open the history, the
@@ -35,16 +37,16 @@ full-page loading wall.
 
 ## Tables
 
-| Table                      | What it holds                                                    |
-| -------------------------- | ---------------------------------------------------------------- |
-| `message_threads`          | One exchange. Its sticker `icon`, plus two denormalised columns. |
-| `messages`                 | One message. `ciphertext` and nothing else about the content.    |
-| `message_attachments`      | An encrypted file in the object store. Size and key only.        |
-| `message_reactions`        | One tapback per user per message. Encrypted.                     |
-| `message_tags`             | A reusable name and color scoped to one partnership.             |
-| `message_thread_tags`      | The many-to-many assignment between threads and tags.            |
-| `thread_reads`             | Per-user read state for one thread.                              |
-| `history_restore_requests` | A partner asking to have the history re-encrypted.               |
+| Table                      | What it holds                                                                  |
+| -------------------------- | ------------------------------------------------------------------------------ |
+| `message_threads`          | One exchange. Its sticker `icon`, plus two denormalised columns.               |
+| `messages`                 | One message. The body ciphertext, plus an optional encrypted metadata sidecar. |
+| `message_attachments`      | An encrypted file in the object store. Size and key only.                      |
+| `message_reactions`        | One tapback per user per message. Encrypted.                                   |
+| `message_tags`             | A reusable name and color scoped to one partnership.                           |
+| `message_thread_tags`      | The many-to-many assignment between threads and tags.                          |
+| `thread_reads`             | Per-user read state for one thread.                                            |
+| `history_restore_requests` | A partner asking to have the history re-encrypted.                             |
 
 Every foreign key cascades. Deleting a partnership takes its threads, messages,
 attachments rows, reactions and read state with it — but **not** the objects in
@@ -83,9 +85,17 @@ is already unlocked, so encrypting it costs nothing at all.
 data with devalue, which cannot carry a `Uint8Array`, so a blob column would
 need base64 at the boundary regardless; and `text` round-trips identically
 through libsql (dev and tests) and D1 (production), which a blob does not. The
-33% overhead applies only to message bodies — attachments are raw bytes in the
-object store, where it would have mattered. D1's per-value ceiling is 2,000,000
-bytes and `MAX_CIPHERTEXT_BYTES` caps a body at 64 KB.
+33% overhead applies only to message bodies and their metadata sidecars —
+attachments are raw bytes in the object store, where it would have mattered.
+D1's per-value ceiling is 2,000,000 bytes and `MAX_CIPHERTEXT_BYTES` caps a
+body at 64 KB.
+
+**Message-derived metadata is encrypted beside the body, not stored in the clear.**
+The `messages` row now has an optional `metadata_ciphertext` sidecar that holds
+derived data such as cached embed previews. It is separate so the app can add
+or backfill previews without rewriting the author-written body, and it is
+encrypted because a cached title or thumbnail URL is still content derived from
+plaintext the server must not keep in the clear.
 
 ## "Unread", defined once
 
@@ -167,7 +177,8 @@ still stored on the row, so the layout can change without a migration.
 ## Links and embeds
 
 Message text is still decrypted entirely in the browser. The server stores only
-ciphertext for the body and never decides what a message says.
+ciphertext for the body and metadata sidecar and never decides what a message
+says.
 
 URL detection happens after decryption in `MessageBubble.svelte` through
 `RichText.svelte`, which tokenises the text with `linkifyjs` and emits escaped
@@ -180,13 +191,24 @@ Supported URLs then pass through `UrlEmbed.svelte`:
   response contains a plain iframe, a sandboxed player.
 - Unknown or dead providers stay plain links.
 
-Reddit is the single exception to the "server never sees message plaintext"
-shape. The browser cannot call reddit's oEmbed endpoint directly because it is
-CORS-blocked, and `noembed.com` does not support reddit, so the UI gates reddit
-expansion behind a `Show reddit embed` button. Clicking that button sends only
-the reddit URL to `/api/oembed`, which resolves share links to their canonical
-post, fetches oEmbed server-side, and tries to extract the post's outbound URL
-from the post RSS feed.
+For new messages, and for older ones whose embeds the viewer explicitly
+reveals, the browser may also ask the first-party `/api/embed-metadata`
+endpoint to resolve preview data for supported URLs it already extracted from
+the decrypted text. The response is encrypted into
+`messages.metadata_ciphertext`, so later board renders can use the cached
+preview without another metadata fetch. Inline message embeds use that same
+encrypted cache too: when a message already has cached embed details,
+`UrlEmbed.svelte` renders from them instead of starting a fresh metadata
+request. Older rows are backfilled only per revealed URL, not automatically on
+thread open, and a viewer can manually refresh one cached URL entry from the
+embed itself if they want fresh details.
+
+Reddit is still the special case for live embeds. The browser cannot call
+reddit's oEmbed endpoint directly because it is CORS-blocked, and `noembed.com`
+does not support reddit, so the UI gates reddit expansion behind a `Show reddit
+embed` button. Clicking that button sends only the reddit URL to `/api/oembed`,
+which resolves share links to their canonical post, fetches oEmbed server-side,
+and tries to extract the post's outbound URL from the post RSS feed.
 
 That outbound URL is what lets a reddit link post render the actual linked
 media — especially a Redgifs player — instead of reddit's own NSFW preview
@@ -206,9 +228,9 @@ The flow, and the one security-critical part:
 2. They open a restore request carrying a **snapshot** of that recipient.
 3. Their partner is shown the request and must compare the safety number **out
    of band** before confirming.
-4. On confirm, the partner's device pages through every message body **and
-   reaction** with its own identity, re-encrypts each to both recipients, and
-   uploads the replacements a page at a time.
+4. On confirm, the partner's device pages through every message body, encrypted
+   metadata sidecar **and reaction** with its own identity, re-encrypts each to
+   both recipients, and uploads the replacements a page at a time.
 
 Reactions are included because they are encrypted too — a restore that skipped
 them would hand back a readable history dotted with tapbacks the owner cannot
