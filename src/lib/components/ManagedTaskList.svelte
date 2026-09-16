@@ -1,5 +1,6 @@
 <script lang="ts">
 	import TimeZoneDisplay from '$lib/components/TimeZoneDisplay.svelte';
+	import RichText from '$lib/components/RichText.svelte';
 	import { describeTaskSchedule } from '$lib/task-schedule';
 	import type { PartnershipTaskView, SelfTaskView } from '$lib/types';
 
@@ -62,7 +63,7 @@
 				<div class="content-column">
 					<div class="header-row">
 						<div>
-							<h3>{task.title}</h3>
+							<h3><RichText text={task.title} maxEmbeds={0} /></h3>
 							<p class="schedule">{describeTaskSchedule(task.schedule)}</p>
 							{#if task.timeZoneNote}
 								<TimeZoneDisplay
@@ -81,7 +82,7 @@
 					</div>
 
 					{#if task.description}
-						<p class="description">{task.description}</p>
+						<p class="description"><RichText text={task.description} /></p>
 					{/if}
 
 					<div class="meta">

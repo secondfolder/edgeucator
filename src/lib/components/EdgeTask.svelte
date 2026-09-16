@@ -1,4 +1,5 @@
 <script lang="ts">
+	import RichText from '$lib/components/RichText.svelte';
 	import { scrollIntoViewWithin } from '$lib/scroll-parent';
 	import type { EdgeTaskView } from '$lib/types';
 	import type { WaSelectEvent } from '@awesome.me/webawesome/dist/events/select.js';
@@ -47,7 +48,7 @@
 	<main bind:this={mainElm}>
 		{#each edgeTask.instructions.displayText.filter((displayText) => count >= displayText.showFrom) as displayText (displayText.showFrom)}
 			<p>
-				{displayText.text}
+				<RichText text={displayText.text} />
 			</p>
 		{/each}
 	</main>

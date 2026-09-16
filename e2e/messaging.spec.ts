@@ -721,3 +721,79 @@ test.describe('thread tags', () => {
 		}
 	});
 });
+test.describe('embeds', () => {
+	/**
+	 * URLs in message bodies become links and inline embeds. The third-party
+	 * requests are stubbed with `context.route` for two reasons: the suite must
+	 * not depend on redgifs/reddit being up, and the fixture fails a run on
+	 * console errors — a real third-party 404 or CORS complaint would fail the
+	 * spec for reasons outside this app's control.
+	 */
+	test('renders redgifs and reddit embeds from a message', async ({ browser }) => {
+		const ada = await newSide(browser, 'Ada');
+		const jun = await newSide(browser, 'Jun');
+
+		// Registered before any navigation so nothing slips through unstubbed.
+		for (const page of [ada.page, jun.page]) {
+			await page.route('**www.redgifs.com/**', (route) =>
+				route.fulfill({ contentType: 'text/html', body: '<!doctype html><title>gif</title>' })
+			);
+			await page.route('**/api/oembed**', (route) =>
+				route.fulfill({
+					contentType: 'application/json',
+					body: JSON.stringify({
+						title: 'A stubbed reddit post',
+						provider_name: 'Reddit',
+						html: '<iframe src="https://www.redditmedia.com/x/embed"></iframe>'
+					})
+				})
+			);
+			await page.route('**redditmedia.com/**', (route) =>
+				route.fulfill({ contentType: 'text/html', body: '<!doctype html><title>post</title>' })
+			);
+			await page.route('**noembed.com/**', (route) =>
+				route.fulfill({ status: 404, contentType: 'application/json', body: '{}' })
+			);
+		}
+
+		try {
+			await signUp(ada.page, ada.who);
+			await signUp(jun.page, jun.who);
+			await linkAccounts(ada, jun);
+
+			await ada.page.goto('/home');
+			await openBoard(ada.page, 'Jun');
+			// Every supported URL in a body embeds, so both can share one message.
+			await writeThread(
+				ada.page,
+				'look https://www.redgifs.com/watch/abc123stub ' +
+					'https://www.reddit.com/r/askreddit/comments/stub123/a_title/ ' +
+					'and https://example.com/plain'
+			);
+
+			// The redgifs player renders inline, sandboxed.
+			const player = ada.page.locator('iframe[src="https://www.redgifs.com/ifr/abc123stub"]');
+			await expect(player).toBeVisible();
+			await expect(player).toHaveAttribute('sandbox', /allow-scripts/);
+			await expect(player).not.toHaveAttribute('sandbox', /allow-top-navigation/);
+
+			// The reddit URL sits behind the click gate — resolving it sends the
+			// URL to the server, which only happens on an explicit click. No
+			// request until then, then the card and the provider's iframe html
+			// render through the stubbed proxy.
+			const gate = ada.page.getByRole('button', { name: 'Show' });
+			await expect(gate).toBeVisible();
+			await gate.click();
+			await expect(ada.page.getByText('A stubbed reddit post')).toBeVisible();
+			await expect(
+				ada.page.locator('iframe[src="https://www.redditmedia.com/x/embed"]')
+			).toBeVisible();
+
+			// The plain link stays an anchor.
+			await expect(ada.page.locator('a[href="https://example.com/plain"]')).toBeVisible();
+		} finally {
+			await ada.close();
+			await jun.close();
+		}
+	});
+});

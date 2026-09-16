@@ -164,6 +164,35 @@ Keys are `messages/<partnershipId>/<messageId>/<attachmentId>`, so disconnecting
 can delete a partnership's media by prefix without enumerating rows. The key is
 still stored on the row, so the layout can change without a migration.
 
+## Links and embeds
+
+Message text is still decrypted entirely in the browser. The server stores only
+ciphertext for the body and never decides what a message says.
+
+URL detection happens after decryption in `MessageBubble.svelte` through
+`RichText.svelte`, which tokenises the text with `linkifyjs` and emits escaped
+text nodes plus real anchors. There is no `{@html}` path for message text.
+
+Supported URLs then pass through `UrlEmbed.svelte`:
+
+- Redgifs, YouTube, and direct image URLs become native embeds.
+- A curated set of other hosts use `noembed.com` for metadata and, when its
+  response contains a plain iframe, a sandboxed player.
+- Unknown or dead providers stay plain links.
+
+Reddit is the single exception to the "server never sees message plaintext"
+shape. The browser cannot call reddit's oEmbed endpoint directly because it is
+CORS-blocked, and `noembed.com` does not support reddit, so the UI gates reddit
+expansion behind a `Show reddit embed` button. Clicking that button sends only
+the reddit URL to `/api/oembed`, which resolves share links to their canonical
+post, fetches oEmbed server-side, and tries to extract the post's outbound URL
+from the post RSS feed.
+
+That outbound URL is what lets a reddit link post render the actual linked
+media — especially a Redgifs player — instead of reddit's own NSFW preview
+frame, which often serves a dead image. If there is no embeddable outbound URL,
+the client falls back to `embed.reddit.com` for the reddit post itself.
+
 ## Partner-assisted history restore
 
 A forgotten password loses the identity for good: the wrap is the only copy and

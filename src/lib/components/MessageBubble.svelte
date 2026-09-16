@@ -1,6 +1,7 @@
 <script lang="ts">
 	import AttachmentPreview from './AttachmentPreview.svelte';
 	import ReactionPicker from './ReactionPicker.svelte';
+	import RichText from './RichText.svelte';
 	import type { MessagePayload } from '$lib/crypto/messages';
 	import type { MessageView } from '$lib/types';
 
@@ -50,7 +51,7 @@
 			</span>
 		{:else}
 			{#if payload.text}
-				<p class="text">{payload.text}</p>
+				<p class="text"><RichText text={payload.text} /></p>
 			{/if}
 			{#each payload.attachments as info (info.id)}
 				<AttachmentPreview {info} {partnershipId} />
@@ -96,6 +97,21 @@
 				background: var(--wa-color-brand-fill-loud, #2563eb);
 				color: var(--wa-color-brand-on-loud, white);
 				border-end-end-radius: 0.25rem;
+
+				:global(.text a),
+				:global(.card-link),
+				:global(.card-shell) {
+					color: inherit;
+				}
+
+				:global(.card-shell) {
+					border-color: rgb(255 255 255 / 22%);
+					background: rgb(255 255 255 / 8%);
+				}
+
+				:global(.card-media) {
+					border-block-start-color: rgb(255 255 255 / 22%);
+				}
 
 				.reactions {
 					inset-inline-start: unset;

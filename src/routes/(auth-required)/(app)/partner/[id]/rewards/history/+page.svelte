@@ -1,6 +1,7 @@
 <script lang="ts">
 	import { resolve } from '$app/paths';
 	import NestedPageHeader from '$lib/components/NestedPageHeader.svelte';
+	import RichText from '$lib/components/RichText.svelte';
 	import type { PageData } from './$types';
 
 	let { data }: { data: PageData } = $props();
@@ -29,12 +30,14 @@
 						<li>
 							<div class="reward-head">
 								<div>
-									<h3>{claim.rewardTitle}</h3>
+									<h3><RichText text={claim.rewardTitle} maxEmbeds={0} /></h3>
 									<p>{claim.rewardCost} credits</p>
 								</div>
 								<span class="pill">{claim.mine ? 'Claimed by you' : 'Claimed by them'}</span>
 							</div>
-							{#if claim.rewardDescription}<p>{claim.rewardDescription}</p>{/if}
+							{#if claim.rewardDescription}
+								<p><RichText text={claim.rewardDescription} /></p>
+							{/if}
 						</li>
 					{/each}
 				</ul>

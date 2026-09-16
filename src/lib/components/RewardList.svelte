@@ -1,4 +1,5 @@
 <script lang="ts">
+	import RichText from '$lib/components/RichText.svelte';
 	import type { PartnershipRewardView, SelfRewardView } from '$lib/types';
 
 	type RewardView = SelfRewardView | PartnershipRewardView;
@@ -33,7 +34,7 @@
 			<li class:inactive={!reward.active}>
 				<div class="reward-head">
 					<div>
-						<h3>{reward.title}</h3>
+						<h3><RichText text={reward.title} maxEmbeds={0} /></h3>
 						<p>{reward.cost} credits</p>
 					</div>
 					<div class="reward-meta">
@@ -46,7 +47,7 @@
 					</div>
 				</div>
 
-				{#if reward.description}<p>{reward.description}</p>{/if}
+				{#if reward.description}<p><RichText text={reward.description} /></p>{/if}
 
 				{#if showClaimUi && !rewardCreatedByMe(reward)}
 					<form method="POST" action={claimAction} class="claim-form">

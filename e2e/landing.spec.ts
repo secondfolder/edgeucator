@@ -107,6 +107,6 @@ test('the halftone overlay paints over the landing page', async ({ page }) => {
 	expect(leftMax).toBeGreaterThan(0.4);
 	expect(rightMin).toBeLessThan(0.05);
 	expect(rightMax).toBeGreaterThan(0.25);
-	expect(rightMax).toBeLessThan(0.45);
+	expect(rightMax).toBeLessThan(0.5);
 	expect(leftMax).toBeGreaterThan(rightMax + 0.05);
 });

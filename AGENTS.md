@@ -509,6 +509,7 @@ Four places, split on scope:
 | [docs/tasks.md](docs/tasks.md)                   | Self tasks and partnership tasks: scheduling, credits, timezone ownership |
 | [docs/encryption.md](docs/encryption.md)         | Message keys: the client-side KDF, the wraps, what the guarantee is       |
 | [docs/halftone.md](docs/halftone.md)             | The landing page's halftone overlay: the screen model and its fixtures    |
+| [docs/embeds.md](docs/embeds.md)                 | URL linkification and inline embeds: providers, privacy gate, reddit path |
 | [docs/messaging.md](docs/messaging.md)           | Encrypted partner messages: threads, the board, unread, restore           |
 | [docs/timezone.md](docs/timezone.md)             | Account timezone storage, mismatch prompts, and device-local dismissal    |
 | [docs/temporary-code.md](docs/temporary-code.md) | Temporary-code cleanup notes, including the Temporal API polyfill         |
