@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { onMount } from 'svelte';
 	import { invalidateAll } from '$app/navigation';
 	import { resolve } from '$app/paths';
 	import { page } from '$app/state';
@@ -18,9 +19,17 @@
 
 	let { data }: { data: PageData } = $props();
 	const backHref = resolve('/(auth-required)/(app)/settings');
+	let ready = $state(false);
 
 	const user = $derived(page.data.user as { id: string; email: string });
 	const wraps = $derived(data.bundle.wraps);
+
+	// Matches the login/signup readiness marker. Without it, a fast fill can land
+	// before `use:changeForm.enhance`, and hydration then writes the empty local
+	// password state back over what the DOM briefly held.
+	onMount(() => {
+		ready = true;
+	});
 
 	let busy = $state(false);
 	let message: string | null = $state(null);
@@ -177,7 +186,12 @@
 					? 'If you already use encrypted messages, changing your password also re-seals the key that unlocks your history.'
 					: 'Change the password you use for email sign-in.'}
 			</p>
-			<form method="POST" action="?/changePassword" use:changeForm.enhance>
+			<form
+				method="POST"
+				action="?/changePassword"
+				use:changeForm.enhance
+				data-ready={ready ? 'true' : undefined}
+			>
 				<PasswordField
 					bind:value={oldPassword}
 					field="oldPassword"

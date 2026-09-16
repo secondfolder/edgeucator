@@ -124,6 +124,7 @@ test.describe('settings actions', () => {
 			const page = await first.newPage();
 			await signUp(page, who);
 			await page.goto('/settings/security');
+			await waitForEnhancedForm(page);
 
 			await fillPassword(page, 'oldPassword', who.password);
 			await fillPassword(page, 'newPassword', newPassword);
