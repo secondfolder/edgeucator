@@ -1,4 +1,7 @@
 <script lang="ts">
+	import { untrack } from 'svelte';
+	// LEGACY-RICHTEXT — delete with the legacy reader; see docs/temporary-code.md
+	import { migrateLegacyDescriptions } from '$lib/richtext-legacy-migrate';
 	import TimeZoneDisplay from '$lib/components/TimeZoneDisplay.svelte';
 	import RichText from '$lib/components/RichText.svelte';
 	import { describeTaskSchedule } from '$lib/task-schedule';
@@ -52,6 +55,21 @@
 	function isStatusMuted(task: TaskView): boolean {
 		return !task.canComplete;
 	}
+
+	/**
+	 * LEGACY-RICHTEXT — quietly convert any pre-rich-text descriptions the
+	 * viewer is allowed to edit. `editHref` being set is the client-side proxy
+	 * for "can edit"; the server re-checks it properly. Read untracked so this
+	 * does not re-run on every unrelated update.
+	 */
+	$effect(() => {
+		if (!editHref) return;
+		void migrateLegacyDescriptions({
+			kind: completePartnershipId ? 'partnership-task' : 'self-task',
+			partnershipId: completePartnershipId,
+			items: untrack(() => tasks.map((task) => ({ id: task.id, description: task.description })))
+		});
+	});
 </script>
 
 {#if tasks.length === 0}
@@ -63,7 +81,7 @@
 				<div class="content-column">
 					<div class="header-row">
 						<div>
-							<h3><RichText text={task.title} maxEmbeds={0} /></h3>
+							<h3>{task.title}</h3>
 							<p class="schedule">{describeTaskSchedule(task.schedule)}</p>
 							{#if task.timeZoneNote}
 								<TimeZoneDisplay
@@ -82,7 +100,7 @@
 					</div>
 
 					{#if task.description}
-						<p class="description"><RichText text={task.description} /></p>
+						<div class="description"><RichText text={task.description} /></div>
 					{/if}
 
 					<div class="meta">
@@ -199,7 +217,9 @@
 	}
 
 	.description {
-		white-space: pre-wrap;
+		/* No `white-space: pre-wrap`: RichText emits real <br> and <p>,
+		   so preserving whitespace here would double every line break. */
+		min-inline-size: 0;
 	}
 
 	@media (max-width: 640px) {

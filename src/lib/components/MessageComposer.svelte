@@ -1,12 +1,27 @@
 <script lang="ts">
-	import { MAX_ATTACHMENTS_PER_MESSAGE, MAX_BODY_CHARS } from '$lib/messaging';
+	import { MAX_ATTACHMENTS_PER_MESSAGE } from '$lib/messaging';
 	import { checkComposed } from '$lib/messaging/client';
+	import RichTextEditor from './RichTextEditor.svelte';
+	import { MESSAGE_FEATURES } from '$lib/richtext-editor';
 
 	/**
-	 * Where a message is written. Presentational: it collects text and files and
-	 * hands them up. No crypto, no fetch.
+	 * Where a message is written. Presentational: it collects a document and
+	 * files and hands them up. No crypto, no fetch.
 	 *
 	 * `send` returns an error string to render, or null on success.
+	 *
+	 * Formatting has no on-screen controls, deliberately — this is a chat box,
+	 * and Messenger does not put a toolbar in one. `*bold*`, `_italic_`,
+	 * `~struck~` and Ctrl+B are the whole interface. Descriptions, which live in
+	 * forms, get the floating toolbar instead.
+	 *
+	 * Historical note worth keeping: this component used to attach its `input`
+	 * and `keydown` listeners by hand, because `<wa-textarea>` kept its editable
+	 * node in a shadow root and Svelte's event delegation does not reliably
+	 * cross that boundary — `oninput=` never fired and the send button sat
+	 * permanently disabled. The editor mounts on an ordinary `contenteditable`
+	 * div, so both workarounds are gone. Do not reintroduce a `wa-textarea`
+	 * here without reading that history.
 	 */
 	let {
 		send,
@@ -23,58 +38,16 @@
 	let sending = $state(false);
 	let problem: string | null = $state(null);
 	let fileInput: HTMLInputElement | undefined = $state();
-	let textarea: HTMLElement | undefined = $state();
+	let editor: ReturnType<typeof RichTextEditor> | undefined = $state();
 
-	/**
-	 * The input listener is attached by hand rather than with `oninput=`.
-	 *
-	 * Svelte 5 *delegates* known DOM events — one listener at the root, dispatched
-	 * by walking up from the event's target — and that walk does not reliably
-	 * cross a custom element's shadow boundary. `<wa-textarea>`'s editable node
-	 * lives in a shadow root, so `oninput=` on the host never fired and `text`
-	 * stayed empty: the send button sat permanently disabled and typing appeared
-	 * to do nothing at all.
-	 *
-	 * `addEventListener` is not delegated, so it sees the composed event with
-	 * `target` retargeted to the host — which is where `.value` lives.
-	 *
-	 * Worth knowing that `InputField.svelte` has the same `oninput=` shape and
-	 * has never visibly broken. It gets away with it because `<wa-input>` is
-	 * form-associated and contributes its own value to the FormData, so nothing
-	 * there depends on the Svelte state actually updating. This component does.
-	 */
-	$effect(() => {
-		const element = textarea;
-		if (!element) return;
-		const onInput = () => {
-			text = (element as unknown as { value?: string }).value ?? '';
-			if (problem) problem = checkComposed({ text, files })?.message ?? null;
-		};
-		element.addEventListener('input', onInput);
-		return () => element.removeEventListener('input', onInput);
-	});
+	const nothingToSend = $derived(
+		files.length === 0 && checkComposed({ text, files })?.kind === 'empty'
+	);
 
-	/**
-	 * Enter sends, Shift+Enter inserts a newline.
-	 *
-	 * Attached by hand for the same reason as the input listener above: keydown
-	 * is one of Svelte's delegated events, and delegation does not cross the
-	 * custom element's shadow boundary. `isComposing` guards the IME case where
-	 * Enter confirms a candidate rather than meaning "send".
-	 */
-	$effect(() => {
-		const element = textarea;
-		if (!element) return;
-		const onKeydown = (event: KeyboardEvent) => {
-			if (event.key !== 'Enter' || event.shiftKey || event.isComposing) return;
-			event.preventDefault();
-			void submit();
-		};
-		element.addEventListener('keydown', onKeydown);
-		return () => element.removeEventListener('keydown', onKeydown);
-	});
-
-	const nothingToSend = $derived(text.trim().length === 0 && files.length === 0);
+	function onChange(next: string) {
+		text = next;
+		if (problem) problem = checkComposed({ text, files })?.message ?? null;
+	}
 
 	function onPick(event: Event) {
 		const picked = [...((event.target as HTMLInputElement).files ?? [])];
@@ -94,13 +67,9 @@
 	/**
 	 * Sends on a click rather than on a form submit.
 	 *
-	 * There is no `<form>` here on purpose. A textarea does not submit on Enter
-	 * anyway (and should not — see the note by the textarea), so a form would
-	 * contribute nothing but a second, less reliable path to the same function:
-	 * `<wa-button type="submit">` submits by finding its form and calling
-	 * `requestSubmit`, which depends on the element having upgraded and on the
-	 * form association working, and neither is worth depending on for a control
-	 * that already has a click handler.
+	 * There is no `<form>` here on purpose. Enter is handled by the editor
+	 * itself (`onSubmit` below), so a form would contribute nothing but a
+	 * second, less reliable path to the same function.
 	 */
 	async function submit() {
 		if (sending || nothingToSend) return;
@@ -121,8 +90,8 @@
 			}
 			text = '';
 			files = [];
-			// The element owns its value, so resetting the state is not enough.
-			if (textarea) (textarea as unknown as { value: string }).value = '';
+			// The editor owns its document, so resetting the state is not enough.
+			editor?.setValue('');
 		} finally {
 			sending = false;
 		}
@@ -156,34 +125,26 @@
 
 	<div class="row">
 		<!--
-			`value` is set only as the initial/reset value; the element owns it from
-			then on — see the effect above for why the handler is imperative.
-
-			No `autofocus`, deliberately. `<wa-textarea autofocus>` reaches for its
-			inner textarea before the shadow root exists and throws "Cannot read
-			properties of null (reading 'focus')". An uncaught error there stops
-			Svelte wiring up the rest of the component, so the whole composer went
-			dead — which presented as the send button never enabling, nowhere near
-			the actual cause.
-		-->
-		<!--
-			The attach control and the textarea share a positioned `.field` box so the
+			The attach control and the editor share a positioned `.field` box so the
 			button can sit INSIDE the input, at its inline-end and block-end: visually
-			centred on a one-line box and pinned to the bottom as `resize="auto"`
-			grows it. Text never runs under the button because the inner textarea's
-			inline-end padding (below) reserves the button's width.
+			centred on a one-line box and pinned to the bottom as the editor grows.
+			Text never runs under the button because the editing surface reserves the
+			button's width as inline-end padding (below).
+
+			No autofocus, deliberately: the composer appears on a tap, so the user is
+			already looking at it.
 		-->
 		<div class="field">
-			<wa-textarea
-				bind:this={textarea}
-				name="text"
-				aria-label={placeholder}
+			<RichTextEditor
+				bind:this={editor}
+				value=""
+				{onChange}
+				onSubmit={submit}
 				{placeholder}
-				resize="auto"
-				rows="1"
-				maxlength={MAX_BODY_CHARS}
-				value={text}
-			></wa-textarea>
+				features={MESSAGE_FEATURES}
+				ariaLabel={placeholder}
+				editorClass="composer-input"
+			/>
 
 			<label class="attach" aria-label="Attach a photo or video">
 				<wa-icon name="image" variant="solid"></wa-icon>
@@ -229,15 +190,22 @@
 		min-inline-size: 0;
 		display: flex;
 
-		wa-textarea {
+		/* The editor is a plain contenteditable box, so it gets the border and
+		   padding `<wa-textarea>` used to draw for us. */
+		:global(.composer-input) {
 			flex: 1 1 auto;
 			min-inline-size: 0;
+			max-block-size: 40svh;
+			overflow-y: auto;
+			padding: 0.5rem 2.375rem 0.5rem 0.75rem;
+			border: 1px solid var(--wa-color-surface-border);
+			border-radius: 1rem;
+			background: var(--wa-color-surface-lowered, transparent);
 		}
 
-		/* Reserves the attach button's width inside the control, so wrapped
-		   lines stop short of the button instead of running under it. */
-		wa-textarea::part(textarea) {
-			padding-inline-end: 2.375rem;
+		:global(.composer-input:focus-within) {
+			outline: 2px solid var(--wa-color-brand-fill-loud, currentColor);
+			outline-offset: -1px;
 		}
 	}
 

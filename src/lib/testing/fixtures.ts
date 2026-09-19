@@ -505,3 +505,13 @@ export async function readMessageRows(db: Db, threadId: string) {
 		.where(eq(messages.threadId, threadId))
 		.orderBy(messages.createdAt, messages.id);
 }
+
+/**
+ * LEGACY-RICHTEXT — marks a message as written before rich text existed.
+ *
+ * `sendMessage` writes `'lexical'`, so a test that needs a pre-migration row
+ * has to say so. Delete with the rest; see docs/temporary-code.md.
+ */
+export async function markMessageBodyLegacy(db: Db, messageId: string): Promise<void> {
+	await db.update(messages).set({ bodyFormat: 'plain' }).where(eq(messages.id, messageId));
+}

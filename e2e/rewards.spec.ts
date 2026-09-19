@@ -1,5 +1,5 @@
 import { expect, test } from './fixtures';
-import { clickWaButton, createInvite, newSide, signUp } from './helpers';
+import { clickWaButton, createInvite, fillRichText, newSide, signUp } from './helpers';
 
 test.describe('rewards', () => {
 	test('a user can manage and claim self rewards from home', async ({ browser }) => {
@@ -20,10 +20,7 @@ test.describe('rewards', () => {
 			await ada.page.getByRole('link', { name: 'Add a reward' }).click();
 			await ada.page.waitForURL(/\/home\/rewards\/add$/);
 			await ada.page.locator('.add-form input[name="title"]').first().fill('Long bath');
-			await ada.page
-				.locator('.add-form textarea[name="description"]')
-				.first()
-				.fill('No interruptions');
+			await fillRichText(ada.page.locator('.add-form'), 'No interruptions');
 			await ada.page.locator('.add-form input[name="cost"]').first().fill('2');
 			await clickWaButton(ada.page, 'Add reward');
 			await ada.page.waitForURL(/\/home\/rewards$/);
@@ -73,7 +70,7 @@ test.describe('rewards', () => {
 			await jun.page.getByRole('link', { name: 'Add a reward' }).click();
 			await jun.page.waitForURL(/\/rewards\/add$/);
 			await jun.page.locator('.add-form input[name="title"]').fill('Tea service');
-			await jun.page.locator('.add-form textarea[name="description"]').fill('Fresh pot first');
+			await fillRichText(jun.page.locator('.add-form'), 'Fresh pot first');
 			await jun.page.locator('.add-form input[name="cost"]').fill('2');
 			await clickWaButton(jun.page, 'Add reward');
 			await jun.page.waitForURL(/\/rewards$/);

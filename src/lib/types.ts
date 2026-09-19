@@ -1,5 +1,5 @@
 import type { KeyWrapParams, KeyWrapType } from './encryption';
-import type { ThreadIcon } from './messaging';
+import type { MessageBodyFormat, ThreadIcon } from './messaging';
 
 /**
  * Shared types that BOTH server code and Svelte components need.
@@ -242,6 +242,12 @@ export type MessageView = {
 	mine: boolean;
 	/** base64 age ciphertext. Never rendered as text, even briefly. */
 	ciphertext: string;
+	/**
+	 * LEGACY-RICHTEXT — `'plain'` for a body written before rich text existed.
+	 * The client uses it to find its own un-migrated messages; see
+	 * docs/temporary-code.md.
+	 */
+	bodyFormat: MessageBodyFormat;
 	/** Cached derived metadata for the message body, encrypted like the body. */
 	metadataCiphertext: string | null;
 	createdAt: Date;

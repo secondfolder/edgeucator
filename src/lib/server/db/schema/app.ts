@@ -3,7 +3,7 @@ import { index, integer, sqliteTable, text, uniqueIndex } from 'drizzle-orm/sqli
 import type { EdgeTaskInstructions, TaskSchedule } from '../../../types';
 import type { PartnershipControl, PartnershipStatus } from '../../../partnership';
 import type { KeyWrapParams, KeyWrapType } from '../../../encryption';
-import type { RestoreRequestStatus, ThreadIcon } from '../../../messaging';
+import type { MessageBodyFormat, RestoreRequestStatus, ThreadIcon } from '../../../messaging';
 import { user } from './auth';
 
 /**
@@ -707,6 +707,19 @@ export const messages = sqliteTable(
 			.notNull()
 			.references(() => user.id, { onDelete: 'cascade' }),
 		ciphertext: text('ciphertext').notNull(),
+		/**
+		 * LEGACY-RICHTEXT — which serialisation the body inside `ciphertext` uses.
+		 *
+		 * PLAINTEXT, and deliberately a closed two-value list: the server holds
+		 * only ciphertext, so this is the only way it can tell a message written
+		 * before rich text from one converted since. See `MESSAGE_BODY_FORMATS`
+		 * in `src/lib/messaging.ts` for why it exists and
+		 * docs/temporary-code.md for when it goes.
+		 *
+		 * Defaults to `'plain'` so every existing row is correctly labelled by
+		 * the migration that adds the column.
+		 */
+		bodyFormat: text('body_format').$type<MessageBodyFormat>().notNull().default('plain'),
 		/**
 		 * An encrypted sidecar for derived message metadata, such as cached embed
 		 * details resolved from URLs in the body.

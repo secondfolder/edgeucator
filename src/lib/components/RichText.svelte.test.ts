@@ -1,6 +1,7 @@
 import { render } from '@testing-library/svelte';
 import { describe, expect, it } from 'vitest';
 import RichText from './RichText.svelte';
+import type { RichTextDocument } from '$lib/richtext';
 
 /**
  * jsdom never upgrades `wa-*` elements, so these assert on what the component
@@ -15,7 +16,183 @@ function links(container: HTMLElement): HTMLAnchorElement[] {
 	return [...container.querySelectorAll('a')];
 }
 
-describe('RichText', () => {
+function stored(children: RichTextDocument['root']['children']): string {
+	return JSON.stringify({ root: { type: 'root', children } });
+}
+
+function text(value: string, format = 0) {
+	return { type: 'text' as const, text: value, format };
+}
+
+describe('RichText, stored documents', () => {
+	it('renders a paragraph of plain text', () => {
+		const { container } = render(RichText, {
+			props: { text: stored([{ type: 'paragraph', children: [text('just words')] }]) }
+		});
+		expect(container.textContent).toBe('just words');
+		expect(container.querySelector('p')).not.toBeNull();
+	});
+
+	it('renders format bits as real elements', () => {
+		const { container } = render(RichText, {
+			props: {
+				text: stored([
+					{
+						type: 'paragraph',
+						children: [text('bold', 1), text('italic', 2), text('struck', 4), text('code', 16)]
+					}
+				])
+			}
+		});
+		expect(container.querySelector('strong')?.textContent).toBe('bold');
+		expect(container.querySelector('em')?.textContent).toBe('italic');
+		expect(container.querySelector('s')?.textContent).toBe('struck');
+		expect(container.querySelector('code')?.textContent).toBe('code');
+	});
+
+	it('nests combined formats in a stable order', () => {
+		const { container } = render(RichText, {
+			props: { text: stored([{ type: 'paragraph', children: [text('both', 1 | 2)] }]) }
+		});
+		expect(container.querySelector('strong > em')?.textContent).toBe('both');
+	});
+
+	it('ignores the underline bit, which the format cannot round-trip', () => {
+		const { container } = render(RichText, {
+			props: { text: stored([{ type: 'paragraph', children: [text('plain', 8)] }]) }
+		});
+		expect(container.querySelector('u')).toBeNull();
+		expect(container.textContent).toBe('plain');
+	});
+
+	it('does not insert whitespace between adjacent inline nodes', () => {
+		const { container } = render(RichText, {
+			props: {
+				text: stored([
+					{ type: 'paragraph', children: [text('one'), text('two', 1), text('three')] }
+				])
+			}
+		});
+		expect(container.textContent).toBe('onetwothree');
+	});
+
+	it('renders a line break as a br, not as a new paragraph', () => {
+		const { container } = render(RichText, {
+			props: {
+				text: stored([
+					{ type: 'paragraph', children: [text('one'), { type: 'linebreak' }, text('two')] }
+				])
+			}
+		});
+		expect(container.querySelectorAll('p')).toHaveLength(1);
+		expect(container.querySelectorAll('br')).toHaveLength(1);
+	});
+
+	it('renders lists, keeping an ordered list start', () => {
+		const { container } = render(RichText, {
+			props: {
+				text: stored([
+					{
+						type: 'list',
+						listType: 'number',
+						start: 3,
+						children: [{ type: 'listitem', value: 3, children: [text('three')] }]
+					}
+				])
+			}
+		});
+		expect(container.querySelector('ol')?.getAttribute('start')).toBe('3');
+		expect(container.querySelector('li')?.textContent).toBe('three');
+	});
+
+	it('renders a link with safe attributes', () => {
+		const { container } = render(RichText, {
+			props: {
+				text: stored([
+					{
+						type: 'paragraph',
+						children: [
+							{ type: 'link', url: 'https://example.com/page', children: [text('the page')] }
+						]
+					}
+				])
+			}
+		});
+		const [link] = links(container);
+		expect(link?.getAttribute('href')).toBe('https://example.com/page');
+		expect(link?.getAttribute('target')).toBe('_blank');
+		expect(link?.getAttribute('rel')).toContain('noopener');
+		expect(link?.getAttribute('rel')).toContain('ugc');
+		expect(link?.textContent).toBe('the page');
+	});
+
+	/** Lexical's own flag for "I removed this link". Re-linking it would be a bug. */
+	it('renders an unlinked autolink as plain text', () => {
+		const { container } = render(RichText, {
+			props: {
+				text: stored([
+					{
+						type: 'paragraph',
+						children: [
+							{
+								type: 'autolink',
+								url: 'https://example.com/x',
+								isUnlinked: true,
+								children: [text('https://example.com/x')]
+							}
+						]
+					}
+				])
+			}
+		});
+		expect(links(container)).toHaveLength(0);
+		expect(container.textContent).toBe('https://example.com/x');
+	});
+
+	it('renders an embed node as an embed', () => {
+		const { container } = render(RichText, {
+			props: { text: stored([{ type: 'embed', url: 'https://i.imgur.com/cat.jpg' }]) }
+		});
+		expect(container.querySelector('img')?.getAttribute('src')).toBe('https://i.imgur.com/cat.jpg');
+	});
+
+	it('degrades an embed whose provider is gone to a plain link', () => {
+		const { container } = render(RichText, {
+			props: { text: stored([{ type: 'embed', url: 'https://example.com/nothing' }]) }
+		});
+		expect(links(container)[0]?.getAttribute('href')).toBe('https://example.com/nothing');
+	});
+});
+
+describe('RichText, security', () => {
+	it('renders a javascript: scheme as text, never as a link', () => {
+		const { container } = render(RichText, {
+			props: {
+				text: stored([
+					{
+						type: 'paragraph',
+						children: [{ type: 'link', url: 'javascript:alert(1)', children: [text('click me')] }]
+					}
+				])
+			}
+		});
+		expect(links(container)).toHaveLength(0);
+		expect(container.textContent).toBe('click me');
+	});
+
+	it('renders what looks like markup as inert text', () => {
+		const { container } = render(RichText, {
+			props: { text: '<script>alert(1)</script> and <img src=x onerror=1>' }
+		});
+		expect(container.querySelector('script')).toBeNull();
+		expect(container.querySelector('img')).toBeNull();
+		expect(container.textContent).toContain('<script>alert(1)</script>');
+	});
+});
+
+/* ── LEGACY-RICHTEXT — delete with the legacy reader ─────────────────────── */
+
+describe('RichText, legacy plain text', () => {
 	it('renders plain text with no links unchanged', () => {
 		const { container } = render(RichText, { props: { text: 'just words, no urls' } });
 		expect(container.textContent).toBe('just words, no urls');
@@ -28,28 +205,8 @@ describe('RichText', () => {
 		});
 		const [link] = links(container);
 		expect(link?.getAttribute('href')).toBe('https://example.com/page');
-		expect(link?.getAttribute('target')).toBe('_blank');
-		expect(link?.getAttribute('rel')).toContain('noopener');
 		expect(link?.getAttribute('rel')).toContain('ugc');
-		expect(container.textContent).toContain('look at');
-		expect(container.textContent).toContain('now');
-	});
-
-	it('renders a javascript: scheme as text, never as a link', () => {
-		const { container } = render(RichText, {
-			props: { text: 'click javascript:alert(1) here' }
-		});
-		expect(links(container)).toHaveLength(0);
-		expect(container.textContent).toContain('javascript:alert(1)');
-	});
-
-	it('renders what looks like markup as inert text', () => {
-		const { container } = render(RichText, {
-			props: { text: '<script>alert(1)</script> and <img src=x onerror=1>' }
-		});
-		expect(container.querySelector('script')).toBeNull();
-		expect(container.querySelector('img')).toBeNull();
-		expect(container.textContent).toContain('<script>alert(1)</script>');
+		expect(container.textContent).toBe('look at https://example.com/page now');
 	});
 
 	it('embeds every supported URL, not just the first', () => {
@@ -67,24 +224,16 @@ describe('RichText', () => {
 		]);
 	});
 
-	it('maxEmbeds=0 leaves every URL as a plain link', () => {
-		const { container } = render(RichText, {
-			props: { text: 'https://www.redgifs.com/watch/abc123', maxEmbeds: 0 }
-		});
-		expect(container.querySelectorAll('iframe')).toHaveLength(0);
-		expect(links(container)).toHaveLength(1);
-	});
-
 	it('embeds a direct image', () => {
 		const { container } = render(RichText, { props: { text: 'https://i.imgur.com/cat.jpg' } });
-		const img = container.querySelector('img');
-		expect(img?.getAttribute('src')).toBe('https://i.imgur.com/cat.jpg');
+		expect(container.querySelector('img')?.getAttribute('src')).toBe('https://i.imgur.com/cat.jpg');
 	});
 
-	it('preserves surrounding whitespace as text tokens', () => {
+	it('preserves the text around a link', () => {
 		const { container } = render(RichText, {
 			props: { text: 'before https://example.com/a\nafter' }
 		});
-		expect(container.textContent).toBe('before https://example.com/a\nafter');
+		expect(container.textContent).toBe('before https://example.com/aafter');
+		expect(container.querySelectorAll('br')).toHaveLength(1);
 	});
 });

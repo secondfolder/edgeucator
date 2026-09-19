@@ -2,6 +2,8 @@
 	import { onMount, tick } from 'svelte';
 	import type { Infer, SuperForm } from 'sveltekit-superforms';
 	import TaskTimeZoneOwnerToggle from '$lib/components/TaskTimeZoneOwnerToggle.svelte';
+	import RichTextEditor from '$lib/components/RichTextEditor.svelte';
+	import { DOCUMENT_FEATURES } from '$lib/richtext-editor';
 	import { taskEditorFormSchema, type TaskEditorFormSchema } from '$lib/schemas/taskEditorForm';
 	import type { TaskWeekday } from '$lib/types';
 
@@ -85,6 +87,17 @@
 		if (!(input instanceof HTMLInputElement || input instanceof HTMLTextAreaElement)) return;
 		markUserEdited();
 		$form[field] = input.value;
+	}
+
+	/**
+	 * The description is a rich-text document, so it arrives as a serialised
+	 * string from the editor rather than from a DOM input. It still goes through
+	 * the same superforms field, so tainting, validation and the save-button
+	 * promotion all behave exactly as they do for every other field.
+	 */
+	function setDescription(stored: string) {
+		markUserEdited();
+		$form.description = stored;
 	}
 
 	function setBooleanField(field: BooleanField, event: Event) {
@@ -248,12 +261,21 @@
 	</label>
 	<label>
 		<span>Description</span>
-		<textarea
-			name="description"
-			rows="3"
-			maxlength="500"
-			value={$form.description}
-			oninput={(event) => setStringField('description', event)}></textarea>
+		<!--
+			A hidden input carries the serialised document, so the form posts the
+			same way it always has and the action needs no special case.
+		-->
+		<input type="hidden" name="description" value={$form.description ?? ''} />
+		<div class="richtext-field">
+			<RichTextEditor
+				value={$form.description ?? ''}
+				onChange={setDescription}
+				features={DOCUMENT_FEATURES}
+				toolbar
+				placeholder="What does this involve?"
+				ariaLabel="Description"
+			/>
+		</div>
 		{#if $errors.description}<span class="invalid">{$errors.description}</span>{/if}
 	</label>
 	<div class="editor-row">
@@ -664,6 +686,23 @@
 		border-radius: 0.6rem;
 		border: 1px solid var(--wa-color-surface-border);
 		font: inherit;
+	}
+
+	.richtext-field {
+		inline-size: 100%;
+		box-sizing: border-box;
+		min-block-size: 4.5rem;
+		max-block-size: 40svh;
+		overflow-y: auto;
+		padding: 0.6rem 0.75rem;
+		border-radius: 0.6rem;
+		border: 1px solid var(--wa-color-surface-border);
+		background: var(--wa-color-surface-lowered, transparent);
+	}
+
+	.richtext-field:focus-within {
+		outline: 2px solid var(--wa-color-brand-fill-loud, currentColor);
+		outline-offset: -1px;
 	}
 
 	textarea {

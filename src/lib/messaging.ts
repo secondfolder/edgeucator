@@ -79,6 +79,36 @@ export const THREAD_ICON_LABELS: Record<ThreadIcon, string> = {
 /** The icon a thread gets when the sender does not pick one. */
 export const DEFAULT_THREAD_ICON: ThreadIcon = 'envelope';
 
+/**
+ * LEGACY-RICHTEXT — how a message body is serialised.
+ *
+ * Plaintext, and a closed list of exactly two values, for the same reason the
+ * thread icon is (AGENTS.md invariant 14): the server cannot read a body, so
+ * without this it cannot tell a pre-rich-text message from a converted one.
+ * Two fixed values reveal nothing about content, where a free-text column
+ * would be a covert channel. Re-validated in `server/messaging.ts` as well as
+ * in the endpoint's Zod schema.
+ *
+ * It earns its place three times over:
+ *
+ * 1. The migration endpoint accepts a rewrite only for a row still at
+ *    `'plain'`, so it cannot become a general "edit any message I sent"
+ *    backdoor — messages are otherwise immutable by design.
+ * 2. `select count(*) from messages where body_format = 'plain'` is the
+ *    removal trigger for all the legacy code, rather than a guess.
+ * 3. The client knows which messages are worth converting without decrypting
+ *    every one first.
+ *
+ * Deleted with the rest of the legacy handling; see docs/temporary-code.md.
+ */
+export const MESSAGE_BODY_FORMATS = ['plain', 'lexical'] as const;
+
+export type MessageBodyFormat = (typeof MESSAGE_BODY_FORMATS)[number];
+
+export function isMessageBodyFormat(value: unknown): value is MessageBodyFormat {
+	return typeof value === 'string' && (MESSAGE_BODY_FORMATS as readonly string[]).includes(value);
+}
+
 export function isThreadIcon(value: unknown): value is ThreadIcon {
 	return typeof value === 'string' && (THREAD_ICONS as readonly string[]).includes(value);
 }

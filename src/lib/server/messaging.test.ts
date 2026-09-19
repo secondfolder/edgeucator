@@ -6,6 +6,7 @@ import {
 	createTestPartnership,
 	createTestThread,
 	createTestUser,
+	markMessageBodyLegacy,
 	readAttachmentRows,
 	readMessageRows,
 	readThreadReadRows,
@@ -25,6 +26,7 @@ import {
 	listHistoryForRestore,
 	listRestoreRequests,
 	listUnreadCounts,
+	migrateMessageBodies,
 	markThreadOpened,
 	purgePartnershipMedia,
 	requestHistoryRestore,
@@ -1089,5 +1091,100 @@ describe('applyHistoryRestore reactions', () => {
 
 		const thread = await getThread(harness.db, elsewhere.threadId, 'envelope', ada.id);
 		expect(thread.messages[0].reactions[0].ciphertext).toBe('c2FmZQ==');
+	});
+});
+
+/* ── LEGACY-RICHTEXT — delete with the legacy migration ──────────────────── */
+
+describe('migrateMessageBodies', () => {
+	/**
+	 * The `where` clause in `migrateMessageBodies` is the entire security model
+	 * for an endpoint that lets a client replace stored message bodies. These
+	 * assert each of its clauses, because none of them is visible in the route.
+	 */
+	it('converts the sender own legacy body and marks it migrated', async () => {
+		const { threadId, messageId } = await createTestThread(harness.db, partnershipId, ada, {
+			ciphertext: 'b2xk'
+		});
+		await markMessageBodyLegacy(harness.db, messageId);
+
+		await expect(
+			migrateMessageBodies(harness.db, {
+				partnershipId,
+				actorId: ada.id,
+				messages: [{ id: messageId, ciphertext: 'bmV3' }]
+			})
+		).resolves.toEqual({ ok: true, updated: 1 });
+
+		const [row] = await readMessageRows(harness.db, threadId);
+		expect(row.ciphertext).toBe('bmV3');
+		expect(row.bodyFormat).toBe('lexical');
+	});
+
+	it('refuses to rewrite a message somebody else sent', async () => {
+		const { threadId, messageId } = await createTestThread(harness.db, partnershipId, jun, {
+			ciphertext: 'b2xk'
+		});
+		await markMessageBodyLegacy(harness.db, messageId);
+
+		// Ada is a member and can read this message, so only the sender check
+		// stops her rewriting Jun's words.
+		await migrateMessageBodies(harness.db, {
+			partnershipId,
+			actorId: ada.id,
+			messages: [{ id: messageId, ciphertext: 'bmV3' }]
+		});
+
+		const [row] = await readMessageRows(harness.db, threadId);
+		expect(row.ciphertext).toBe('b2xk');
+		expect(row.bodyFormat).toBe('plain');
+	});
+
+	it('is one-way: an already converted message cannot be rewritten', async () => {
+		const { threadId, messageId } = await createTestThread(harness.db, partnershipId, ada, {
+			ciphertext: 'b2xk'
+		});
+		// No markMessageBodyLegacy: sendMessage already stored it as 'lexical'.
+
+		await migrateMessageBodies(harness.db, {
+			partnershipId,
+			actorId: ada.id,
+			messages: [{ id: messageId, ciphertext: 'bmV3' }]
+		});
+
+		const [row] = await readMessageRows(harness.db, threadId);
+		// This is what stops the endpoint becoming "edit any message I sent".
+		expect(row.ciphertext).toBe('b2xk');
+	});
+
+	it('refuses a caller who is not in the partnership', async () => {
+		const outsider = await createTestUser(harness.db, { email: 'outsider@example.com' });
+		const { messageId } = await createTestThread(harness.db, partnershipId, ada, {
+			ciphertext: 'b2xk'
+		});
+		await markMessageBodyLegacy(harness.db, messageId);
+
+		await expect(
+			migrateMessageBodies(harness.db, {
+				partnershipId,
+				actorId: outsider.id,
+				messages: [{ id: messageId, ciphertext: 'bmV3' }]
+			})
+		).resolves.toEqual({ ok: false, reason: 'not-a-member' });
+	});
+
+	it('refuses an oversized body', async () => {
+		const { messageId } = await createTestThread(harness.db, partnershipId, ada, {
+			ciphertext: 'b2xk'
+		});
+		await markMessageBodyLegacy(harness.db, messageId);
+
+		await expect(
+			migrateMessageBodies(harness.db, {
+				partnershipId,
+				actorId: ada.id,
+				messages: [{ id: messageId, ciphertext: 'a'.repeat(MAX_CIPHERTEXT_BYTES + 1) }]
+			})
+		).resolves.toEqual({ ok: false, reason: 'too-big' });
 	});
 });

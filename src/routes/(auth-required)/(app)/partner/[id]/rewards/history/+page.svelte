@@ -30,13 +30,13 @@
 						<li>
 							<div class="reward-head">
 								<div>
-									<h3><RichText text={claim.rewardTitle} maxEmbeds={0} /></h3>
+									<h3>{claim.rewardTitle}</h3>
 									<p>{claim.rewardCost} credits</p>
 								</div>
 								<span class="pill">{claim.mine ? 'Claimed by you' : 'Claimed by them'}</span>
 							</div>
 							{#if claim.rewardDescription}
-								<p><RichText text={claim.rewardDescription} /></p>
+								<div class="description"><RichText text={claim.rewardDescription} /></div>
 							{/if}
 						</li>
 					{/each}

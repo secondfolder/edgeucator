@@ -1,39 +1,33 @@
 <script lang="ts">
+	import RichTextInline from './RichTextInline.svelte';
 	import UrlEmbed from './UrlEmbed.svelte';
-	import { findRenderableLinks, type CachedEmbedDetails, type EmbedSpec } from '$lib/embeds';
+	import { embedSpecFor, type CachedEmbedDetails } from '$lib/embeds';
+	import { parseStoredRichText } from '$lib/richtext';
 
 	/**
-	 * Message/task/reward prose with URLs turned into links and, for hosts we
-	 * can embed, into inline embeds.
+	 * Message, task and reward prose.
 	 *
-	 * Rendering strategy: linkifyjs only *finds* the URLs; this component then
-	 * emits plain text nodes and real `<a>` elements through normal Svelte
-	 * interpolation, so — like everywhere else in this app — no message text
-	 * ever passes through `{@html}` and the XSS surface stays at zero. The one
-	 * sanitised `{@html}` in the app lives inside UrlEmbed, and only ever sees
-	 * DOMPurify-cleaned oEmbed markup.
+	 * Takes the **stored string** and renders it. What is stored is a Lexical
+	 * `editorState.toJSON()` document; `parseStoredRichText` is the one boundary
+	 * that turns it — or a legacy plain-text row — into a document, so nothing
+	 * below here knows two formats ever existed. See docs/rich-text.md.
 	 *
-	 * Whitespace is preserved by the parent's `white-space: pre-wrap` — this
-	 * component emits inline content only.
+	 * Deliberately no Lexical import. The serialised state is plain JSON, so
+	 * displaying a message needs no editor and no DOM, and a page that only
+	 * shows descriptions ships none of the editor. Reintroducing a Lexical
+	 * import here would undo that for every such page.
 	 *
-	 * `maxEmbeds` exists so headings can linkify without growing an embed
-	 * inside them (titles pass 0). Prose embeds every supported URL.
+	 * No `{@html}`: every character goes through ordinary interpolation. The
+	 * only sanitised markup in the app lives inside `UrlEmbed`.
+	 *
+	 * Embeds are their own block nodes rather than a property of the link that
+	 * produced them, which is why there is no `maxEmbeds` any more — a document
+	 * contains exactly the embeds it says it contains. `embedSpecFor` still runs
+	 * here rather than being stored, so a provider we drop degrades to a link
+	 * instead of leaving a hole.
 	 */
-	type Token =
-		| { type: 'text'; value: string }
-		| {
-				type: 'link';
-				value: string;
-				href: string;
-				embed: EmbedSpec | null;
-				cached: CachedEmbedDetails | null;
-				cachedPending: boolean;
-				requireExplicitReveal: boolean;
-		  };
-
 	let {
 		text,
-		maxEmbeds = Infinity,
 		cachedEmbeds = [],
 		cachedEmbedsPending = false,
 		autoLoadEmbeds = false,
@@ -42,7 +36,6 @@
 		onRefreshEmbed = undefined
 	}: {
 		text: string;
-		maxEmbeds?: number;
 		cachedEmbeds?: CachedEmbedDetails[];
 		cachedEmbedsPending?: boolean;
 		autoLoadEmbeds?: boolean;
@@ -51,50 +44,70 @@
 		onRefreshEmbed?: ((href: string) => void | Promise<void>) | undefined;
 	} = $props();
 
-	const tokens = $derived.by(() => {
-		const found = findRenderableLinks(text, maxEmbeds);
-		const cachedByHref = new Map(cachedEmbeds.map((embed) => [embed.href, embed]));
-
-		const result: Token[] = [];
-		let cursor = 0;
-		for (const match of found) {
-			if (match.start > cursor) {
-				result.push({ type: 'text', value: text.slice(cursor, match.start) });
-			}
-			result.push({
-				type: 'link',
-				value: match.value,
-				href: match.href,
-				embed: match.embed,
-				cached: cachedByHref.get(match.href) ?? null,
-				cachedPending: cachedEmbedsPending && match.embed !== null,
-				requireExplicitReveal: requireExplicitReveal && match.embed !== null
-			});
-			cursor = match.end;
-		}
-		if (cursor < text.length) {
-			result.push({ type: 'text', value: text.slice(cursor) });
-		}
-		return result;
-	});
+	const blocks = $derived(parseStoredRichText(text).root.children);
+	const cachedByHref = $derived(new Map(cachedEmbeds.map((embed) => [embed.href, embed])));
 </script>
 
-{#each tokens as token, index (index)}
-	{#if token.type === 'text'}
-		{token.value}
-	{:else if token.embed}
+{#each blocks as block, index (index)}
+	{#if block.type === 'paragraph'}
+		<p><RichTextInline nodes={block.children} /></p>
+	{:else if block.type === 'list'}
+		{#if block.listType === 'number'}
+			<ol start={block.start}>
+				{#each block.children as item, itemIndex (itemIndex)}
+					<li><RichTextInline nodes={item.children} /></li>
+				{/each}
+			</ol>
+		{:else}
+			<ul>
+				{#each block.children as item, itemIndex (itemIndex)}
+					<li><RichTextInline nodes={item.children} /></li>
+				{/each}
+			</ul>
+		{/if}
+	{:else if embedSpecFor(block.url)}
 		<UrlEmbed
-			spec={token.embed}
-			href={token.href}
-			label={token.value}
-			cached={token.cached}
-			cachedPending={token.cachedPending}
+			spec={embedSpecFor(block.url)!}
+			href={block.url}
+			label={block.url}
+			cached={cachedByHref.get(block.url) ?? null}
+			cachedPending={cachedEmbedsPending}
 			autoLoad={autoLoadEmbeds}
-			requireExplicitReveal={token.requireExplicitReveal}
+			{requireExplicitReveal}
 			onReveal={onRevealEmbed}
 			onRefresh={onRefreshEmbed}
 		/>
 	{:else}
-		<a href={token.href} target="_blank" rel="noopener noreferrer ugc">{token.value}</a>
+		<!-- An embed whose provider we no longer support. It degrades to the
+		     link it was made from rather than vanishing. -->
+		<p>
+			<a href={block.url} target="_blank" rel="noopener noreferrer ugc">{block.url}</a>
+		</p>
 	{/if}
 {/each}
+
+<style>
+	p,
+	ul,
+	ol {
+		margin: 0;
+	}
+
+	p + p,
+	p + ul,
+	p + ol,
+	ul + p,
+	ol + p {
+		margin-block-start: 0.5em;
+	}
+
+	ul,
+	ol {
+		padding-inline-start: 1.5em;
+	}
+
+	/* Long URLs and unbroken strings must not widen a message bubble. */
+	p {
+		overflow-wrap: anywhere;
+	}
+</style>

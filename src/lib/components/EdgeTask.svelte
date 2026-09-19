@@ -47,9 +47,10 @@
 <div>
 	<main bind:this={mainElm}>
 		{#each edgeTask.instructions.displayText.filter((displayText) => count >= displayText.showFrom) as displayText (displayText.showFrom)}
-			<p>
-				<RichText text={displayText.text} />
-			</p>
+			<!-- One wrapper per passage: RichText emits its own <p>s, and a child
+			     component's elements are outside this component's scoped CSS, so the
+			     first/last-child divider rules below need an element of their own. -->
+			<div class="passage"><RichText text={displayText.text} /></div>
 		{/each}
 	</main>
 	<!-- This footer used to teleport into <body> so its sticky positioning could
@@ -91,11 +92,11 @@
 		main {
 			flex: 1 1 auto;
 
-			:first-child {
+			.passage:first-child {
 				margin: 0 0 var(--wa-space-xl) 0;
 			}
 
-			:last-child:not(:first-child) {
+			.passage:last-child:not(:first-child) {
 				position: relative;
 
 				&::before {

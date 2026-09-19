@@ -5,7 +5,8 @@ copy of everything so that signing in on a new device restores the history, but
 it stores only ciphertext.
 
 The keys are [docs/encryption.md](encryption.md). The link between two accounts
-is [docs/partners.md](partners.md). This document is the messaging data model
+is [docs/partners.md](partners.md). The body format is
+[docs/rich-text.md](rich-text.md). This document is the messaging data model
 and its rules.
 
 ## The shape of it
@@ -37,16 +38,16 @@ full-page loading wall.
 
 ## Tables
 
-| Table                      | What it holds                                                                  |
-| -------------------------- | ------------------------------------------------------------------------------ |
-| `message_threads`          | One exchange. Its sticker `icon`, plus two denormalised columns.               |
-| `messages`                 | One message. The body ciphertext, plus an optional encrypted metadata sidecar. |
-| `message_attachments`      | An encrypted file in the object store. Size and key only.                      |
-| `message_reactions`        | One tapback per user per message. Encrypted.                                   |
-| `message_tags`             | A reusable name and color scoped to one partnership.                           |
-| `message_thread_tags`      | The many-to-many assignment between threads and tags.                          |
-| `thread_reads`             | Per-user read state for one thread.                                            |
-| `history_restore_requests` | A partner asking to have the history re-encrypted.                             |
+| Table                      | What it holds                                                                                   |
+| -------------------------- | ----------------------------------------------------------------------------------------------- |
+| `message_threads`          | One exchange. Its sticker `icon`, plus two denormalised columns.                                |
+| `messages`                 | One message. The body ciphertext, its format flag, plus an optional encrypted metadata sidecar. |
+| `message_attachments`      | An encrypted file in the object store. Size and key only.                                       |
+| `message_reactions`        | One tapback per user per message. Encrypted.                                                    |
+| `message_tags`             | A reusable name and color scoped to one partnership.                                            |
+| `message_thread_tags`      | The many-to-many assignment between threads and tags.                                           |
+| `thread_reads`             | Per-user read state for one thread.                                                             |
+| `history_restore_requests` | A partner asking to have the history re-encrypted.                                              |
 
 Every foreign key cascades. Deleting a partnership takes its threads, messages,
 attachments rows, reactions and read state with it — but **not** the objects in
@@ -440,3 +441,30 @@ The honest boundary:
   Playwright at `wrangler dev` would close both gaps and is not done.
 - **Video** is accepted and capped, but has had no real exercise beyond a unit
   test of the encryption; only a small PNG is covered end to end.
+
+## The body is a rich-text document
+
+A message body is a Lexical `editorState.toJSON()` document, not prose — see
+[docs/rich-text.md](rich-text.md). Three consequences specific to messaging:
+
+- **`MAX_BODY_CHARS` counts visible text**, via `documentToPlainText`, not the
+  stored string. The document is several times the size of the prose it
+  carries, so counting it would cut people off after a few hundred typed
+  characters. A body over the limit is refused rather than truncated: a
+  document cannot be cut at a character offset without corrupting it.
+- **Ciphertext is bigger than it used to be.** `MAX_CIPHERTEXT_BYTES` (64 KB)
+  has less headroom than when bodies were plain text.
+- **`messages.body_format` is a second plaintext column**, `'plain' | 'lexical'`,
+  and a closed list for the same reason `icon` is. It exists only so the server
+  can tell a pre-rich-text body from a converted one, which it otherwise cannot
+  do at all. It is temporary — see
+  [docs/temporary-code.md](temporary-code.md).
+
+### A sender may rewrite their own legacy bodies
+
+`migrateMessageBodies` lets a client replace the ciphertext of messages **it
+sent**, and only while `body_format = 'plain'`. As with a history restore, the
+server cannot check that the new ciphertext says what the old one said; it
+cannot read either. That is the same trust boundary already recorded above for
+restores, narrowed further by being one-way: a converted row can never be
+rewritten again, so this is not a general message-editing capability.

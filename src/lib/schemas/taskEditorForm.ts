@@ -12,7 +12,14 @@ const weekdaySchema = z.enum(['mo', 'tu', 'we', 'th', 'fr', 'sa', 'su']);
 export const taskEditorFormSchema = z
 	.object({
 		title: z.string().max(80, 'Please keep this to 80 characters or fewer'),
-		description: z.string().max(500, 'Please keep this to 500 characters or fewer'),
+		/**
+		 * The editor's own working copy of the description, which is a serialised
+		 * rich-text document rather than prose. Its length is not the reader's
+		 * length, so the 500-character limit is applied to the visible text by
+		 * `richTextFieldSchema` when the form is submitted — checking the raw
+		 * string here would refuse a two-sentence description.
+		 */
+		description: z.string(),
 		active: z.boolean(),
 		creditsAwarded: z.string(),
 		completionMessagesText: z.string(),

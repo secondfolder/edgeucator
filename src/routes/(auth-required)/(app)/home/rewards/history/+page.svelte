@@ -26,10 +26,10 @@
 				<ul class="history-list">
 					{#each data.selfRewards.claims as claim (claim.id)}
 						<li>
-							<strong><RichText text={claim.rewardTitle} maxEmbeds={0} /></strong>
+							<strong>{claim.rewardTitle}</strong>
 							<span>{claim.rewardCost} credits</span>
 							{#if claim.rewardDescription}
-								<p><RichText text={claim.rewardDescription} /></p>
+								<div class="description"><RichText text={claim.rewardDescription} /></div>
 							{/if}
 						</li>
 					{/each}
@@ -55,8 +55,7 @@
 		gap: 1rem;
 	}
 
-	h2,
-	.history-list p {
+	h2 {
 		margin: 0;
 	}
 

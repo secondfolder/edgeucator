@@ -32,16 +32,16 @@
 		{#each completions as completion (completion.id)}
 			<article class="card">
 				<div class="header-row">
-					<h3><RichText text={completion.taskTitle} maxEmbeds={0} /></h3>
+					<h3>{completion.taskTitle}</h3>
 					<p class="credits">
 						+{completion.creditsAwarded} credit{completion.creditsAwarded === 1 ? '' : 's'}
 					</p>
 				</div>
 				{#if completion.taskDescription}
-					<p><RichText text={completion.taskDescription} /></p>
+					<div class="description"><RichText text={completion.taskDescription} /></div>
 				{/if}
 				{#if completion.completionMessage}
-					<p class="message"><RichText text={completion.completionMessage} /></p>
+					<p class="message">{completion.completionMessage}</p>
 				{/if}
 				<div class="meta">
 					<p class="muted">{formatDateTime(completion.createdAt)}</p>

@@ -63,7 +63,7 @@
 			</span>
 		{:else}
 			{#if payload.text}
-				<p class="text">
+				<div class="text">
 					<RichText
 						text={payload.text}
 						{cachedEmbeds}
@@ -73,7 +73,7 @@
 						{onRevealEmbed}
 						{onRefreshEmbed}
 					/>
-				</p>
+				</div>
 			{/if}
 			{#each payload.attachments as info (info.id)}
 				<AttachmentPreview {info} {partnershipId} />
@@ -169,9 +169,13 @@
 
 			.text {
 				margin: 0;
-				/* Preserves the newlines the sender typed without collapsing runs of
-                   spaces into nothing, and wraps long words rather than overflowing. */
-				white-space: pre-wrap;
+				/* A <div>, not a <p>: RichText emits its own block elements, and a
+				   list or a paragraph nested inside a <p> is invalid markup the
+				   browser silently unnests.
+
+				   No `white-space: pre-wrap` either. The sender's line breaks are
+				   real <br> elements in the document now, so preserving whitespace
+				   here would render every one of them twice. */
 				overflow-wrap: anywhere;
 			}
 

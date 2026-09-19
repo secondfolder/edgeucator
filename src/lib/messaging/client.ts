@@ -10,8 +10,15 @@ import {
 	DEFAULT_THREAD_ICON,
 	MAX_ATTACHMENTS_PER_MESSAGE,
 	MAX_ATTACHMENT_TOTAL_BYTES,
+	MAX_BODY_CHARS,
 	MAX_VIDEO_BYTES
 } from '$lib/messaging';
+import {
+	documentEmbedUrls,
+	documentToPlainText,
+	isRichTextDocumentEmpty,
+	parseStoredRichText
+} from '$lib/richtext';
 import {
 	decryptAttachment,
 	decryptMessageMetadata,
@@ -19,13 +26,12 @@ import {
 	encryptAttachment,
 	encryptMessageMetadata,
 	encryptPayload,
-	normaliseBody,
 	type MessageAttachmentInfo,
 	type MessageMetadataPayload,
 	type MessagePayload,
 	type ReactionPayload
 } from '$lib/crypto/messages';
-import { findRenderableLinks, type CachedEmbedDetails } from '$lib/embeds';
+import { type CachedEmbedDetails } from '$lib/embeds';
 
 export type ComposedMessage = {
 	text: string;
@@ -34,7 +40,7 @@ export type ComposedMessage = {
 
 /** A refusal the composer can render, worked out before anything is sent. */
 export type ComposeProblem = {
-	kind: 'empty' | 'too-many' | 'too-big' | 'video-too-big';
+	kind: 'empty' | 'too-long' | 'too-many' | 'too-big' | 'video-too-big';
 	message: string;
 };
 
@@ -46,8 +52,25 @@ export type ComposeProblem = {
  * see the note in `src/lib/schemas/messageForm.ts`.
  */
 export function checkComposed(message: ComposedMessage): ComposeProblem | null {
-	if (normaliseBody(message.text).length === 0 && message.files.length === 0) {
+	/**
+	 * Emptiness and length are both measured on the *visible text*, never on the
+	 * stored string. The stored string is a Lexical document — JSON several
+	 * times the size of the prose it carries — so counting it would call an
+	 * empty editor full and cut people off after a few hundred typed
+	 * characters.
+	 */
+	const document = parseStoredRichText(message.text);
+	if (isRichTextDocumentEmpty(document) && message.files.length === 0) {
 		return { kind: 'empty', message: 'Write something first' };
+	}
+	if (documentToPlainText(document).length > MAX_BODY_CHARS) {
+		// Refused rather than truncated: a document cannot be cut at a character
+		// offset without corrupting it, and silently dropping the end of
+		// somebody's message is worse than asking them to shorten it.
+		return {
+			kind: 'too-long',
+			message: `That message is over the ${MAX_BODY_CHARS.toLocaleString()} character limit`
+		};
 	}
 	if (message.files.length > MAX_ATTACHMENTS_PER_MESSAGE) {
 		return {
@@ -93,7 +116,9 @@ function kindOf(file: File): 'image' | 'video' {
 async function buildBody(message: ComposedMessage, recipients: string[]): Promise<FormData> {
 	const attachments: MessageAttachmentInfo[] = [];
 	const body = new FormData();
-	const text = normaliseBody(message.text);
+	// Already canonical: the editor serialises through the same schema the
+	// reader validates with, so there is nothing left to normalise.
+	const text = message.text;
 	const metadataPromise = resolveMessageMetadata(text);
 
 	for (const file of message.files) {
@@ -125,15 +150,16 @@ async function buildBody(message: ComposedMessage, recipients: string[]): Promis
 	return body;
 }
 
+/**
+ * The URLs whose embed metadata is worth caching with the message.
+ *
+ * Exactly the document's embed nodes. Because an embed is an explicit node
+ * rather than something re-derived from the prose, the set cached here cannot
+ * drift from the set the reader later draws — which is what the old
+ * `findRenderableLinks` arrangement had to guarantee by convention.
+ */
 function embeddableUrls(text: string): string[] {
-	const urls: string[] = [];
-	const seen = new Set<string>();
-	for (const match of findRenderableLinks(text)) {
-		if (!match.embed || seen.has(match.href)) continue;
-		seen.add(match.href);
-		urls.push(match.href);
-	}
-	return urls;
+	return documentEmbedUrls(parseStoredRichText(text));
 }
 
 async function resolveEmbedMetadata(urls: string[]): Promise<CachedEmbedDetails[]> {

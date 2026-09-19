@@ -2,7 +2,8 @@ import { Buffer } from 'node:buffer';
 import { expect, test } from './fixtures';
 import {
 	clickWaButton,
-	fillWaTextarea,
+	fillRichText,
+	reply,
 	linkAccounts,
 	newSide,
 	openBoard,
@@ -130,8 +131,7 @@ test.describe('a thread', () => {
 			await jun.page.waitForURL(/\/messages\/[0-9a-f-]{36}$/);
 			await expect(jun.page.getByText('are you free tonight')).toBeVisible();
 
-			await fillWaTextarea(jun.page, 'very');
-			await clickWaButton(jun.page, 'Send');
+			await reply(jun.page, 'very');
 			await expect(jun.page.getByText('very')).toBeVisible();
 
 			// Ada sees the reply.
@@ -202,8 +202,7 @@ test.describe('the board', () => {
 			await expect(read.getByRole('listitem')).toHaveCount(1);
 			await expect(read.getByText('the second one')).toBeVisible();
 
-			await fillWaTextarea(ada.page, 'and another');
-			await clickWaButton(ada.page, 'Send');
+			await reply(ada.page, 'and another');
 			await expect(ada.page.getByText('and another')).toBeVisible();
 
 			await jun.page.reload();
@@ -262,8 +261,7 @@ test.describe('the board', () => {
 			expect(Math.abs(sizing!.composerWidth - sizing!.bodyWidth)).toBeLessThanOrEqual(1);
 			expect(Math.abs(sizing!.composerHeight - sizing!.bodyHeight)).toBeLessThanOrEqual(1);
 			expect(Math.abs(sizing!.leftGap - sizing!.rightGap)).toBeLessThanOrEqual(8);
-			await fillWaTextarea(ada.page, 'one');
-			await clickWaButton(ada.page, 'Send');
+			await reply(ada.page, 'one');
 			await ada.page.waitForURL(/\/messages\/[0-9a-f-]{36}$/);
 			await ada.page.goBack();
 
@@ -344,8 +342,7 @@ test.describe('live updates', () => {
 				() => (window as unknown as { __streams?: number }).__streams ?? 0
 			);
 
-			await fillWaTextarea(jun.page, 'come over');
-			await clickWaButton(jun.page, 'Send');
+			await reply(jun.page, 'come over');
 			await expect(jun.page.getByText('come over')).toBeVisible();
 
 			// No reload, no navigation, no interaction of any kind.
@@ -492,7 +489,7 @@ test.describe('attachments', () => {
 			await ada.page.goto('/home');
 			await openBoard(ada.page, 'Jun');
 			await clickWaButton(ada.page, 'Write something');
-			await fillWaTextarea(ada.page, 'look at these');
+			await fillRichText(ada.page, 'look at these');
 			await ada.page.locator('input[type="file"]').setInputFiles([
 				{ name: 'one.png', mimeType: 'image/png', buffer: PNG },
 				{ name: 'two.png', mimeType: 'image/png', buffer: PNG },
@@ -590,7 +587,7 @@ test.describe('attachments', () => {
 			await openBoard(ada.page, 'Jun');
 			await expect(ada.page.locator('wa-dialog.composer-dialog')).toHaveCount(0);
 			await clickWaButton(ada.page, 'Write something');
-			await fillWaTextarea(ada.page, 'private');
+			await fillRichText(ada.page, 'private');
 			await ada.page
 				.locator('input[type="file"]')
 				.setInputFiles({ name: 'a.png', mimeType: 'image/png', buffer: PNG });
@@ -929,8 +926,7 @@ test.describe('embeds', () => {
 
 			serveSingleUrlMetadata = false;
 			await ada.page.goto(threadUrl);
-			await fillWaTextarea(ada.page, 'https://vimeo.com/5');
-			await clickWaButton(ada.page, 'Send');
+			await reply(ada.page, 'https://vimeo.com/5');
 			await expect(ada.page.getByRole('button', { name: 'Show' })).toHaveCount(5);
 		} finally {
 			await ada.close();

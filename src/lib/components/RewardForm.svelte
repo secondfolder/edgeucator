@@ -1,4 +1,7 @@
 <script lang="ts">
+	import RichTextEditor from '$lib/components/RichTextEditor.svelte';
+	import { DOCUMENT_FEATURES } from '$lib/richtext-editor';
+
 	type RewardFormValues = {
 		title: string;
 		description: string;
@@ -13,6 +16,14 @@
 		values: RewardFormValues;
 		submitLabel: string;
 	} = $props();
+
+	/**
+	 * This form posts natively rather than through superforms, so the editor's
+	 * document is carried by a hidden input and the action reads the same field
+	 * name it always did.
+	 */
+	// svelte-ignore state_referenced_locally
+	let description = $state(values.description);
 </script>
 
 <form method="POST" class="panel reward-form add-form">
@@ -22,7 +33,17 @@
 	</label>
 	<label>
 		<span>Description</span>
-		<textarea name="description" rows="3" maxlength="500">{values.description}</textarea>
+		<input type="hidden" name="description" value={description} />
+		<div class="richtext-field">
+			<RichTextEditor
+				value={values.description}
+				onChange={(next) => (description = next)}
+				features={DOCUMENT_FEATURES}
+				toolbar
+				placeholder="What is this reward?"
+				ariaLabel="Description"
+			/>
+		</div>
 	</label>
 	<div class="editor-row">
 		<label>
@@ -59,8 +80,7 @@
 		flex-wrap: wrap;
 	}
 
-	input,
-	textarea {
+	input:not([type='hidden']) {
 		width: 100%;
 		box-sizing: border-box;
 		padding: 0.6rem 0.75rem;
@@ -69,8 +89,21 @@
 		font: inherit;
 	}
 
-	textarea {
-		resize: vertical;
+	.richtext-field {
+		inline-size: 100%;
+		box-sizing: border-box;
+		min-block-size: 4.5rem;
+		max-block-size: 40svh;
+		overflow-y: auto;
+		padding: 0.6rem 0.75rem;
+		border-radius: 0.6rem;
+		border: 1px solid var(--wa-color-surface-border);
+		font: inherit;
+	}
+
+	.richtext-field:focus-within {
+		outline: 2px solid var(--wa-color-brand-fill-loud, currentColor);
+		outline-offset: -1px;
 	}
 
 	.checkbox {

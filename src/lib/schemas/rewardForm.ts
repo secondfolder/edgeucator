@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { richTextFieldSchema } from '$lib/schemas/richTextField';
 
 const titleSchema = z
 	.string()
@@ -6,13 +7,8 @@ const titleSchema = z
 	.min(1, 'Please enter a reward title')
 	.max(80, 'Please keep this to 80 characters or fewer');
 
-const descriptionSchema = z
-	.string()
-	.trim()
-	.max(500, 'Please keep this to 500 characters or fewer')
-	.transform((value) => (value === '' ? null : value))
-	.nullable()
-	.default(null);
+/** Rich text: the 500 is characters of prose, not bytes of document. */
+const descriptionSchema = richTextFieldSchema(500);
 
 const creditsSchema = z.coerce
 	.number()

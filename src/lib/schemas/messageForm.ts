@@ -87,6 +87,18 @@ export const restoreApplySchema = z.object({
 	final: z.boolean()
 });
 
+/**
+ * LEGACY-RICHTEXT — one batch of converted message bodies.
+ *
+ * Reuses `restoreRowSchema`: the payload is the same shape as a history
+ * restore, because it is the same operation — replace a body's ciphertext —
+ * with a different authorisation rule. Bounded by `RESTORE_PAGE_SIZE` for the
+ * same reason. Deleted with the rest; see docs/temporary-code.md.
+ */
+export const legacyBodiesSchema = z.object({
+	messages: z.array(restoreRowSchema).max(RESTORE_PAGE_SIZE, 'Too many messages at once')
+});
+
 export const restoreDeclineSchema = z.object({
 	requestId: z.string().uuid('Malformed request id')
 });

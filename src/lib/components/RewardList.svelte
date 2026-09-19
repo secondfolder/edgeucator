@@ -1,4 +1,7 @@
 <script lang="ts">
+	import { untrack } from 'svelte';
+	// LEGACY-RICHTEXT — delete with the legacy reader; see docs/temporary-code.md
+	import { migrateLegacyDescriptions } from '$lib/richtext-legacy-migrate';
 	import RichText from '$lib/components/RichText.svelte';
 	import type { PartnershipRewardView, SelfRewardView } from '$lib/types';
 
@@ -24,6 +27,23 @@
 	function rewardCreatedByMe(reward: RewardView): boolean {
 		return 'createdByMe' in reward ? reward.createdByMe : false;
 	}
+
+	/**
+	 * LEGACY-RICHTEXT — quietly convert any pre-rich-text descriptions the
+	 * viewer is allowed to edit. `editHref` being set is the client-side proxy
+	 * for "can edit"; the server re-checks it properly. Read untracked so this
+	 * does not re-run on every unrelated update.
+	 */
+	$effect(() => {
+		if (!editHref) return;
+		void migrateLegacyDescriptions({
+			kind: claimPartnershipId ? 'partnership-reward' : 'self-reward',
+			partnershipId: claimPartnershipId,
+			items: untrack(() =>
+				rewards.map((reward) => ({ id: reward.id, description: reward.description }))
+			)
+		});
+	});
 </script>
 
 {#if rewards.length === 0}
@@ -34,7 +54,7 @@
 			<li class:inactive={!reward.active}>
 				<div class="reward-head">
 					<div>
-						<h3><RichText text={reward.title} maxEmbeds={0} /></h3>
+						<h3>{reward.title}</h3>
 						<p>{reward.cost} credits</p>
 					</div>
 					<div class="reward-meta">
@@ -47,7 +67,9 @@
 					</div>
 				</div>
 
-				{#if reward.description}<p><RichText text={reward.description} /></p>{/if}
+				{#if reward.description}<div class="description">
+						<RichText text={reward.description} />
+					</div>{/if}
 
 				{#if showClaimUi && !rewardCreatedByMe(reward)}
 					<form method="POST" action={claimAction} class="claim-form">

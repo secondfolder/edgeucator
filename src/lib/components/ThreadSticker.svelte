@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { documentToPlainText, parseStoredRichText } from '$lib/richtext';
 	import { resolve } from '$app/paths';
 	import type {
 		MessageAttachmentInfo,
@@ -148,8 +149,14 @@
 		return new Intl.DateTimeFormat(undefined, { dateStyle: 'medium' }).format(date);
 	}
 
+	/**
+	 * A sticker preview is a few lines of prose, so it shows the message's
+	 * *visible text* rather than the stored document — otherwise the board would
+	 * be a wall of raw JSON. Formatting is dropped rather than rendered: this is
+	 * a thumbnail, and a bolded first word in a four-line clamp is noise.
+	 */
 	function previewText(payload: MessagePayload): string {
-		return payload.text.trim();
+		return documentToPlainText(parseStoredRichText(payload.text));
 	}
 
 	function loadedPreview(value: MessagePayload | null | undefined): MessagePayload | null {
@@ -157,7 +164,7 @@
 	}
 
 	function previewAttachments(payload: MessagePayload): MessageAttachmentInfo[] {
-		const availableSlots = MAX_PREVIEW_ITEMS - Number(Boolean(payload.text.trim()));
+		const availableSlots = MAX_PREVIEW_ITEMS - Number(Boolean(previewText(payload)));
 		return payload.attachments.slice(0, availableSlots);
 	}
 
@@ -216,7 +223,7 @@
 	const previewValue = $derived(loadedPreview(preview));
 	const embedPreview = $derived(previewMetadata?.embeds[0] ?? null);
 	const embedThumbnail = $derived(embedPreview?.thumbnailUrl ?? embedPreview?.imageUrl ?? null);
-	const textPreview = $derived(previewValue?.text.trim() ?? '');
+	const textPreview = $derived(previewValue ? previewText(previewValue) : '');
 	const hasTextPreview = $derived(Boolean(textPreview));
 	const previewItemCount = $derived(
 		previewValue ? previewAttachments(previewValue).length + (textPreview ? 1 : 0) : 0

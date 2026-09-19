@@ -90,6 +90,7 @@ function message(over: Partial<MessageView> = {}): MessageView {
 		id: 'm1',
 		mine: false,
 		ciphertext: CIPHERTEXT,
+		bodyFormat: 'lexical',
 		metadataCiphertext: null,
 		createdAt: new Date('2026-01-01T12:00:00Z'),
 		attachments: [],

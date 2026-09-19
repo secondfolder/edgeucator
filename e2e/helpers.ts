@@ -1,4 +1,4 @@
-import { expect, type Browser, type Page } from '@playwright/test';
+import { expect, type Browser, type Locator, type Page } from '@playwright/test';
 
 /**
  * Shared steps for the invite flows.
@@ -239,10 +239,34 @@ export async function openBoard(page: Page, partnerName: string): Promise<void> 
 	}
 }
 
+/**
+ * Replies in an open thread.
+ *
+ * The enabled assertion is the point: Send is disabled while the composer has
+ * nothing, so if the typing never reached the component's state the click is a
+ * silent no-op and the failure surfaces much later, somewhere else, as a
+ * missing message.
+ */
+export async function reply(page: Page, text: string): Promise<void> {
+	await fillRichText(page, text);
+	await expect(page.getByRole('button', { name: 'Send' })).toBeEnabled();
+	await clickWaButton(page, 'Send');
+	// Waits for the send to actually land. The composer is cleared only after
+	// `send` resolves, so an empty surface is the signal that the round trip
+	// finished.
+	//
+	// This is not belt and braces. The composer is a `contenteditable` div now,
+	// so its contents are real text in the page — `getByText('…')` right after a
+	// send matches the *composer* and passes before the message exists, and the
+	// failure then lands on the other side's assertion, several steps away. A
+	// `<textarea>` never had that problem because its value is not page text.
+	await expect(page.locator('.richtext-editor .surface').first()).toHaveText('');
+}
+
 /** Writes a new thread and waits for the thread page it lands on. */
 export async function writeThread(page: Page, text: string): Promise<void> {
 	await clickWaButton(page, 'Write something');
-	await fillWaTextarea(page, text);
+	await fillRichText(page, text);
 	// Asserted rather than assumed. The send button is disabled while there is
 	// nothing to send, so if the fill did not reach the component's state the
 	// next click is a silent no-op and the failure surfaces 90 seconds later as
@@ -253,14 +277,50 @@ export async function writeThread(page: Page, text: string): Promise<void> {
 }
 
 /**
- * Fills a `<wa-textarea>`.
+ * Types into a rich-text editor one key at a time, as a person does.
  *
- * Same shadow-root reach as `fillWaInput`: the editable node is a plain
- * `<textarea>` inside the custom element, which Playwright's selector engine
- * pierces.
+ * Deliberately NOT `fill()`. `fill()` is a single bulk insertion, so it cannot
+ * catch anything that goes wrong *between* keystrokes — and an editor that is
+ * torn down and rebuilt on every change looks perfectly healthy to it while
+ * dropping every character after the first for a real user.
+ *
+ * `scope` is a page, or a locator when a screen has more than one editor.
  */
-export async function fillWaTextarea(page: Page, value: string): Promise<void> {
-	await page.locator('wa-textarea textarea').first().fill(value);
+export async function typeRichText(scope: Page | Locator, value: string): Promise<void> {
+	const surface = await readyRichText(scope);
+	await surface.pressSequentially(value, { delay: 15 });
+}
+
+/**
+ * Waits for an editor to be interactive, then focuses it.
+ *
+ * The surface is only `contenteditable` once Lexical has attached — before
+ * that it is server-rendered markup with nothing behind it. Typing into that
+ * window silently loses characters, so every helper goes through here rather
+ * than clicking whatever is on screen.
+ */
+async function readyRichText(scope: Page | Locator): Promise<Locator> {
+	const surface = scope.locator('.richtext-editor .surface[contenteditable="true"]').first();
+	await surface.click();
+	await expect(surface).toBeFocused();
+	return surface;
+}
+
+/**
+ * Types into a rich-text editor.
+ *
+ * Every multi-line freetext field in the app is a Lexical editor now — a plain
+ * `contenteditable` div, not a `<textarea>` and not inside a shadow root. The
+ * click matters: Lexical only builds its initial selection once the surface has
+ * focus, and `fill()` on an unfocused contenteditable leaves the document
+ * untouched, which surfaces much later as a disabled Send button.
+ *
+ * `scope` is a page, or a locator when a screen has more than one editor.
+ */
+export async function fillRichText(scope: Page | Locator, value: string): Promise<void> {
+	const surface = await readyRichText(scope);
+	await surface.fill(value);
+	await expect(surface).toContainText(value);
 }
 
 /**

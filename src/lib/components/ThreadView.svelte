@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { untrack } from 'svelte';
 	import { tick } from 'svelte';
 	import { SvelteSet } from 'svelte/reactivity';
 	import { invalidate } from '$app/navigation';
@@ -24,6 +25,8 @@
 	import type { MessageView, PartnerRecipientsView, TagView, ThreadView } from '$lib/types';
 	import MessageBubble from './MessageBubble.svelte';
 	import MessageComposer from './MessageComposer.svelte';
+	// LEGACY-RICHTEXT — delete with the legacy reader; see docs/temporary-code.md
+	import { migrateLegacyMessages } from '$lib/richtext-legacy-migrate';
 	import TagPicker from './TagPicker.svelte';
 
 	let {
@@ -111,6 +114,28 @@
 				if (cancelled) return;
 				reactions[message.id] = decoded;
 			}
+
+			// LEGACY-RICHTEXT — once everything on screen is readable, quietly
+			// convert and re-save any of the viewer's own pre-rich-text bodies.
+			// Runs last and its failures are swallowed: this is housekeeping, and
+			// it must never get in the way of reading a thread. See
+			// docs/temporary-code.md.
+			if (cancelled) return;
+			// `bodies` and `targets` are read through `untrack` on purpose. Both
+			// are reactive, and this effect already *writes* `bodies`; making it
+			// depend on them as well would rebuild the whole decryption pass on
+			// every change — the same class of bug AGENTS.md records for effects
+			// that read the `data` prop.
+			const entries = untrack(() =>
+				messages
+					.filter((message) => message.mine && message.bodyFormat === 'plain')
+					.map((message) => ({ id: message.id, payload: bodies[message.id] }))
+			);
+			await migrateLegacyMessages({
+				partnershipId,
+				entries,
+				targets: untrack(() => targets)
+			});
 		})();
 
 		return () => {

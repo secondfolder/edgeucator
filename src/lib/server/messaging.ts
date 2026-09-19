@@ -76,6 +76,9 @@ const messageColumns = {
 	id: messages.id,
 	senderId: messages.senderId,
 	ciphertext: messages.ciphertext,
+	// LEGACY-RICHTEXT: lets the client find its own un-migrated messages without
+	// decrypting every one first.
+	bodyFormat: messages.bodyFormat,
 	metadataCiphertext: messages.metadataCiphertext,
 	createdAt: messages.createdAt
 } as const;
@@ -336,6 +339,7 @@ export async function getThread(
 				// "never return locals.user wholesale" posture intact.
 				mine: row.senderId === viewerId,
 				ciphertext: row.ciphertext,
+				bodyFormat: row.bodyFormat,
 				metadataCiphertext: row.metadataCiphertext ?? null,
 				createdAt: row.createdAt,
 				attachments: [],
@@ -767,6 +771,8 @@ export async function startThread(
 			threadId,
 			senderId: input.senderId,
 			ciphertext: input.ciphertext,
+			// LEGACY-RICHTEXT: everything sent from now on is a rich-text document.
+			bodyFormat: 'lexical',
 			metadataCiphertext: input.metadataCiphertext ?? null,
 			createdAt: now
 		}),
@@ -1261,6 +1267,82 @@ export async function applyHistoryRestore(
 	}
 
 	return { ok: true, updated: input.messages.length + reactions.length };
+}
+
+/**
+ * LEGACY-RICHTEXT — replaces a sender's own pre-rich-text bodies with converted
+ * ones.
+ *
+ * Deleted once nothing is left at `body_format = 'plain'`; see
+ * docs/temporary-code.md.
+ *
+ * The `where` clause is the whole security model, and every clause is
+ * load-bearing:
+ *
+ * - `senderId = actorId` — you may rewrite only what you wrote. Partners can
+ *   read each other's messages, so without this either side could rewrite the
+ *   other's words.
+ * - `bodyFormat = 'plain'` — strictly one-way. A row already converted cannot
+ *   be touched again, so this can never become a general "edit any message I
+ *   sent" endpoint. Messages are immutable by design and this keeps them so.
+ * - `threadId in (this partnership)` — the confused-deputy guard, same as
+ *   `applyHistoryRestore`.
+ *
+ * As with a restore, the server cannot check that the new ciphertext says what
+ * the old one said; it cannot read either. That is not a new trust boundary —
+ * `applyHistoryRestore` already lets a client replace bodies wholesale, and
+ * docs/messaging.md records it.
+ */
+export async function migrateMessageBodies(
+	db: Db,
+	input: {
+		partnershipId: string;
+		actorId: string;
+		messages: { id: string; ciphertext: string; metadataCiphertext?: string | null }[];
+	}
+): Promise<{ ok: true; updated: number } | { ok: false; reason: 'not-a-member' | 'too-big' }> {
+	const membership = await requireMembership(db, input.partnershipId, input.actorId);
+	if (!membership) return { ok: false, reason: 'not-a-member' };
+
+	const tooBig = (value: string) => value.length === 0 || value.length > MAX_CIPHERTEXT_BYTES;
+	if (
+		input.messages.some(
+			(message) =>
+				tooBig(message.ciphertext) ||
+				(typeof message.metadataCiphertext === 'string' && tooBig(message.metadataCiphertext))
+		)
+	) {
+		return { ok: false, reason: 'too-big' };
+	}
+	if (input.messages.length === 0) return { ok: true, updated: 0 };
+
+	const inThisPartnership = db
+		.select({ id: messageThreads.id })
+		.from(messageThreads)
+		.where(eq(messageThreads.partnershipId, input.partnershipId));
+
+	const updates = input.messages.map((message) =>
+		db
+			.update(messages)
+			.set({
+				ciphertext: message.ciphertext,
+				bodyFormat: 'lexical',
+				...(message.metadataCiphertext === undefined
+					? {}
+					: { metadataCiphertext: message.metadataCiphertext })
+			})
+			.where(
+				and(
+					eq(messages.id, message.id),
+					eq(messages.senderId, input.actorId),
+					eq(messages.bodyFormat, 'plain'),
+					inArray(messages.threadId, inThisPartnership)
+				)
+			)
+	);
+	await db.batch(updates as [(typeof updates)[number], ...typeof updates]);
+
+	return { ok: true, updated: input.messages.length };
 }
 
 /** Marks a restore request refused, so the requester is told rather than left waiting. */

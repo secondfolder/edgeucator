@@ -289,6 +289,18 @@ the login schema deliberately omits the `.min(8)` the signup schema has.
 **Queries select columns explicitly.** Use `columns: { … }` and `with: { … }`
 rather than selecting whole rows; D1 charges for rows read and response size.
 
+**Freetext fields are rich text; `src/lib/richtext.ts` must not import Lexical.**
+Message bodies and task/reward descriptions store a Lexical `editorState.toJSON()`
+document. The read path — `richtext.ts` and `RichText.svelte` — walks that JSON
+with no Lexical import at all, which is why a page that only displays
+descriptions ships none of the editor and the worker bundle contains none of
+it. Adding a Lexical import to `richtext.ts` silently undoes that for every
+such page. Everything that writes a document lives in `richtext-editor.ts`.
+See [docs/rich-text.md](docs/rich-text.md).
+
+**Every rich-text length limit counts visible text**, via `documentToPlainText`
+— never the stored string, which is several times larger than the prose in it.
+
 **UI is Web Awesome 3 alpha, loaded from a CDN in `src/app.html`.** Components
 are custom elements (`wa-button`, `wa-input`, …) with no TypeScript definitions,
 which is why Svelte's a11y warnings fire on them. Style with `--wa-*` custom
@@ -511,8 +523,9 @@ Four places, split on scope:
 | [docs/halftone.md](docs/halftone.md)             | The landing page's halftone overlay: the screen model and its fixtures    |
 | [docs/embeds.md](docs/embeds.md)                 | URL linkification and inline embeds: providers, privacy gate, reddit path |
 | [docs/messaging.md](docs/messaging.md)           | Encrypted partner messages: threads, the board, unread, restore           |
+| [docs/rich-text.md](docs/rich-text.md)           | The rich-text document: Lexical serialisation, the editors, embed blocks  |
 | [docs/timezone.md](docs/timezone.md)             | Account timezone storage, mismatch prompts, and device-local dismissal    |
-| [docs/temporary-code.md](docs/temporary-code.md) | Temporary-code cleanup notes, including the Temporal API polyfill         |
+| [docs/temporary-code.md](docs/temporary-code.md) | Temporary-code cleanup notes: the Temporal polyfill and legacy rich text  |
 
 **Keeping these current is part of the change, not a follow-up to it.**
 
