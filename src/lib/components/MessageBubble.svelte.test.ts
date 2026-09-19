@@ -4,6 +4,79 @@ import MessageBubble from './MessageBubble.svelte';
 import type { MessageMetadataPayload, MessagePayload } from '$lib/crypto/messages';
 import type { MessageView } from '$lib/types';
 
+const observers: MockIntersectionObserver[] = [];
+
+class MockIntersectionObserver {
+	callback: IntersectionObserverCallback;
+	elements = new Set<Element>();
+	observe = vi.fn((element: Element) => {
+		this.elements.add(element);
+	});
+	unobserve = vi.fn((element: Element) => {
+		this.elements.delete(element);
+	});
+	disconnect = vi.fn(() => {
+		this.elements.clear();
+	});
+	takeRecords = vi.fn(() => []);
+
+	constructor(callback: IntersectionObserverCallback) {
+		this.callback = callback;
+		observers.push(this);
+	}
+
+	emit(element: Element, isIntersecting: boolean, intersectionRatio = 1) {
+		this.callback(
+			[
+				{
+					time: 0,
+					target: element,
+					isIntersecting,
+					intersectionRatio,
+					boundingClientRect: {
+						top: 0,
+						bottom: 120,
+						left: 0,
+						right: 120,
+						width: 120,
+						height: 120,
+						x: 0,
+						y: 0,
+						toJSON: () => ({})
+					},
+					rootBounds: null,
+					intersectionRect: {
+						top: 0,
+						bottom: isIntersecting ? 120 : 0,
+						left: 0,
+						right: isIntersecting ? 120 : 0,
+						width: isIntersecting ? 120 : 0,
+						height: isIntersecting ? 120 : 0,
+						x: 0,
+						y: 0,
+						toJSON: () => ({})
+					}
+				} as IntersectionObserverEntry
+			],
+			this as unknown as IntersectionObserver
+		);
+	}
+}
+
+function installIntersectionObserverMock() {
+	observers.length = 0;
+	vi.stubGlobal(
+		'IntersectionObserver',
+		MockIntersectionObserver as unknown as typeof IntersectionObserver
+	);
+}
+
+function emitIntersection(element: Element, isIntersecting: boolean, intersectionRatio = 1) {
+	const observer = observers.find((candidate) => candidate.elements.has(element));
+	if (!observer) throw new Error('expected observed element');
+	observer.emit(element, isIntersecting, intersectionRatio);
+}
+
 /**
  * jsdom never upgrades `wa-*` elements, so these assert on what the component
  * emits rather than on rendered behaviour — per AGENTS.md. Everything that
@@ -87,7 +160,8 @@ describe('MessageBubble', () => {
 		expect(getByText('meet me later')).toBeTruthy();
 	});
 
-	it('passes cached embed metadata through to the inline embed renderer', async () => {
+	it('passes cached embed metadata through to the inline embed renderer in auto-load mode', async () => {
+		installIntersectionObserverMock();
 		const fetchMock = vi.fn(() => new Promise(() => {}));
 		vi.stubGlobal('fetch', fetchMock);
 		const metadata: MessageMetadataPayload = {
@@ -116,13 +190,57 @@ describe('MessageBubble', () => {
 				...props,
 				message: message(),
 				payload: { version: 1, text: 'https://vimeo.com/2', attachments: [] },
+				metadata,
+				autoLoadEmbeds: true
+			}
+		});
+
+		expect(container.querySelector('.skeleton-shell')).not.toBeNull();
+		await vi.waitFor(() => {
+			expect(observers.length).toBeGreaterThan(0);
+		});
+		emitIntersection(container.querySelector('.skeleton-shell')!, true, 1);
+		await findByText('Cached title');
+		await vi.waitFor(() => {
+			expect(container.querySelector('.card')).not.toBeNull();
+		});
+		expect(fetchMock).not.toHaveBeenCalled();
+	});
+
+	it('keeps cached message embeds behind Show in manual mode', () => {
+		const metadata: MessageMetadataPayload = {
+			version: 1,
+			embeds: [
+				{
+					href: 'https://vimeo.com/2',
+					fetchedAt: Date.now(),
+					kind: 'card',
+					providerName: 'Vimeo',
+					title: 'Cached title',
+					description: null,
+					thumbnailUrl: 'https://example.com/thumb.jpg',
+					canonicalUrl: 'https://vimeo.com/2',
+					imageUrl: null,
+					iframeSrc: null,
+					iframeHeight: null,
+					faviconUrl: null,
+					themeColor: null
+				}
+			]
+		};
+
+		const { container, getByRole, queryByText } = render(MessageBubble, {
+			props: {
+				...props,
+				message: message(),
+				payload: { version: 1, text: 'https://vimeo.com/2', attachments: [] },
 				metadata
 			}
 		});
 
-		await findByText('Cached title');
-		expect(fetchMock).not.toHaveBeenCalled();
-		expect(container.querySelector('.card')).not.toBeNull();
+		expect(getByRole('button', { name: 'Show' })).toBeTruthy();
+		expect(queryByText('Cached title')).toBeNull();
+		expect(container.querySelector('.card')).toBeNull();
 	});
 
 	it('shows a reveal button for supported embeds when no cache exists yet', () => {

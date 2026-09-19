@@ -3,6 +3,87 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import UrlEmbed from './UrlEmbed.svelte';
 import { clearOembedCache, type CachedEmbedDetails, type EmbedSpec } from '$lib/embeds';
 
+const observers: MockIntersectionObserver[] = [];
+
+class MockIntersectionObserver {
+	callback: IntersectionObserverCallback;
+	elements = new Set<Element>();
+	root: Element | Document | null;
+	rootMargin: string;
+	thresholds: ReadonlyArray<number>;
+	observe = vi.fn((element: Element) => {
+		this.elements.add(element);
+	});
+	unobserve = vi.fn((element: Element) => {
+		this.elements.delete(element);
+	});
+	disconnect = vi.fn(() => {
+		this.elements.clear();
+	});
+	takeRecords = vi.fn(() => []);
+
+	constructor(callback: IntersectionObserverCallback, options: IntersectionObserverInit = {}) {
+		this.callback = callback;
+		this.root = options.root ?? null;
+		this.rootMargin = options.rootMargin ?? '0px';
+		this.thresholds = Array.isArray(options.threshold)
+			? options.threshold
+			: [options.threshold ?? 0];
+		observers.push(this);
+	}
+
+	emit(element: Element, isIntersecting: boolean, intersectionRatio = 1) {
+		this.callback(
+			[
+				{
+					time: 0,
+					target: element,
+					isIntersecting,
+					intersectionRatio,
+					boundingClientRect: {
+						top: 0,
+						bottom: 120,
+						left: 0,
+						right: 120,
+						width: 120,
+						height: 120,
+						x: 0,
+						y: 0,
+						toJSON: () => ({})
+					},
+					rootBounds: null,
+					intersectionRect: {
+						top: 0,
+						bottom: isIntersecting ? 120 : 0,
+						left: 0,
+						right: isIntersecting ? 120 : 0,
+						width: isIntersecting ? 120 : 0,
+						height: isIntersecting ? 120 : 0,
+						x: 0,
+						y: 0,
+						toJSON: () => ({})
+					}
+				} as IntersectionObserverEntry
+			],
+			this as unknown as IntersectionObserver
+		);
+	}
+}
+
+function installIntersectionObserverMock() {
+	observers.length = 0;
+	vi.stubGlobal(
+		'IntersectionObserver',
+		MockIntersectionObserver as unknown as typeof IntersectionObserver
+	);
+}
+
+function emitIntersection(element: Element, isIntersecting: boolean, intersectionRatio = 1) {
+	const observer = observers.find((candidate) => candidate.elements.has(element));
+	if (!observer) throw new Error('expected observed element');
+	observer.emit(element, isIntersecting, intersectionRatio);
+}
+
 afterEach(() => {
 	clearOembedCache();
 	vi.unstubAllGlobals();
@@ -174,6 +255,116 @@ describe('UrlEmbed', () => {
 
 		expect(fetchMock).not.toHaveBeenCalled();
 		expect(container.querySelector('.card')?.textContent).toContain('Cached title');
+	});
+
+	it('keeps cached metadata behind Show when manual reveal is required', async () => {
+		const fetchMock = vi.fn(() => new Promise(() => {}));
+		vi.stubGlobal('fetch', fetchMock);
+		const cached = {
+			href: 'https://vimeo.com/2',
+			fetchedAt: Date.now(),
+			kind: 'card',
+			providerName: 'Vimeo',
+			title: 'Cached title',
+			description: null,
+			thumbnailUrl: 'https://example.com/thumb.jpg',
+			canonicalUrl: 'https://vimeo.com/2',
+			imageUrl: null,
+			iframeSrc: null,
+			iframeHeight: null,
+			faviconUrl: null,
+			themeColor: null
+		} satisfies CachedEmbedDetails;
+
+		const { container, getByRole, queryByText } = render(UrlEmbed, {
+			props: {
+				spec: { kind: 'oembed', endpoint: 'https://oembed.test/cached-manual' },
+				href: cached.href,
+				label: 'vimeo link',
+				cached,
+				requireExplicitReveal: true
+			}
+		});
+
+		expect(getByRole('button', { name: 'Show' })).toBeTruthy();
+		expect(queryByText('Cached title')).toBeNull();
+		expect(fetchMock).not.toHaveBeenCalled();
+
+		await fireEvent.click(getByRole('button', { name: 'Show' }));
+		await vi.waitFor(() => {
+			expect(container.querySelector('.card')?.textContent).toContain('Cached title');
+		});
+		expect(fetchMock).not.toHaveBeenCalled();
+	});
+
+	it('shows cached text in an auto-load skeleton before it activates', () => {
+		installIntersectionObserverMock();
+		const fetchMock = vi.fn(() => new Promise(() => {}));
+		vi.stubGlobal('fetch', fetchMock);
+		const cached = {
+			href: 'https://vimeo.com/2',
+			fetchedAt: Date.now(),
+			kind: 'card',
+			providerName: 'Vimeo',
+			title: 'Cached title',
+			description: null,
+			thumbnailUrl: 'https://example.com/thumb.jpg',
+			canonicalUrl: 'https://vimeo.com/2',
+			imageUrl: null,
+			iframeSrc: null,
+			iframeHeight: null,
+			faviconUrl: null,
+			themeColor: null
+		} satisfies CachedEmbedDetails;
+
+		const { container } = render(UrlEmbed, {
+			props: {
+				spec: { kind: 'oembed', endpoint: 'https://oembed.test/cached-auto' },
+				href: cached.href,
+				label: 'vimeo link',
+				cached,
+				autoLoad: true
+			}
+		});
+
+		expect(container.querySelector('.skeleton-shell')).not.toBeNull();
+		expect(container.textContent).toContain('Cached title');
+		expect(container.querySelector('img')).toBeNull();
+		expect(container.querySelector('iframe')).toBeNull();
+		expect(fetchMock).not.toHaveBeenCalled();
+	});
+
+	it('waits for visibility before auto-loading an embed', async () => {
+		installIntersectionObserverMock();
+		const fetchMock = vi.fn(async () =>
+			Response.json({
+				title: 'Fetched title',
+				provider_name: 'Provider',
+				html: '<iframe src="https://embed.example.com/x"></iframe>'
+			})
+		);
+		vi.stubGlobal('fetch', fetchMock);
+
+		const { container } = render(UrlEmbed, {
+			props: {
+				spec: { kind: 'oembed', endpoint: 'https://oembed.test/auto' },
+				href: 'https://vimeo.com/2',
+				label: 'vimeo link',
+				autoLoad: true
+			}
+		});
+
+		const skeleton = container.querySelector('.skeleton-shell');
+		expect(skeleton).not.toBeNull();
+		expect(fetchMock).not.toHaveBeenCalled();
+		emitIntersection(skeleton!, true, 1);
+
+		await vi.waitFor(() => {
+			expect(fetchMock).toHaveBeenCalledTimes(1);
+		});
+		await vi.waitFor(() => {
+			expect(container.querySelector('.player iframe')).not.toBeNull();
+		});
 	});
 
 	it('shows a refresh button for cached metadata and calls it on click', async () => {

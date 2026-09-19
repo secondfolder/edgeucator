@@ -1,0 +1,1 @@
+ALTER TABLE `user_keys` ADD `embed_auto_load` integer;

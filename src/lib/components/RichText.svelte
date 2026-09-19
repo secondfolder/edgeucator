@@ -36,6 +36,7 @@
 		maxEmbeds = Infinity,
 		cachedEmbeds = [],
 		cachedEmbedsPending = false,
+		autoLoadEmbeds = false,
 		requireExplicitReveal = false,
 		onRevealEmbed = undefined,
 		onRefreshEmbed = undefined
@@ -44,6 +45,7 @@
 		maxEmbeds?: number;
 		cachedEmbeds?: CachedEmbedDetails[];
 		cachedEmbedsPending?: boolean;
+		autoLoadEmbeds?: boolean;
 		requireExplicitReveal?: boolean;
 		onRevealEmbed?: ((href: string) => void | Promise<void>) | undefined;
 		onRefreshEmbed?: ((href: string) => void | Promise<void>) | undefined;
@@ -87,6 +89,7 @@
 			label={token.value}
 			cached={token.cached}
 			cachedPending={token.cachedPending}
+			autoLoad={autoLoadEmbeds}
 			requireExplicitReveal={token.requireExplicitReveal}
 			onReveal={onRevealEmbed}
 			onRefresh={onRefreshEmbed}

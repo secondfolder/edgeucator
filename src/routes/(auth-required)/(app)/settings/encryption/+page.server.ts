@@ -25,6 +25,7 @@ export const load: PageServerLoad = async ({ locals }) => {
 		// `blob` is deliberately included: the browser needs it to open the
 		// identity, and it is useless without a key the server does not have.
 		bundle,
+		embedAutoLoad: bundle.embedAutoLoad,
 		setupForm: await superValidate(zod4(encryptionSetupSchema))
 	};
 };

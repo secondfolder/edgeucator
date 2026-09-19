@@ -1,5 +1,5 @@
 import { error } from '@sveltejs/kit';
-import { getRecipientsForPartnership } from '$lib/server/keys';
+import { getRecipientsForPartnership, getUserKeys } from '$lib/server/keys';
 import {
 	getThread,
 	listTags,
@@ -23,9 +23,10 @@ export const load: PageServerLoad = async ({ locals, params, depends }) => {
 
 	depends(`messages:thread:${params.threadId}`);
 
-	const [thread, recipients, tags] = await Promise.all([
+	const [thread, recipients, keys, tags] = await Promise.all([
 		getThread(locals.db, params.threadId, membership.icon, locals.user.id),
 		getRecipientsForPartnership(locals.db, params.id, locals.user.id),
+		getUserKeys(locals.db, locals.user.id),
 		listTags(locals.db, params.id, locals.user.id)
 	]);
 
@@ -52,6 +53,7 @@ export const load: PageServerLoad = async ({ locals, params, depends }) => {
 		},
 		thread,
 		tags: tags ?? [],
-		recipients: recipients ?? { mine: null, theirs: null }
+		recipients: recipients ?? { mine: null, theirs: null },
+		embedAutoLoad: keys?.embedAutoLoad ?? null
 	};
 };

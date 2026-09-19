@@ -18,7 +18,7 @@ export function scrollParentOf(node: HTMLElement): HTMLElement {
 		if (overflowY === 'auto' || overflowY === 'scroll') return candidate;
 		candidate = candidate.parentElement;
 	}
-	return document.scrollingElement as HTMLElement;
+	return (document.scrollingElement ?? document.documentElement ?? document.body) as HTMLElement;
 }
 
 /**

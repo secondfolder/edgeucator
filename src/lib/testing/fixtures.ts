@@ -174,7 +174,7 @@ export async function readPartnershipRow(db: Db, id: string) {
 export async function createTestUserKeys(
 	db: Db,
 	owner: TestUser,
-	options: { recipient?: string; acknowledged?: boolean } = {}
+	options: { recipient?: string; acknowledged?: boolean; embedAutoLoad?: boolean | null } = {}
 ): Promise<{ identity: string; recipient: string }> {
 	const generated = await generateAgeIdentity();
 	const recipient = options.recipient ?? generated.recipient;
@@ -183,6 +183,12 @@ export async function createTestUserKeys(
 		wrap: { type: 'password', params: PASSWORD_WRAP_PARAMS, blob: FAKE_WRAP_BLOB }
 	});
 	if (options.acknowledged) await acknowledgeHistoryWarning(db, owner.id);
+	if (options.embedAutoLoad !== undefined) {
+		await db
+			.update(userKeys)
+			.set({ embedAutoLoad: options.embedAutoLoad })
+			.where(eq(userKeys.userId, owner.id));
+	}
 	return { identity: generated.identity, recipient };
 }
 

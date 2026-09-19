@@ -200,15 +200,27 @@ preview without another metadata fetch. Inline message embeds use that same
 encrypted cache too: when a message already has cached embed details,
 `UrlEmbed.svelte` renders from them instead of starting a fresh metadata
 request. Older rows are backfilled only per revealed URL, not automatically on
-thread open, and a viewer can manually refresh one cached URL entry from the
-embed itself if they want fresh details.
+thread open while the user is still on the default manual mode, and a viewer
+can manually refresh one cached URL entry from the embed itself if they want
+fresh details.
+
+Message threads can also switch to an auto-load mode from Encrypted messages.
+Before a user answers, the third manual `Show` click on a device prompts them
+with the privacy note: embed loading sends the URL to Bound Up's servers, but
+those lookups are never logged. Opting in stores an account-wide preference and
+the thread immediately renders skeletons for every supported URL, then activates
+the real embed only when it is in or near the scrollport. Cached titles and
+provider labels can appear in the skeleton immediately; iframe players and
+third-party media stay deferred until activation.
 
 Reddit is still the special case for live embeds. The browser cannot call
 reddit's oEmbed endpoint directly because it is CORS-blocked, and `noembed.com`
 does not support reddit, so the UI gates reddit expansion behind a `Show reddit
-embed` button. Clicking that button sends only the reddit URL to `/api/oembed`,
-which resolves share links to their canonical post, fetches oEmbed server-side,
-and tries to extract the post's outbound URL from the post RSS feed.
+embed` button until the user has explicitly opted into automatic message-thread
+embeds. Clicking that button, or auto-loading it later under that stored opt-in,
+sends only the reddit URL to `/api/oembed`, which resolves share links to their
+canonical post, fetches oEmbed server-side, and tries to extract the post's
+outbound URL from the post RSS feed.
 
 That outbound URL is what lets a reddit link post render the actual linked
 media — especially a Redgifs player — instead of reddit's own NSFW preview

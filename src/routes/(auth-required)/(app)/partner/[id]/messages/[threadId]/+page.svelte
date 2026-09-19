@@ -92,6 +92,8 @@
 			partnershipId={data.partner.id}
 			tags={data.tags}
 			recipients={data.recipients}
+			userId={user.id}
+			embedAutoLoad={data.embedAutoLoad}
 			{canSend}
 		/>
 	{:else if keyring.status === 'locked'}
@@ -108,6 +110,8 @@
 			partnershipId={data.partner.id}
 			tags={data.tags}
 			recipients={data.recipients}
+			userId={user.id}
+			embedAutoLoad={data.embedAutoLoad}
 			{canSend}
 		/>
 	{/if}

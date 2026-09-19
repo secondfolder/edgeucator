@@ -52,15 +52,17 @@ describe('load', () => {
 		const data = await runLoad(load(fakeEvent({ db: harness.db, user: ada })));
 		expect(data.hasPassword).toBe(false);
 		expect(data.bundle).toMatchObject({ recipient: null, wraps: [] });
+		expect(data.embedAutoLoad).toBeNull();
 	});
 
 	it('reports the recipient and wraps once set up', async () => {
 		await givePassword(ada.id);
-		const keys = await createTestUserKeys(harness.db, ada);
+		const keys = await createTestUserKeys(harness.db, ada, { embedAutoLoad: true });
 		const data = await runLoad(load(fakeEvent({ db: harness.db, user: ada })));
 		expect(data.hasPassword).toBe(true);
 		expect(data.bundle.recipient).toBe(keys.recipient);
 		expect(data.bundle.wraps).toHaveLength(1);
+		expect(data.embedAutoLoad).toBe(true);
 	});
 });
 

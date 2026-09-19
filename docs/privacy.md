@@ -59,9 +59,16 @@ encrypted".
 The messaging feature now has one explicit derived-data exception worth naming:
 the browser may send supported URLs from a decrypted message to Bound Up's own
 `/api/embed-metadata` endpoint so it can resolve a preview and hand it back for
-encryption into the message's metadata sidecar. That does widen what the server
-may transiently receive, but the derived preview is still stored only as
-ciphertext in the database.
+encryption into the message's metadata sidecar. A reddit URL may also reach the
+server through `/api/oembed`, because reddit's oEmbed API is CORS-blocked. That
+does widen what the server may transiently receive, but the derived preview is
+still stored only as ciphertext in the database.
+
+By default those URL disclosures happen only at send time or when a viewer
+presses `Show` for an older embed. After the user explicitly opts into
+automatic message-thread embeds, the same URL lookups may happen automatically
+for embeds that are in or near the viewport. The consent prompt says that those
+lookups are sent to Bound Up's servers and are never logged.
 
 ## Design rule for new features
 

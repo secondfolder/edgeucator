@@ -329,3 +329,16 @@ export async function fetchAttachment(
 export async function acknowledgeWarning(partnershipId: string): Promise<void> {
 	await fetch(`/api/partnerships/${partnershipId}/ack-warning`, { method: 'POST' });
 }
+
+/** Stores whether this account wants message-thread URL embeds to load automatically. */
+export async function saveEmbedAutoLoadPreference(enabled: boolean): Promise<boolean> {
+	const response = await fetch('/api/account/embed-auto-load', {
+		method: 'POST',
+		keepalive: true,
+		headers: { 'content-type': 'application/json' },
+		body: JSON.stringify({ enabled })
+	});
+	if (!response.ok) return false;
+	const result = (await response.json().catch(() => null)) as { ok?: boolean } | null;
+	return result?.ok === true;
+}

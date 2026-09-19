@@ -7,6 +7,8 @@
 		type EmbedSpec,
 		type OembedResult
 	} from '$lib/embeds';
+	import { embedAutoLoadActivationDelayMs } from '$lib/embed-autoload';
+	import { scrollParentOf } from '$lib/scroll-parent';
 
 	type CardView = {
 		href: string;
@@ -51,6 +53,7 @@
 		label,
 		cached = null,
 		cachedPending = false,
+		autoLoad = false,
 		requireExplicitReveal = false,
 		onReveal = undefined,
 		onRefresh = undefined
@@ -60,6 +63,7 @@
 		label: string;
 		cached?: CachedEmbedDetails | null;
 		cachedPending?: boolean;
+		autoLoad?: boolean;
 		requireExplicitReveal?: boolean;
 		onReveal?: ((href: string) => void | Promise<void>) | undefined;
 		onRefresh?: ((href: string) => void | Promise<void>) | undefined;
@@ -70,17 +74,27 @@
 	// resolved, so the button can show a busy state without a layout jump.
 	let unlocked = $state(false);
 	let refreshing = $state(false);
-	const gated = $derived(requireExplicitReveal && cached === null && !unlocked);
+	let autoActivated = $state(false);
+	let autoTarget: HTMLElement | undefined = $state();
+	let autoSyncedCache = $state(false);
+	const activated = $derived(
+		unlocked ||
+			(autoLoad && autoActivated) ||
+			(!autoLoad && !requireExplicitReveal && spec.kind !== 'server-oembed')
+	);
+	const gated = $derived(
+		(requireExplicitReveal || spec.kind === 'server-oembed') && !autoLoad && !unlocked
+	);
 	const canRefresh = $derived(cached !== null && onRefresh !== undefined);
 
 	// The endpoint actually fetched: direct for noembed hosts, our proxy for
 	// reddit — but only once `unlocked`.
 	const endpoint = $derived(
-		cached !== null || cachedPending || gated
+		cached !== null || cachedPending || gated || !activated
 			? null
 			: spec.kind === 'oembed'
 				? spec.endpoint
-				: spec.kind === 'server-oembed' && unlocked
+				: spec.kind === 'server-oembed'
 					? `/api/oembed?url=${encodeURIComponent(spec.url)}`
 					: null
 	);
@@ -133,9 +147,13 @@
 	});
 
 	const gateVisible = $derived(
-		!cachedPending &&
-			cached === null &&
-			(gated || (spec.kind === 'server-oembed' && (!unlocked || oembed === undefined)))
+		gated ||
+			(!autoLoad &&
+				spec.kind === 'server-oembed' &&
+				cached === null &&
+				!cachedPending &&
+				unlocked &&
+				oembed === undefined)
 	);
 	const waitingForRedditEmbed = $derived(
 		(spec.kind === 'server-oembed' || spec.kind === 'oembed') && unlocked && oembed === undefined
@@ -158,6 +176,124 @@
 		}
 	}
 
+	function markAutoTarget(node: HTMLElement) {
+		autoTarget = node;
+		return {
+			destroy() {
+				if (autoTarget === node) autoTarget = undefined;
+			}
+		};
+	}
+
+	function distanceFromViewport(target: HTMLElement, root: HTMLElement | null): number {
+		const rect = target.getBoundingClientRect();
+		const rootRect = root?.getBoundingClientRect();
+		const rootTop = rootRect?.top ?? 0;
+		const rootBottom = rootRect?.bottom ?? window.innerHeight;
+		if (rect.bottom < rootTop) return rootTop - rect.bottom;
+		if (rect.top > rootBottom) return rect.top - rootBottom;
+		return 0;
+	}
+
+	$effect(() => {
+		if (!autoLoad || !autoTarget || autoActivated || typeof window === 'undefined') return;
+		const target = autoTarget;
+		const scroller = scrollParentOf(target);
+		const root = scroller === document.scrollingElement ? null : scroller;
+		let velocityPxPerMs = 0;
+		let lastScrollTop = scroller.scrollTop;
+		let lastScrollAt = performance.now();
+		let inRange = false;
+		let intersectionRatio = 0;
+		let distancePx = Number.POSITIVE_INFINITY;
+		let delayTimer: number | undefined;
+		let idleTimer: number | undefined;
+
+		const clearDelay = () => {
+			if (delayTimer !== undefined) {
+				window.clearTimeout(delayTimer);
+				delayTimer = undefined;
+			}
+		};
+
+		const activate = () => {
+			clearDelay();
+			autoActivated = true;
+		};
+
+		const updateDistance = () => {
+			distancePx = distanceFromViewport(target, root);
+		};
+
+		const schedule = () => {
+			if (!inRange || autoActivated) return;
+			updateDistance();
+			const delay = embedAutoLoadActivationDelayMs({
+				intersectionRatio,
+				distancePx,
+				velocityPxPerMs
+			});
+			if (delay === 0) {
+				activate();
+				return;
+			}
+			clearDelay();
+			delayTimer = window.setTimeout(() => {
+				if (inRange && !autoActivated) activate();
+			}, delay);
+		};
+
+		const onScroll = () => {
+			const now = performance.now();
+			const nextTop = scroller.scrollTop;
+			const elapsed = Math.max(now - lastScrollAt, 1);
+			velocityPxPerMs = (nextTop - lastScrollTop) / elapsed;
+			lastScrollTop = nextTop;
+			lastScrollAt = now;
+			if (idleTimer !== undefined) window.clearTimeout(idleTimer);
+			idleTimer = window.setTimeout(() => {
+				velocityPxPerMs = 0;
+				if (inRange && !autoActivated) schedule();
+			}, 120);
+			if (inRange && !autoActivated) schedule();
+		};
+
+		const onResize = () => {
+			if (inRange && !autoActivated) schedule();
+		};
+
+		const observer = new IntersectionObserver(
+			(entries) => {
+				const entry = entries.at(-1);
+				if (!entry) return;
+				inRange = entry.isIntersecting;
+				intersectionRatio = entry.intersectionRatio;
+				if (!inRange) {
+					clearDelay();
+					return;
+				}
+				schedule();
+			},
+			{
+				root,
+				rootMargin: '320px 0px 320px 0px',
+				threshold: [0, 0.15, 0.6]
+			}
+		);
+
+		scroller.addEventListener('scroll', onScroll, { passive: true });
+		window.addEventListener('resize', onResize);
+		observer.observe(target);
+
+		return () => {
+			observer.disconnect();
+			scroller.removeEventListener('scroll', onScroll);
+			window.removeEventListener('resize', onResize);
+			clearDelay();
+			if (idleTimer !== undefined) window.clearTimeout(idleTimer);
+		};
+	});
+
 	$effect(() => {
 		if (endpoint === null) return;
 		let cancelled = false;
@@ -167,6 +303,12 @@
 		return () => {
 			cancelled = true;
 		};
+	});
+
+	$effect(() => {
+		if (!autoLoad || !activated || cachedPending || cached !== null || autoSyncedCache) return;
+		autoSyncedCache = true;
+		void onReveal?.(href);
 	});
 
 	/**
@@ -354,9 +496,36 @@
 		};
 	});
 
+	const skeletonCard = $derived(cachedCard);
+	const skeletonKind = $derived.by(() => {
+		if (cached?.kind === 'image' || spec.kind === 'image') return 'image';
+		if (cached?.kind === 'iframe' || spec.kind === 'iframe' || spec.kind === 'server-oembed') {
+			return 'player';
+		}
+		if (cached?.thumbnailUrl || cached?.iframeSrc || cached?.imageUrl) return 'player';
+		return 'card';
+	});
+
+	const showSkeleton = $derived.by(() => {
+		if (!autoLoad) return false;
+		if (!activated || cachedPending) return true;
+		if (
+			cachedCard ||
+			cachedStandaloneImage ||
+			cachedIframeEmbed ||
+			card ||
+			standaloneImage ||
+			iframeEmbed
+		) {
+			return false;
+		}
+		if (spec.kind === 'oembed' || spec.kind === 'server-oembed') return oembed !== 'error';
+		return false;
+	});
+
 	const showFallbackLink = $derived.by(() => {
 		if (cachedCard || cachedStandaloneImage || cachedIframeEmbed) return false;
-		if (gateVisible || card || standaloneImage || iframeEmbed) return false;
+		if (gateVisible || showSkeleton || card || standaloneImage || iframeEmbed) return false;
 		if (spec.kind === 'server-oembed') return true;
 		if (oembed === undefined || oembed === 'error') return true;
 		return !oembedFrame && !oembed.title;
@@ -390,6 +559,24 @@
 				</span>
 			{/if}
 		</button>
+	</span>
+{:else if showSkeleton}
+	<span class="embed skeleton-shell" use:markAutoTarget aria-busy="true">
+		<span class="skeleton-card">
+			{#if skeletonCard?.providerName}
+				<span class="provider">{skeletonCard.providerName}</span>
+			{:else}
+				<span class="skeleton-line short"></span>
+			{/if}
+			{#if skeletonCard?.title}
+				<span class="title">{skeletonCard.title}</span>
+			{:else}
+				<span class="skeleton-line"></span>
+			{/if}
+		</span>
+		{#if skeletonKind !== 'card' || skeletonCard?.thumbnailUrl}
+			<span class:skeleton-media={true} class:image={skeletonKind === 'image'}></span>
+		{/if}
 	</span>
 {:else if cachedCard || card}
 	<span class="embed card-shell">
@@ -550,6 +737,49 @@
 		}
 	}
 
+	.skeleton-shell {
+		display: block;
+		border: 1px solid rgb(0 0 0 / 10%);
+		border-radius: 0.5rem;
+		overflow: hidden;
+		background: rgb(0 0 0 / 4%);
+	}
+
+	.skeleton-card {
+		display: flex;
+		flex-direction: column;
+		gap: 0.35rem;
+		padding: 0.5rem;
+	}
+
+	.skeleton-line,
+	.skeleton-media {
+		background: linear-gradient(90deg, rgb(0 0 0 / 8%), rgb(255 255 255 / 28%), rgb(0 0 0 / 8%));
+		background-size: 200% 100%;
+		animation: embed-shimmer 1.2s linear infinite;
+	}
+
+	.skeleton-line {
+		display: block;
+		block-size: 0.85rem;
+		border-radius: 999px;
+	}
+
+	.skeleton-line.short {
+		inline-size: 40%;
+	}
+
+	.skeleton-media {
+		display: block;
+		aspect-ratio: 16 / 9;
+		border-block-start: 1px solid rgb(0 0 0 / 10%);
+	}
+
+	.skeleton-media.image {
+		aspect-ratio: 4 / 3;
+		max-block-size: 20rem;
+	}
+
 	.image img {
 		max-inline-size: 100%;
 		max-block-size: 20rem;
@@ -674,5 +904,15 @@
 
 	.visually-hidden {
 		visibility: hidden;
+	}
+
+	@keyframes embed-shimmer {
+		from {
+			background-position: 200% 0;
+		}
+
+		to {
+			background-position: -200% 0;
+		}
 	}
 </style>

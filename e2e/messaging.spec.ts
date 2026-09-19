@@ -754,6 +754,14 @@ test.describe('embeds', () => {
 			await page.route('**noembed.com/**', (route) =>
 				route.fulfill({ status: 404, contentType: 'application/json', body: '{}' })
 			);
+			// Revealing an embed also offers to cache its details on the message.
+			// Answering "nothing known" keeps this test about live rendering, and
+			// keeps the server off redgifs and reddit: a page route only covers
+			// the browser's own requests, so an unstubbed reply here would have
+			// our server resolving these URLs for real.
+			await page.route('**/api/embed-metadata', (route) =>
+				route.fulfill({ contentType: 'application/json', body: JSON.stringify({ embeds: [] }) })
+			);
 		}
 
 		try {
@@ -771,26 +779,159 @@ test.describe('embeds', () => {
 					'and https://example.com/plain'
 			);
 
-			// The redgifs player renders inline, sandboxed.
+			/**
+			 * Until the viewer opts into automatic embeds, every supported URL in
+			 * a message sits behind its own click gate — not just the reddit one.
+			 * Loading any of them fetches third-party content for a decrypted
+			 * message, so the click is the consent, per URL.
+			 */
+			const gateFor = (href: string) =>
+				ada.page
+					.locator('.gate')
+					.filter({ has: ada.page.locator(`a[href="${href}"]`) })
+					.getByRole('button', { name: 'Show' });
+
+			await expect(ada.page.getByRole('button', { name: 'Show' })).toHaveCount(2);
+
+			// Revealed, the redgifs player renders inline, sandboxed.
+			await gateFor('https://www.redgifs.com/watch/abc123stub').click();
 			const player = ada.page.locator('iframe[src="https://www.redgifs.com/ifr/abc123stub"]');
 			await expect(player).toBeVisible();
 			await expect(player).toHaveAttribute('sandbox', /allow-scripts/);
 			await expect(player).not.toHaveAttribute('sandbox', /allow-top-navigation/);
 
-			// The reddit URL sits behind the click gate — resolving it sends the
-			// URL to the server, which only happens on an explicit click. No
-			// request until then, then the card and the provider's iframe html
-			// render through the stubbed proxy.
-			const gate = ada.page.getByRole('button', { name: 'Show' });
-			await expect(gate).toBeVisible();
-			await gate.click();
+			// Reddit is the strictest of them: resolving it sends the URL to our
+			// own server, which only happens on that explicit click. Then the card
+			// and the provider's iframe html render through the stubbed proxy.
+			await gateFor('https://www.reddit.com/r/askreddit/comments/stub123/a_title/').click();
 			await expect(ada.page.getByText('A stubbed reddit post')).toBeVisible();
 			await expect(
 				ada.page.locator('iframe[src="https://www.redditmedia.com/x/embed"]')
 			).toBeVisible();
 
-			// The plain link stays an anchor.
+			// The plain link stays an anchor, with no gate of its own.
 			await expect(ada.page.locator('a[href="https://example.com/plain"]')).toBeVisible();
+			await expect(ada.page.getByRole('button', { name: 'Show' })).toHaveCount(0);
+		} finally {
+			await ada.close();
+			await jun.close();
+		}
+	});
+
+	test('prompts for auto-load on the third Show click and can be turned back off', async ({
+		browser
+	}) => {
+		const ada = await newSide(browser, 'Ada');
+		const jun = await newSide(browser, 'Jun');
+		let serveSingleUrlMetadata = true;
+
+		const embedFor = (href: string) => {
+			const id = new URL(href).pathname.split('/').filter(Boolean).at(-1) ?? 'embed';
+			return {
+				href,
+				fetchedAt: Date.now(),
+				kind: 'iframe',
+				providerName: 'Vimeo',
+				title: `Preview ${id}`,
+				description: null,
+				thumbnailUrl: null,
+				canonicalUrl: href,
+				imageUrl: null,
+				iframeSrc: `https://player.example/${id}`,
+				iframeHeight: 360,
+				faviconUrl: null,
+				themeColor: null
+			};
+		};
+
+		for (const page of [ada.page, jun.page]) {
+			await page.route('**/api/embed-metadata', async (route) => {
+				const body = (route.request().postDataJSON() ?? null) as { urls?: string[] } | null;
+				const urls = Array.isArray(body?.urls) ? body.urls : [];
+				if (urls.length !== 1 || !serveSingleUrlMetadata) {
+					await route.fulfill({
+						contentType: 'application/json',
+						body: JSON.stringify({ embeds: [] })
+					});
+					return;
+				}
+				await route.fulfill({
+					contentType: 'application/json',
+					body: JSON.stringify({ embeds: urls.map(embedFor) })
+				});
+			});
+			await page.route('**noembed.com/**', async (route) => {
+				const target = route.request().url();
+				const url = new URL(target);
+				const href = url.searchParams.get('url') ?? 'https://vimeo.com/embed';
+				const id = new URL(href).pathname.split('/').filter(Boolean).at(-1) ?? 'embed';
+				await route.fulfill({
+					contentType: 'application/json',
+					body: JSON.stringify({
+						title: `Preview ${id}`,
+						provider_name: 'Vimeo',
+						html: `<iframe src="https://player.example/${id}"></iframe>`
+					})
+				});
+			});
+			await page.route('**player.example/**', (route) =>
+				route.fulfill({ contentType: 'text/html', body: '<!doctype html><title>player</title>' })
+			);
+		}
+
+		try {
+			await signUp(ada.page, ada.who);
+			await signUp(jun.page, jun.who);
+			await linkAccounts(ada, jun);
+
+			await ada.page.goto('/home');
+			await openBoard(ada.page, 'Jun');
+			await writeThread(
+				ada.page,
+				[
+					'https://vimeo.com/1',
+					'https://vimeo.com/2',
+					'https://vimeo.com/3',
+					'https://vimeo.com/4'
+				].join('\n')
+			);
+
+			const threadUrl = ada.page.url();
+			await expect(ada.page.getByRole('button', { name: 'Show' })).toHaveCount(4);
+
+			for (const id of ['1', '2']) {
+				await ada.page.getByRole('button', { name: 'Show' }).first().click();
+				await expect(ada.page.getByText(`Preview ${id}`)).toBeVisible();
+			}
+
+			await ada.page.getByRole('button', { name: 'Show' }).first().click();
+			await expect(
+				ada.page.getByText(/Showing URL embeds sends the linked URL to Bound Up's servers/)
+			).toBeVisible();
+			await clickWaButton(ada.page, 'Yes, load automatically');
+
+			await expect(ada.page.getByRole('button', { name: 'Show' })).toHaveCount(0);
+			await expect(ada.page.getByText('Preview 4')).toBeVisible();
+
+			await ada.page.reload();
+			await expect(ada.page.getByRole('button', { name: 'Show' })).toHaveCount(0);
+			await expect(ada.page.getByText('Preview 4')).toBeVisible();
+
+			await ada.page.goto('/settings/encryption');
+			// Not before hydration: this select saves through a fetch, so until
+			// the client has taken over a change is dropped AND hydration writes
+			// the old value back over it — the page then looks like it kept the
+			// new choice while having saved nothing. `data-ready` is set from
+			// onMount, the same signal waitForEnhancedForm uses for the forms.
+			const embedChoice = ada.page.locator('.embed-choice select[data-ready]');
+			await embedChoice.selectOption('manual');
+			await expect(embedChoice).toHaveValue('manual');
+
+			serveSingleUrlMetadata = false;
+			await ada.page.goto(threadUrl);
+			await fillWaTextarea(ada.page, 'https://vimeo.com/5');
+			await clickWaButton(ada.page, 'Send');
+			await expect(ada.page.getByRole('button', { name: 'Show' })).toHaveCount(5);
 		} finally {
 			await ada.close();
 			await jun.close();

@@ -70,11 +70,16 @@ export async function putUserKeys(
 export async function getUserKeys(
 	db: Db,
 	userId: string
-): Promise<{ recipient: string; historyWarningAcknowledged: boolean } | null> {
+): Promise<{
+	recipient: string;
+	historyWarningAcknowledged: boolean;
+	embedAutoLoad: boolean | null;
+} | null> {
 	const rows = await db
 		.select({
 			recipient: userKeys.recipient,
-			historyWarningAckAt: userKeys.historyWarningAckAt
+			historyWarningAckAt: userKeys.historyWarningAckAt,
+			embedAutoLoad: userKeys.embedAutoLoad
 		})
 		.from(userKeys)
 		.where(eq(userKeys.userId, userId))
@@ -84,7 +89,8 @@ export async function getUserKeys(
 	if (!row) return null;
 	return {
 		recipient: row.recipient,
-		historyWarningAcknowledged: row.historyWarningAckAt !== null
+		historyWarningAcknowledged: row.historyWarningAckAt !== null,
+		embedAutoLoad: row.embedAutoLoad
 	};
 }
 
@@ -109,8 +115,18 @@ export async function getUnlockBundle(db: Db, userId: string): Promise<UnlockBun
 	return {
 		recipient: keys?.recipient ?? null,
 		historyWarningAcknowledged: keys?.historyWarningAcknowledged ?? false,
+		embedAutoLoad: keys?.embedAutoLoad ?? null,
 		wraps
 	};
+}
+
+/** Stores an explicit per-user choice for automatic URL embeds. */
+export async function setEmbedAutoLoadPreference(
+	db: Db,
+	userId: string,
+	enabled: boolean
+): Promise<void> {
+	await db.update(userKeys).set({ embedAutoLoad: enabled }).where(eq(userKeys.userId, userId));
 }
 
 /** Adds another way to unlock: a re-wrap under a new password, or a passkey. */

@@ -1,7 +1,13 @@
 <script lang="ts">
+	import { onMount } from 'svelte';
 	import { invalidateAll } from '$app/navigation';
 	import { resolve } from '$app/paths';
 	import { page } from '$app/state';
+	import { saveEmbedAutoLoadPreference } from '$lib/messaging/client';
+	import {
+		clearLocalEmbedAutoLoadPreference,
+		writeLocalEmbedAutoLoadPreference
+	} from '$lib/embed-autoload';
 	import NestedPageHeader from '$lib/components/NestedPageHeader.svelte';
 	import { superForm } from 'sveltekit-superforms';
 	import PasswordField from '$lib/components/PasswordField.svelte';
@@ -33,6 +39,32 @@
 
 	let generated: { phrase: string; entropyBits: number } | null = $state(null);
 	let generating = $state(false);
+	// svelte-ignore state_referenced_locally
+	// Captures the load's initial preference on purpose so a local toggle can
+	// update immediately without waiting for an invalidate round-trip.
+	let embedAutoLoad = $state<boolean | null>(data.embedAutoLoad);
+	let embedAutoLoadBusy = $state(false);
+	let embedAutoLoadProblem = $state<string | null>(null);
+	const embedAutoLoadChoice = $derived.by(() => {
+		if (embedAutoLoad === true) return 'auto';
+		if (embedAutoLoad === false) return 'manual';
+		return '';
+	});
+
+	/**
+	 * "The client has taken over", the same marker the account and security
+	 * pages expose — and this select needs it more than they do.
+	 *
+	 * A change picked before hydration is lost twice over: nothing is listening
+	 * yet, and hydration then writes the loaded preference back over the
+	 * viewer's pick, so the control silently returns to the old value. There is
+	 * no server action to fall back to either, because saving this is a fetch.
+	 * `data-ready` is what e2e waits for rather than racing that window.
+	 */
+	let embedAutoLoadReady = $state(false);
+	onMount(() => {
+		embedAutoLoadReady = true;
+	});
 
 	/** The wordlist is ~68 KB, so it is only fetched if someone asks for one. */
 	async function generatePhrase() {
@@ -124,6 +156,39 @@
 	async function onUnlockHere(password: string) {
 		await unlockWithPassword(user, password);
 	}
+
+	async function setEmbedAutoLoad(enabled: boolean) {
+		const previous = embedAutoLoad;
+		const previousLocal = embedAutoLoad;
+		embedAutoLoad = enabled;
+		writeLocalEmbedAutoLoadPreference(user.id, enabled);
+		embedAutoLoadBusy = true;
+		embedAutoLoadProblem = null;
+		try {
+			const saved = await saveEmbedAutoLoadPreference(enabled);
+			if (!saved) {
+				embedAutoLoad = previous;
+				if (previousLocal !== null) {
+					writeLocalEmbedAutoLoadPreference(user.id, previousLocal);
+				} else {
+					clearLocalEmbedAutoLoadPreference(user.id);
+				}
+				embedAutoLoadProblem = 'Could not save that preference';
+				return;
+			}
+		} finally {
+			embedAutoLoadBusy = false;
+		}
+	}
+
+	function onEmbedAutoLoadChange(event: Event) {
+		const value = (event.currentTarget as HTMLSelectElement).value;
+		if (value === 'auto') {
+			void setEmbedAutoLoad(true);
+			return;
+		}
+		if (value === 'manual') void setEmbedAutoLoad(false);
+	}
 </script>
 
 <section>
@@ -144,6 +209,35 @@
 			Need to change your account password or manage passkeys?
 			<a href={resolve('/(auth-required)/(app)/settings/security')}>Use Security</a>.
 		</p>
+
+		<h2>Do you want to automatically show URL embeds?</h2>
+		<p>
+			Showing a URL embed requires sending the URL to Bound Up's servers so they can resolve
+			previews and players. Those lookups are never logged.
+		</p>
+		<label class="embed-choice">
+			<span>Loading behaviour</span>
+			<select
+				data-ready={embedAutoLoadReady ? 'true' : undefined}
+				value={embedAutoLoadChoice}
+				disabled={embedAutoLoadBusy}
+				onchange={onEmbedAutoLoadChange}
+			>
+				<option value="" disabled>You have not chosen a default yet</option>
+				<option value="auto">Show automatically</option>
+				<option value="manual">Only after I press Show</option>
+			</select>
+		</label>
+		<p class="quiet">
+			{#if embedAutoLoad === true}
+				Threads render embed placeholders immediately and load actual embeds as they come into view.
+			{:else if embedAutoLoad === false}
+				Threads wait for you to press Show before any URL embed is loaded.
+			{:else}
+				You have not chosen a default yet.
+			{/if}
+		</p>
+		{#if embedAutoLoadProblem}<span class="invalid">{embedAutoLoadProblem}</span>{/if}
 
 		<h2>This device</h2>
 		{#if keyring.status === 'unlocked'}
@@ -350,6 +444,32 @@
 					overflow-wrap: anywhere;
 					user-select: all;
 				}
+			}
+		}
+
+		.embed-choice {
+			display: flex;
+			flex-direction: column;
+			gap: 0.35rem;
+			max-inline-size: 22rem;
+
+			span {
+				font-size: 0.875rem;
+				font-weight: var(--wa-font-weight-semibold);
+			}
+
+			select {
+				font: inherit;
+				padding: 0.65rem 0.8rem;
+				padding-inline-end: 2.5rem;
+				border-radius: 0.75rem;
+				border: 1px solid var(--wa-color-surface-border);
+				background: var(--wa-color-surface-default, white);
+				background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Cpath fill='none' stroke='%239194a2' stroke-linecap='round' stroke-linejoin='round' stroke-width='1.75' d='m3.5 6 4.5 4 4.5-4'/%3E%3C/svg%3E");
+				background-position: right 0.9rem center;
+				background-repeat: no-repeat;
+				background-size: 1rem 1rem;
+				color: inherit;
 			}
 		}
 

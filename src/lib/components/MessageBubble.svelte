@@ -21,6 +21,7 @@
 		message,
 		payload,
 		metadata,
+		autoLoadEmbeds = false,
 		onRevealEmbed,
 		onRefreshEmbed,
 		partnershipId,
@@ -32,6 +33,7 @@
 		message: MessageView;
 		payload: MessagePayload | null | undefined;
 		metadata: MessageMetadataPayload | null | undefined;
+		autoLoadEmbeds?: boolean;
 		onRevealEmbed: (href: string) => void | Promise<void>;
 		onRefreshEmbed: (href: string) => void | Promise<void>;
 		partnershipId: string;
@@ -66,6 +68,7 @@
 						text={payload.text}
 						{cachedEmbeds}
 						{cachedEmbedsPending}
+						{autoLoadEmbeds}
 						requireExplicitReveal
 						{onRevealEmbed}
 						{onRefreshEmbed}

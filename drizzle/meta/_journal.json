@@ -85,6 +85,13 @@
       "when": 1789569291305,
       "tag": "0011_add_message_metadata_ciphertext",
       "breakpoints": true
+    },
+    {
+      "idx": 12,
+      "version": "6",
+      "when": 1789579022212,
+      "tag": "0012_add_user_keys_embed_auto_load_preference",
+      "breakpoints": true
     }
   ]
 }

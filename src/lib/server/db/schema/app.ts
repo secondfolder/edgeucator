@@ -514,6 +514,14 @@ export const userKeys = sqliteTable('user_keys', {
 	 * data or by picking up a different phone.
 	 */
 	historyWarningAckAt: integer('history_warning_ack_at', { mode: 'timestamp_ms' }),
+	/**
+	 * Whether this user has explicitly opted in or out of automatic URL embeds.
+	 *
+	 * NULL means they have not answered yet, so this device may still prompt
+	 * after repeated manual reveals. Stored with the rest of the message-key
+	 * settings because it only affects encrypted-message rendering.
+	 */
+	embedAutoLoad: integer('embed_auto_load', { mode: 'boolean' }),
 	...timestamps
 });
 
